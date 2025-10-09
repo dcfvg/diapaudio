@@ -108,10 +108,6 @@
   delayRange.addEventListener("input", () => syncDelayInputs(delayRange.value));
   delayNumber.addEventListener("input", () => syncDelayInputs(delayNumber.value));
 
-  window.addEventListener("resize", () => {
-    if (wave) wave.drawBuffer();
-  });
-
   function syncDelayInputs(value) {
     delayRange.value = value;
     delayNumber.value = value;
@@ -235,7 +231,8 @@
   }
 
   async function processMediaData(audioTracks, validImages) {
-    const normalized = normalizeImageTimeline(validImages);
+    // Sort images by timestamp but keep absolute timestamps
+    const sortedImages = [...validImages].sort((a, b) => a.timestamp - b.timestamp);
 
     destroyWaveform();
     releaseMediaResources(mediaData);
@@ -243,15 +240,19 @@
     mediaData = {
       audioTracks,
       activeTrackIndex: 0,
-      images: normalized,
+      images: sortedImages.map(img => ({
+        ...img,
+        originalTimestamp: img.timestamp,
+        relative: 0, // Will be calculated when audio loads
+        timecode: "00:00",
+        timeOfDay: formatClock(img.timestamp),
+      })),
     };
 
     currentDisplayedImages = [];
     lastCompositionChangeTime = -Infinity;
 
-    populateThumbnails(normalized);
-    showMainImages([normalized[0]]);
-    highlightThumbnail(normalized[0]);
+    populateThumbnails(mediaData.images);
     loadAudioTrack(0);
     viewerContent.classList.remove("hidden");
     dropzone.classList.add("hidden");
@@ -402,22 +403,6 @@
     return null;
   }
 
-  function normalizeImageTimeline(images) {
-    const sorted = [...images].sort((a, b) => a.timestamp - b.timestamp);
-    const base = sorted[0].timestamp.getTime();
-
-    return sorted.map((image) => {
-      const relative = (image.timestamp.getTime() - base) / 1000;
-      return {
-        ...image,
-        originalTimestamp: image.timestamp,
-        relative,
-        timecode: formatTime(relative),
-        timeOfDay: formatClock(image.timestamp),
-      };
-    });
-  }
-
   function recalculateImageTimestamps() {
     if (!mediaData || !mediaData.images || !mediaData.audioTracks) return;
 
@@ -427,7 +412,7 @@
     const activeTrack = mediaData.audioTracks[mediaData.activeTrackIndex];
     if (!activeTrack || !activeTrack.fileTimestamp || !activeTrack.duration) return;
 
-    // Calculate the adjusted start time for the audio
+    // Calculate the audio start time based on checkbox
     let audioStartTime;
     if (isTimestampAtEnd) {
       // If timestamp is at end, subtract duration to get start time
@@ -440,16 +425,22 @@
     // Store the adjusted start time
     activeTrack.adjustedStartTime = audioStartTime;
 
-    // Recalculate all image relative times based on the adjusted audio start time
-    const base = audioStartTime.getTime();
+    // Calculate relative times for all images based on the audio start time
+    const audioStartMs = audioStartTime.getTime();
+    
     mediaData.images.forEach((image) => {
-      const relative = (image.originalTimestamp.getTime() - base) / 1000;
+      const imageMs = image.originalTimestamp.getTime();
+      const relative = (imageMs - audioStartMs) / 1000;
       image.relative = relative;
       image.timecode = formatTime(Math.max(0, relative));
     });
 
-    // Re-sort images by relative time
-    mediaData.images.sort((a, b) => a.relative - b.relative);
+    // Find first image that should be visible
+    const firstVisibleImage = mediaData.images.find(img => img.relative >= 0) || mediaData.images[0];
+    if (firstVisibleImage) {
+      showMainImages([firstVisibleImage]);
+      highlightThumbnail(firstVisibleImage);
+    }
   }
 
   function loadAudioTrack(index, autoPlay = false) {
@@ -486,10 +477,8 @@
       sidebarEmpty.classList.add("hidden");
       track.duration = wave.getDuration();
       
-      // Recalculate image timestamps if checkbox is checked
-      if (timestampAtEndCheckbox.checked) {
-        recalculateImageTimestamps();
-      }
+      // Always recalculate image timestamps based on audio timestamp
+      recalculateImageTimestamps();
       
       renderAudioTimeline();
       startUpdateLoop();
@@ -513,6 +502,77 @@
     wave.on("timeupdate", updateSlideForCurrentTime);
 
     wave.load(track.url);
+  }
+
+  /**
+   * Find which audio track contains the given image timestamp.
+   * Returns the track index, or -1 if no track matches.
+   * When multiple tracks match (overlapping recordings), prefers the longest one.
+   */
+  function findAudioTrackForTimestamp(imageTimestamp) {
+    if (!mediaData || !mediaData.audioTracks || !imageTimestamp) return -1;
+
+    const timestampAtEnd = timestampAtEndCheckbox && timestampAtEndCheckbox.checked;
+    const imageTime = imageTimestamp instanceof Date ? imageTimestamp.getTime() : imageTimestamp;
+
+    let bestMatch = -1;
+    let longestDuration = 0;
+
+    for (let i = 0; i < mediaData.audioTracks.length; i++) {
+      const track = mediaData.audioTracks[i];
+      if (!track.fileTimestamp || !track.duration) continue;
+
+      // Calculate the audio track's time range in milliseconds
+      const trackTime = track.fileTimestamp instanceof Date ? track.fileTimestamp.getTime() : track.fileTimestamp;
+      const audioStartTime = timestampAtEnd
+        ? trackTime - (track.duration * 1000)
+        : trackTime;
+      const audioEndTime = audioStartTime + (track.duration * 1000);
+
+      // Debug logging
+      console.log(`Track ${i}: ${track.label}`);
+      console.log(`  Track time: ${new Date(trackTime).toLocaleString()}`);
+      console.log(`  Start: ${new Date(audioStartTime).toLocaleString()}, End: ${new Date(audioEndTime).toLocaleString()}`);
+      console.log(`  Duration: ${track.duration.toFixed(1)}s`);
+      console.log(`  Image time: ${new Date(imageTime).toLocaleString()}`);
+      console.log(`  Match: ${imageTime >= audioStartTime && imageTime <= audioEndTime}`);
+
+      // Check if image timestamp falls within this track's time range
+      if (imageTime >= audioStartTime && imageTime <= audioEndTime) {
+        // If multiple tracks match, prefer the longest one (most complete recording)
+        if (track.duration > longestDuration) {
+          bestMatch = i;
+          longestDuration = track.duration;
+          console.log(`  -> New best match! (longest so far)`);
+        } else {
+          console.log(`  -> Matches but shorter than current best (${longestDuration.toFixed(1)}s)`);
+        }
+      }
+    }
+
+    if (bestMatch >= 0) {
+      console.log(`✓ Selected Track ${bestMatch}: ${mediaData.audioTracks[bestMatch].label}`);
+    }
+
+    return bestMatch;
+  }
+
+  /**
+   * Seek to the position of the given image in the currently loaded audio track.
+   */
+  function seekToImageInCurrentTrack(image, shouldPlay) {
+    if (!wave || !image) return;
+    
+    const duration = wave.getDuration();
+    if (duration > 0) {
+      const target = Math.max(image.relative - getDelaySeconds(), 0);
+      const seek = duration ? Math.min(target / duration, 1) : 0;
+      wave.seekTo(seek);
+      
+      if (shouldPlay && !wave.isPlaying()) {
+        wave.play();
+      }
+    }
   }
 
   function renderAudioTimeline() {
@@ -542,15 +602,34 @@
       }
 
       // Add image markers to the timeline
-      if (track.duration && mediaData.images && mediaData.images.length > 0) {
+      if (track.duration && track.fileTimestamp && mediaData.images && mediaData.images.length > 0) {
+        const timestampAtEnd = timestampAtEndCheckbox && timestampAtEndCheckbox.checked;
+        
+        // Calculate this track's time range in milliseconds
+        const trackTime = track.fileTimestamp instanceof Date ? track.fileTimestamp.getTime() : track.fileTimestamp;
+        const audioStartTime = timestampAtEnd
+          ? trackTime - (track.duration * 1000)
+          : trackTime;
+        const audioEndTime = audioStartTime + (track.duration * 1000);
+
         mediaData.images.forEach((image) => {
-          if (image.relative <= track.duration) {
-            const marker = document.createElement("div");
-            marker.className = "audio-track__marker";
-            const position = (image.relative / track.duration) * 100;
-            marker.style.left = `${position}%`;
-            marker.title = image.timecode;
-            timelineEl.appendChild(marker);
+          if (!image.originalTimestamp) return;
+          
+          const imageTime = image.originalTimestamp instanceof Date ? image.originalTimestamp.getTime() : image.originalTimestamp;
+          
+          // Check if this image falls within this track's time range
+          if (imageTime >= audioStartTime && imageTime <= audioEndTime) {
+            // Calculate relative position within this specific track
+            const imageRelativeSeconds = (imageTime - audioStartTime) / 1000;
+            
+            if (imageRelativeSeconds >= 0 && imageRelativeSeconds <= track.duration) {
+              const marker = document.createElement("div");
+              marker.className = "audio-track__marker";
+              const position = (imageRelativeSeconds / track.duration) * 100;
+              marker.style.left = `${position}%`;
+              marker.title = `${image.timeOfDay} - ${image.timecode}`;
+              timelineEl.appendChild(marker);
+            }
           }
         });
       }
@@ -723,12 +802,31 @@
 
       root.addEventListener("click", () => {
         if (!wave) return;
-        const duration = wave.getDuration();
-        if (duration > 0) {
-          const target = Math.max(image.relative - getDelaySeconds(), 0);
-          const seek = duration ? Math.min(target / duration, 1) : 0;
-          wave.seekTo(seek);
+
+        // Find which audio track contains this image's timestamp
+        const correctTrackIndex = findAudioTrackForTimestamp(image.originalTimestamp);
+        
+        if (correctTrackIndex === -1) {
+          // Image doesn't match any audio track time range
+          console.warn(`Image "${image.name}" timestamp doesn't match any audio track`);
+          showMainImages([image]);
+          highlightThumbnail(image, root);
+          return;
         }
+
+        const wasPlaying = wave.isPlaying();
+
+        // Switch to the correct track if needed
+        if (correctTrackIndex !== mediaData.activeTrackIndex) {
+          loadAudioTrack(correctTrackIndex, false);
+          // Wait a bit for the new track to load before seeking
+          setTimeout(() => {
+            seekToImageInCurrentTrack(image, wasPlaying);
+          }, 100);
+        } else {
+          seekToImageInCurrentTrack(image, wasPlaying);
+        }
+
         showMainImages([image]);
         highlightThumbnail(image, root);
       });
