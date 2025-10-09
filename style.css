@@ -14,6 +14,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  height: 100vh;
 }
 
 .app__header {
@@ -43,12 +44,12 @@ body {
 
 .sidebar {
   background: #141414;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   position: relative;
   padding: 1rem;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .sidebar__empty {
@@ -64,14 +65,14 @@ body {
   gap: 0.75rem;
   padding-bottom: 2rem;
   overflow-y: auto;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .thumbnail {
   position: relative;
   cursor: pointer;
   border-radius: 6px;
-  overflow: hidden;
   border: 1px solid transparent;
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
@@ -167,7 +168,7 @@ body {
 }
 
 .waveform {
-  height: 120px;
+  height: 180px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
   overflow: hidden;
@@ -177,7 +178,7 @@ body {
 .viewer__top {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
   flex-shrink: 0;
 }
 
@@ -186,6 +187,60 @@ body {
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+}
+
+.audio-timeline {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.55rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.audio-timeline::-webkit-scrollbar {
+  height: 6px;
+}
+
+.audio-timeline::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+}
+
+.audio-track {
+  background: rgba(0, 0, 0, 0.45);
+  color: #f4f4f8;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.65rem 0.8rem;
+  min-width: 170px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.audio-track:hover {
+  border-color: #4f8cff;
+  transform: translateY(-1px);
+}
+
+.audio-track--active {
+  border-color: #4f8cff;
+  background: rgba(79, 140, 255, 0.16);
+}
+
+.audio-track__label {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.audio-track__duration {
+  font-size: 0.78rem;
+  color: #c6ccdf;
 }
 
 .control-button {

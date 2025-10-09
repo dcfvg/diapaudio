@@ -44,6 +44,7 @@
                   </div>
                 </label>
               </div>
+              <div class="audio-timeline hidden" id="audio-timeline"></div>
             </div>
             <div class="viewer__slideshow">
               <div class="slideshow__container" id="slideshow-container">
@@ -66,6 +67,12 @@
           <span class="thumbnail__clock"></span>
         </div>
       </div>
+    </template>
+    <template id="audio-track-template">
+      <button type="button" class="audio-track">
+        <span class="audio-track__label"></span>
+        <span class="audio-track__duration"></span>
+      </button>
     </template>
   </body>
 </html>

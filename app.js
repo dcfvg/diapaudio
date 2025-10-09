@@ -12,6 +12,8 @@
   const thumbnailGrid = document.getElementById("thumbnail-grid");
   const thumbnailTemplate = document.getElementById("thumbnail-template");
   const slideshowContainer = document.getElementById("slideshow-container");
+  const audioTimeline = document.getElementById("audio-timeline");
+  const audioTrackTemplate = document.getElementById("audio-track-template");
   const imageTimecode = document.getElementById("image-timecode");
   const imageTimeOfDay = document.getElementById("image-timeofday");
   const delayRange = document.getElementById("delay-range");
@@ -25,6 +27,9 @@
     ["aac", "audio/aac"],
     ["flac", "audio/flac"],
   ]);
+
+  // Configuration: Minimum time (in seconds) an image should be displayed
+  const MIN_IMAGE_DISPLAY_DURATION = 4;
 
   let wave = null;
   let mediaData = null;
@@ -125,19 +130,33 @@
 
     try {
       const zip = await JSZip.loadAsync(file);
-      const audioEntry = findAudioEntry(zip);
-      if (!audioEntry) {
+      const entries = Object.values(zip.files);
+
+      const audioEntries = entries
+        .filter((entry) => !entry.dir && !shouldSkipEntry(entry.name) && isAudio(entry.name))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+      if (!audioEntries.length) {
         throw new Error("No audio file detected in the archive.");
       }
 
-      const imageEntries = Object.values(zip.files).filter(
+      const imageEntries = entries.filter(
         (entry) => !entry.dir && !shouldSkipEntry(entry.name) && isImage(entry.name)
       );
       if (!imageEntries.length) {
         throw new Error("No images with timestamps found in the archive.");
       }
 
-      const audioUrl = await extractAudioURL(audioEntry);
+      const audioTracks = await Promise.all(
+        audioEntries.map(async (entry, index) => {
+          const url = await extractAudioURL(entry);
+          return createAudioTrack({
+            url,
+            originalName: entry.name,
+            index,
+          });
+        })
+      );
+
       const images = await Promise.all(
         imageEntries.map(async (entry) => {
           const url = await extractImageURL(entry);
@@ -159,7 +178,7 @@
         throw new Error("Images are missing recognizable timestamps.");
       }
 
-      await processMediaData(audioUrl, validImages);
+      await processMediaData(audioTracks, validImages);
     } catch (error) {
       console.error(error);
       showError(error.message);
@@ -172,30 +191,44 @@
     showLoadingState(true);
 
     try {
-      const audioFile = files.find((file) => {
-        const match = file.name.match(/\.([a-z0-9]+)$/i);
-        if (!match) return false;
-        const ext = match[1].toLowerCase();
-        return audioMimeByExtension.has(ext);
-      });
+      const audioFiles = files
+        .filter((file) => {
+          const path = getFilePath(file);
+          if (shouldSkipEntry(path)) return false;
+          const match = path.match(/\.([a-z0-9]+)$/i);
+          if (!match) return false;
+          const ext = match[1].toLowerCase();
+          return audioMimeByExtension.has(ext);
+        })
+        .sort((a, b) => getFilePath(a).localeCompare(getFilePath(b), undefined, { numeric: true, sensitivity: "base" }));
 
-      if (!audioFile) {
+      if (!audioFiles.length) {
         throw new Error("No audio file detected in the folder.");
       }
 
       const imageFiles = files.filter(
-        (file) => !shouldSkipEntry(file.name) && isImage(file.name)
+        (file) => {
+          const path = getFilePath(file);
+          return !shouldSkipEntry(path) && isImage(path);
+        }
       );
 
       if (!imageFiles.length) {
         throw new Error("No images with timestamps found in the folder.");
       }
 
-      const audioUrl = URL.createObjectURL(audioFile);
+      const audioTracks = audioFiles.map((file, index) =>
+        createAudioTrack({
+          url: URL.createObjectURL(file),
+          originalName: getFilePath(file),
+          index,
+        })
+      );
+
       const images = await Promise.all(
         imageFiles.map(async (file) => {
           const url = URL.createObjectURL(file);
-          const timestamp = parseTimestampFromName(file.name);
+          const timestamp = parseTimestampFromName(getFilePath(file));
           if (!timestamp) {
             console.warn(`Unable to parse timestamp from ${file.name}. Skipping.`);
             return null;
@@ -213,7 +246,7 @@
         throw new Error("Images are missing recognizable timestamps.");
       }
 
-      await processMediaData(audioUrl, validImages);
+      await processMediaData(audioTracks, validImages);
     } catch (error) {
       console.error(error);
       showError(error.message);
@@ -264,21 +297,24 @@
     return files;
   }
 
-  async function processMediaData(audioUrl, validImages) {
+  async function processMediaData(audioTracks, validImages) {
     const normalized = normalizeImageTimeline(validImages);
 
     destroyWaveform();
     releaseMediaResources(mediaData);
 
     mediaData = {
-      audioUrl,
+      audioTracks,
+      activeTrackIndex: 0,
       images: normalized,
     };
 
-    setupWaveform(audioUrl);
+    currentDisplayedImages = [];
+
     populateThumbnails(normalized);
     showMainImages([normalized[0]]);
     highlightThumbnail(normalized[0]);
+    loadAudioTrack(0);
     viewerContent.classList.remove("hidden");
     dropzone.classList.add("hidden");
   }
@@ -302,6 +338,10 @@
     releaseMediaResources(mediaData);
     mediaData = null;
     destroyWaveform();
+    if (audioTimeline) {
+      audioTimeline.innerHTML = "";
+      audioTimeline.classList.add("hidden");
+    }
     if (slideshowContainer) {
       slideshowContainer.innerHTML = "";
     }
@@ -317,6 +357,13 @@
     return /\.(jpe?g|png|gif)$/i.test(name);
   }
 
+  function isAudio(name) {
+    const match = name.match(/\.([a-z0-9]+)$/i);
+    if (!match) return false;
+    const ext = match[1].toLowerCase();
+    return audioMimeByExtension.has(ext);
+  }
+
   function shouldSkipEntry(name) {
     const normalized = name.replace(/\\/g, "/");
     if (normalized.startsWith("__MACOSX/") || normalized.includes("/__MACOSX/")) {
@@ -327,16 +374,6 @@
       return true;
     }
     return normalized.toLowerCase().includes("/thumbnails/");
-  }
-
-  function findAudioEntry(zip) {
-    return Object.values(zip.files).find((entry) => {
-      if (entry.dir) return false;
-      const match = entry.name.match(/\.([a-z0-9]+)$/i);
-      if (!match) return false;
-      const ext = match[1].toLowerCase();
-      return audioMimeByExtension.has(ext);
-    });
   }
 
   async function extractAudioURL(entry) {
@@ -352,6 +389,25 @@
     const arrayBuffer = await entry.async("arraybuffer");
     const blob = new Blob([arrayBuffer]);
     return URL.createObjectURL(blob);
+  }
+
+  function createAudioTrack({ url, originalName, index }) {
+    return {
+      url,
+      originalName,
+      label: formatTrackLabel(originalName, index),
+      duration: null,
+    };
+  }
+
+  function formatTrackLabel(name, index) {
+    const basename = (name.split(/[/\\]/).pop() || "").replace(/\.[^.]+$/, "");
+    const cleaned = basename.replace(/[_-]+/g, " ").trim();
+    return cleaned || `Track ${index + 1}`;
+  }
+
+  function getFilePath(file) {
+    return file.webkitRelativePath || file.path || file.name;
   }
 
   function parseTimestampFromName(name) {
@@ -392,7 +448,18 @@
     });
   }
 
-  function setupWaveform(audioUrl) {
+  function loadAudioTrack(index, autoPlay = false) {
+    if (!mediaData || !Array.isArray(mediaData.audioTracks) || !mediaData.audioTracks.length) return;
+    if (index < 0 || index >= mediaData.audioTracks.length) return;
+
+    mediaData.activeTrackIndex = index;
+    renderAudioTimeline();
+    setupWaveformForTrack(mediaData.audioTracks[index], autoPlay);
+  }
+
+  function setupWaveformForTrack(track, autoPlay = false) {
+    if (!track) return;
+
     destroyWaveform();
 
     wave = WaveSurfer.create({
@@ -400,7 +467,7 @@
       waveColor: "rgba(79, 140, 255, 0.35)",
       progressColor: "#4f8cff",
       cursorColor: "#f4f4f8",
-      height: 120,
+      height: 180,
       barWidth: 2,
       barRadius: 2,
       barGap: 1,
@@ -413,7 +480,12 @@
       playToggle.disabled = false;
       playToggle.textContent = "Play";
       sidebarEmpty.classList.add("hidden");
+      track.duration = wave.getDuration();
+      renderAudioTimeline();
       startUpdateLoop();
+      if (autoPlay) {
+        wave.play();
+      }
     });
 
     wave.on("play", () => {
@@ -430,7 +502,45 @@
 
     wave.on("timeupdate", updateSlideForCurrentTime);
 
-    wave.load(audioUrl);
+    wave.load(track.url);
+  }
+
+  function renderAudioTimeline() {
+    if (!audioTimeline || !audioTrackTemplate) return;
+    if (!mediaData || !Array.isArray(mediaData.audioTracks) || !mediaData.audioTracks.length) {
+      audioTimeline.innerHTML = "";
+      audioTimeline.classList.add("hidden");
+      return;
+    }
+
+    const previousScroll = audioTimeline.scrollLeft;
+    audioTimeline.innerHTML = "";
+    audioTimeline.classList.remove("hidden");
+
+    mediaData.audioTracks.forEach((track, index) => {
+      const node = document.importNode(audioTrackTemplate.content, true);
+      const button = node.querySelector(".audio-track");
+      const labelEl = node.querySelector(".audio-track__label");
+      const durationEl = node.querySelector(".audio-track__duration");
+
+      labelEl.textContent = track.label;
+      durationEl.textContent = track.duration ? formatTime(Math.round(track.duration)) : "…";
+
+      if (index === mediaData.activeTrackIndex) {
+        button.classList.add("audio-track--active");
+      }
+
+      button.addEventListener("click", () => {
+        const wasPlaying = wave && wave.isPlaying();
+        if (index !== mediaData.activeTrackIndex) {
+          loadAudioTrack(index, wasPlaying);
+        }
+      });
+
+      audioTimeline.appendChild(node);
+    });
+
+    audioTimeline.scrollLeft = previousScroll;
   }
 
   function destroyWaveform() {
@@ -486,11 +596,11 @@
     // Calculate how long this image has been displayed
     const timeIntoImage = targetSeconds - currentImage.relative;
     
-    // If we haven't reached 4 seconds yet, check for overlapping images
-    if (timeIntoImage < 4) {
-      const endTime = currentImage.relative + 4;
+    // If we haven't reached the minimum display duration yet, check for overlapping images
+    if (timeIntoImage < MIN_IMAGE_DISPLAY_DURATION) {
+      const endTime = currentImage.relative + MIN_IMAGE_DISPLAY_DURATION;
       
-      // Find all images that fall within the 4-second window
+      // Find all images that fall within the minimum display duration window
       for (let i = currentImageIndex + 1; i < mediaData.images.length; i++) {
         const nextImage = mediaData.images[i];
         if (nextImage.relative < endTime) {
@@ -618,7 +728,13 @@
 
   function releaseMediaResources(data) {
     if (!data) return;
-    if (data.audioUrl) {
+    if (Array.isArray(data.audioTracks)) {
+      data.audioTracks.forEach((track) => {
+        if (track && track.url) {
+          URL.revokeObjectURL(track.url);
+        }
+      });
+    } else if (data.audioUrl) {
       URL.revokeObjectURL(data.audioUrl);
     }
     if (Array.isArray(data.images)) {
