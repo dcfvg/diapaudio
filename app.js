@@ -1,11 +1,12 @@
 (() => {
   const dropzone = document.getElementById("dropzone");
   const dropzoneMessage = document.getElementById("dropzone-message");
-  const fileInput = document.getElementById("file-input");
+  const dropzoneLoader = document.getElementById("dropzone-loader");
   const folderInput = document.getElementById("folder-input");
   const browseTrigger = document.getElementById("browse-trigger");
   const sidebar = document.getElementById("sidebar");
   const playToggle = document.getElementById("play-toggle");
+  const speedSelect = document.getElementById("speed-select");
   const waveformContainer = document.getElementById("waveform");
   const viewerContent = document.getElementById("viewer-content");
   const sidebarEmpty = document.getElementById("sidebar-empty");
@@ -41,22 +42,7 @@
   let currentDisplayedImages = [];
   let lastCompositionChangeTime = -Infinity;
 
-  browseTrigger.addEventListener("click", () => {
-    // Show a choice menu
-    const useFolder = confirm("Choose folder? (Cancel for zip file)");
-    if (useFolder) {
-      folderInput.click();
-    } else {
-      fileInput.click();
-    }
-  });
-  fileInput.addEventListener("change", (event) => {
-    const [file] = event.target.files;
-    if (file) {
-      handleZip(file);
-      fileInput.value = "";
-    }
-  });
+  browseTrigger.addEventListener("click", () => folderInput.click());
 
   folderInput.addEventListener("change", (event) => {
     const files = Array.from(event.target.files);
@@ -83,9 +69,8 @@
 
   dropzone.addEventListener("drop", (event) => {
     const items = event.dataTransfer.items;
-    const files = event.dataTransfer.files;
     
-    // Try to handle as folder first
+    // Only handle folders
     if (items && items.length > 0) {
       const item = items[0];
       if (item.kind === 'file') {
@@ -97,15 +82,18 @@
       }
     }
     
-    // Fall back to single file (zip)
-    if (files && files.length) {
-      handleZip(files[0]);
-    }
+    showError("Please drop a folder containing audio files and images.");
   });
 
   playToggle.addEventListener("click", () => {
     if (!wave) return;
     wave.playPause();
+  });
+
+  speedSelect.addEventListener("change", () => {
+    if (!wave) return;
+    const speed = parseFloat(speedSelect.value);
+    wave.setPlaybackRate(speed);
   });
 
   delayRange.addEventListener("input", () => syncDelayInputs(delayRange.value));
@@ -122,73 +110,6 @@
 
   function getDelaySeconds() {
     return parseFloat(delayNumber.value) || 0;
-  }
-
-  async function handleZip(file) {
-    if (!file.name.endsWith(".zip")) {
-      showError("Please provide a .zip file");
-      return;
-    }
-
-    showLoadingState(true);
-
-    try {
-      const zip = await JSZip.loadAsync(file);
-      const entries = Object.values(zip.files);
-
-      const audioEntries = entries
-        .filter((entry) => !entry.dir && !shouldSkipEntry(entry.name) && isAudio(entry.name))
-        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
-      if (!audioEntries.length) {
-        throw new Error("No audio file detected in the archive.");
-      }
-
-      const imageEntries = entries.filter(
-        (entry) => !entry.dir && !shouldSkipEntry(entry.name) && isImage(entry.name)
-      );
-      if (!imageEntries.length) {
-        throw new Error("No images with timestamps found in the archive.");
-      }
-
-      const audioTracks = await Promise.all(
-        audioEntries.map(async (entry, index) => {
-          const url = await extractAudioURL(entry);
-          return createAudioTrack({
-            url,
-            originalName: entry.name,
-            index,
-          });
-        })
-      );
-
-      const images = await Promise.all(
-        imageEntries.map(async (entry) => {
-          const url = await extractImageURL(entry);
-          const timestamp = parseTimestampFromName(entry.name);
-          if (!timestamp) {
-            console.warn(`Unable to parse timestamp from ${entry.name}. Skipping.`);
-            return null;
-          }
-          return {
-            name: entry.name,
-            url,
-            timestamp,
-          };
-        })
-      );
-
-      const validImages = images.filter(Boolean);
-      if (!validImages.length) {
-        throw new Error("Images are missing recognizable timestamps.");
-      }
-
-      await processMediaData(audioTracks, validImages);
-    } catch (error) {
-      console.error(error);
-      showError(error.message);
-    } finally {
-      showLoadingState(false);
-    }
   }
 
   async function handleFolder(files) {
@@ -325,12 +246,12 @@
   }
 
   function showLoadingState(isLoading) {
-    dropzone.dataset.loading = isLoading ? "true" : "false";
-    if (dropzoneMessage) {
-      dropzoneMessage.textContent = isLoading ? "Loading archive…" : "Drop folder or zip file here or ";
-    }
-    if (browseTrigger) {
-      browseTrigger.style.display = isLoading ? "none" : "inline";
+    if (isLoading) {
+      dropzoneMessage.parentElement.classList.add("hidden");
+      dropzoneLoader.classList.remove("hidden");
+    } else {
+      dropzoneMessage.parentElement.classList.remove("hidden");
+      dropzoneLoader.classList.add("hidden");
     }
   }
 
@@ -379,21 +300,6 @@
       return true;
     }
     return normalized.toLowerCase().includes("/thumbnails/");
-  }
-
-  async function extractAudioURL(entry) {
-    const match = entry.name.match(/\.([a-z0-9]+)$/i);
-    const ext = match ? match[1].toLowerCase() : "mp3";
-    const mime = audioMimeByExtension.get(ext) || "audio/mpeg";
-    const arrayBuffer = await entry.async("arraybuffer");
-    const blob = new Blob([arrayBuffer], { type: mime });
-    return URL.createObjectURL(blob);
-  }
-
-  async function extractImageURL(entry) {
-    const arrayBuffer = await entry.async("arraybuffer");
-    const blob = new Blob([arrayBuffer]);
-    return URL.createObjectURL(blob);
   }
 
   function createAudioTrack({ url, originalName, index }) {
@@ -571,12 +477,27 @@
       const button = node.querySelector(".audio-track");
       const labelEl = node.querySelector(".audio-track__label");
       const durationEl = node.querySelector(".audio-track__duration");
+      const timelineEl = node.querySelector(".audio-track__timeline");
 
       labelEl.textContent = track.label;
       durationEl.textContent = track.duration ? formatTime(Math.round(track.duration)) : "…";
 
       if (index === mediaData.activeTrackIndex) {
         button.classList.add("audio-track--active");
+      }
+
+      // Add image markers to the timeline
+      if (track.duration && mediaData.images && mediaData.images.length > 0) {
+        mediaData.images.forEach((image) => {
+          if (image.relative <= track.duration) {
+            const marker = document.createElement("div");
+            marker.className = "audio-track__marker";
+            const position = (image.relative / track.duration) * 100;
+            marker.style.left = `${position}%`;
+            marker.title = image.timecode;
+            timelineEl.appendChild(marker);
+          }
+        });
       }
 
       button.addEventListener("click", () => {

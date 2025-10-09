@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DiapAudio Sync</title>
     <link rel="stylesheet" href="style.css" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/7.7.9/wavesurfer.min.js" defer></script>
     <script src="app.js" defer></script>
   </head>
@@ -13,7 +12,7 @@
     <div class="app">
       <header class="app__header">
         <h1>DiapAudio Sync</h1>
-        <p>Drop a folder or zip containing one audio file and timestamped images to begin.</p>
+        <p>Drop a folder containing audio files and timestamped images to begin.</p>
       </header>
       <main class="app__main">
         <aside class="sidebar" id="sidebar">
@@ -24,11 +23,16 @@
         </aside>
         <section class="viewer">
           <div class="dropzone" id="dropzone">
-            <p>
-              <span id="dropzone-message">Drop folder or zip file here or </span>
-              <span class="dropzone__browse" id="browse-trigger">browse</span>
-            </p>
-            <input type="file" accept=".zip" id="file-input" hidden />
+            <div class="dropzone__content">
+              <p>
+                <span id="dropzone-message">Drop folder here or </span>
+                <span class="dropzone__browse" id="browse-trigger">browse</span>
+              </p>
+              <div class="dropzone__loader hidden" id="dropzone-loader">
+                <div class="loader-spinner"></div>
+                <p>Loading files...</p>
+              </div>
+            </div>
             <input type="file" webkitdirectory directory multiple id="folder-input" hidden />
           </div>
           <div class="viewer__content hidden" id="viewer-content">
@@ -36,6 +40,17 @@
               <div class="waveform" id="waveform"></div>
               <div class="controls">
                 <button class="control-button" id="play-toggle" disabled>Play</button>
+                <label class="speed-control">
+                  <span>Speed</span>
+                  <select id="speed-select" class="speed-control__select">
+                    <option value="0.5">0.5×</option>
+                    <option value="0.75">0.75×</option>
+                    <option value="1" selected>1×</option>
+                    <option value="1.25">1.25×</option>
+                    <option value="1.5">1.5×</option>
+                    <option value="2">2×</option>
+                  </select>
+                </label>
                 <label class="delay-control">
                   <span>Delay (s)</span>
                   <div class="delay-control__inputs">
@@ -70,8 +85,13 @@
     </template>
     <template id="audio-track-template">
       <button type="button" class="audio-track">
-        <span class="audio-track__label"></span>
-        <span class="audio-track__duration"></span>
+        <div class="audio-track__header">
+          <span class="audio-track__label"></span>
+          <span class="audio-track__duration"></span>
+        </div>
+        <div class="audio-track__timeline">
+          <!-- Image markers will be added dynamically -->
+        </div>
       </button>
     </template>
   </body>
