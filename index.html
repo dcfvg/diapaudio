@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DiapAudio Sync</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/7.7.9/wavesurfer.min.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="app">
+      <header class="app__header">
+        <h1>DiapAudio Sync</h1>
+        <p>Drop a folder or zip containing one audio file and timestamped images to begin.</p>
+      </header>
+      <main class="app__main">
+        <aside class="sidebar" id="sidebar">
+          <div class="sidebar__empty" id="sidebar-empty">
+            <p>No media loaded yet.</p>
+          </div>
+          <div class="sidebar__grid" id="thumbnail-grid"></div>
+        </aside>
+        <section class="viewer">
+          <div class="dropzone" id="dropzone">
+            <p>
+              <span id="dropzone-message">Drop folder or zip file here or </span>
+              <span class="dropzone__browse" id="browse-trigger">browse</span>
+            </p>
+            <input type="file" accept=".zip" id="file-input" hidden />
+            <input type="file" webkitdirectory directory multiple id="folder-input" hidden />
+          </div>
+          <div class="viewer__content hidden" id="viewer-content">
+            <div class="viewer__top">
+              <div class="waveform" id="waveform"></div>
+              <div class="controls">
+                <button class="control-button" id="play-toggle" disabled>Play</button>
+                <label class="delay-control">
+                  <span>Delay (s)</span>
+                  <div class="delay-control__inputs">
+                    <input type="range" min="-10" max="10" value="0" step="0.1" id="delay-range" />
+                    <input type="number" min="-10" max="10" value="0" step="0.1" id="delay-number" />
+                  </div>
+                </label>
+              </div>
+            </div>
+            <div class="viewer__slideshow">
+              <div class="slideshow__container" id="slideshow-container">
+                <!-- Images will be dynamically inserted here -->
+              </div>
+              <div class="viewer__meta">
+                <div class="viewer__badge" id="image-timecode"></div>
+                <div class="viewer__badge viewer__badge--clock" id="image-timeofday"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <template id="thumbnail-template">
+      <div class="thumbnail">
+        <img class="thumbnail__image" />
+        <div class="thumbnail__meta">
+          <span class="thumbnail__code"></span>
+          <span class="thumbnail__clock"></span>
+        </div>
+      </div>
+    </template>
+  </body>
+</html>
