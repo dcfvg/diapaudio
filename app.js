@@ -29,13 +29,17 @@
   ]);
 
   // Configuration: Minimum time (in seconds) an image should be displayed
-  const MIN_IMAGE_DISPLAY_DURATION = 4;
+  const MIN_IMAGE_DISPLAY_DURATION = 8;
+  
+  // Configuration: Maximum frequency (in seconds) for composition changes
+  const MAX_COMPOSITION_CHANGE_INTERVAL = 4;
 
   let wave = null;
   let mediaData = null;
   let currentThumbnail = null;
   let updateTimer = null;
   let currentDisplayedImages = [];
+  let lastCompositionChangeTime = -Infinity;
 
   browseTrigger.addEventListener("click", () => {
     // Show a choice menu
@@ -310,6 +314,7 @@
     };
 
     currentDisplayedImages = [];
+    lastCompositionChangeTime = -Infinity;
 
     populateThumbnails(normalized);
     showMainImages([normalized[0]]);
@@ -413,19 +418,63 @@
   function parseTimestampFromName(name) {
     const basename = name.split("/").pop() || name;
     const clean = basename.replace(/\.[^.]+$/, "");
+    
+    // Try various date-time formats
     const regexes = [
+      // Full date-time formats: YYYY-MM-DD HH:MM:SS (various separators)
       /(\d{4})[-_]?(\d{2})[-_]?(\d{2})[ _-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
       /(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/,
+      
+      // Date with time: DD-MM-YYYY HH:MM:SS
+      /(\d{2})[-_]?(\d{2})[-_]?(\d{4})[ _-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
+      
+      // Time-only formats: HH.MM.SS or HH:MM:SS or HH-MM-SS (at start of filename)
+      /^(\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
     ];
 
     for (const regex of regexes) {
       const match = clean.match(regex);
       if (match) {
-        const [, year, month, day, hours, minutes, seconds] = match.map(Number);
-        if (isNaN(year)) continue;
-        const ts = new Date(year, month - 1, day, hours, minutes, seconds);
-        if (!Number.isNaN(ts.getTime())) {
-          return ts;
+        // Check if this is a time-only format (3 groups)
+        if (match.length === 4) {
+          const [, hours, minutes, seconds] = match.map(Number);
+          // Use a reference date (today) with the extracted time
+          const now = new Date();
+          const ts = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, seconds);
+          if (!Number.isNaN(ts.getTime()) && hours < 24 && minutes < 60 && seconds < 60) {
+            return ts;
+          }
+        }
+        // Full date-time format (7 groups)
+        else if (match.length === 7) {
+          let [, p1, p2, p3, hours, minutes, seconds] = match.map(Number);
+          let year, month, day;
+          
+          // Determine if it's YYYY-MM-DD or DD-MM-YYYY based on first value
+          if (p1 > 1000) {
+            // YYYY-MM-DD format
+            year = p1;
+            month = p2;
+            day = p3;
+          } else {
+            // DD-MM-YYYY format
+            day = p1;
+            month = p2;
+            year = p3;
+          }
+          
+          // Validate and create date
+          if (!isNaN(year) && year >= 1900 && year <= 2100 &&
+              month >= 1 && month <= 12 &&
+              day >= 1 && day <= 31 &&
+              hours >= 0 && hours < 24 &&
+              minutes >= 0 && minutes < 60 &&
+              seconds >= 0 && seconds < 60) {
+            const ts = new Date(year, month - 1, day, hours, minutes, seconds);
+            if (!Number.isNaN(ts.getTime())) {
+              return ts;
+            }
+          }
         }
       }
     }
@@ -591,13 +640,18 @@
     }
     
     const currentImage = mediaData.images[currentImageIndex];
-    const images = [currentImage];
     
     // Calculate how long this image has been displayed
     const timeIntoImage = targetSeconds - currentImage.relative;
     
-    // If we haven't reached the minimum display duration yet, check for overlapping images
-    if (timeIntoImage < MIN_IMAGE_DISPLAY_DURATION) {
+    // Determine if we should allow composition changes
+    const timeSinceLastChange = targetSeconds - lastCompositionChangeTime;
+    const canChangeComposition = timeSinceLastChange >= MAX_COMPOSITION_CHANGE_INTERVAL;
+    
+    // If we're still within the minimum display duration of the current image
+    // AND we can change composition, look for overlapping images
+    if (timeIntoImage < MIN_IMAGE_DISPLAY_DURATION && canChangeComposition) {
+      const images = [currentImage];
       const endTime = currentImage.relative + MIN_IMAGE_DISPLAY_DURATION;
       
       // Find all images that fall within the minimum display duration window
@@ -609,9 +663,21 @@
           break;
         }
       }
+      
+      return images;
     }
     
-    return images;
+    // If we can't change composition yet, return the currently displayed images
+    if (!canChangeComposition && currentDisplayedImages.length > 0) {
+      // Check if the current image is still in the displayed set
+      const currentStillDisplayed = currentDisplayedImages.some(img => img === currentImage);
+      if (currentStillDisplayed) {
+        return currentDisplayedImages;
+      }
+    }
+    
+    // Otherwise, just show the current image
+    return [currentImage];
   }
 
   function showMainImages(images) {
@@ -622,6 +688,11 @@
                    currentDisplayedImages.every((img, i) => img === images[i]);
     
     if (isSame) return;
+    
+    // Update the last composition change time
+    if (wave) {
+      lastCompositionChangeTime = wave.getCurrentTime() + getDelaySeconds();
+    }
     
     currentDisplayedImages = images;
     
