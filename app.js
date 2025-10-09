@@ -158,6 +158,11 @@
         });
       });
 
+      // Load durations for all audio tracks
+      console.log('Loading durations for all audio tracks...');
+      await loadAllAudioDurations(audioTracks);
+      console.log('All audio durations loaded:', audioTracks.map(t => ({ label: t.label, duration: t.duration })));
+
       const images = await Promise.all(
         imageFiles.map(async (file) => {
           const url = URL.createObjectURL(file);
@@ -336,6 +341,35 @@
     return file.webkitRelativePath || file.path || file.name;
   }
 
+  /**
+   * Load durations for all audio tracks by creating temporary audio elements.
+   * This allows us to know all track durations before playback starts.
+   */
+  async function loadAllAudioDurations(tracks) {
+    const promises = tracks.map((track) => {
+      return new Promise((resolve) => {
+        const audio = new Audio();
+        audio.preload = 'metadata';
+        
+        audio.addEventListener('loadedmetadata', () => {
+          track.duration = audio.duration;
+          console.log(`Loaded duration for ${track.label}: ${audio.duration.toFixed(1)}s`);
+          resolve();
+        });
+        
+        audio.addEventListener('error', (e) => {
+          console.error(`Failed to load duration for ${track.label}:`, e);
+          track.duration = null;
+          resolve(); // Resolve anyway to not block other tracks
+        });
+        
+        audio.src = track.url;
+      });
+    });
+    
+    await Promise.all(promises);
+  }
+
   function parseTimestampFromName(name) {
     const basename = name.split("/").pop() || name;
     const clean = basename.replace(/\.[^.]+$/, "");
@@ -510,17 +544,31 @@
    * When multiple tracks match (overlapping recordings), prefers the longest one.
    */
   function findAudioTrackForTimestamp(imageTimestamp) {
-    if (!mediaData || !mediaData.audioTracks || !imageTimestamp) return -1;
+    if (!mediaData || !mediaData.audioTracks || !imageTimestamp) {
+      console.warn('findAudioTrackForTimestamp: Missing data', {
+        hasMediaData: !!mediaData,
+        hasAudioTracks: !!(mediaData && mediaData.audioTracks),
+        trackCount: mediaData?.audioTracks?.length,
+        hasImageTimestamp: !!imageTimestamp
+      });
+      return -1;
+    }
 
     const timestampAtEnd = timestampAtEndCheckbox && timestampAtEndCheckbox.checked;
     const imageTime = imageTimestamp instanceof Date ? imageTimestamp.getTime() : imageTimestamp;
+
+    console.log(`\n=== Finding track for image at ${new Date(imageTime).toLocaleString()} ===`);
+    console.log(`Total tracks: ${mediaData.audioTracks.length}, Timestamp at end: ${timestampAtEnd}`);
 
     let bestMatch = -1;
     let longestDuration = 0;
 
     for (let i = 0; i < mediaData.audioTracks.length; i++) {
       const track = mediaData.audioTracks[i];
-      if (!track.fileTimestamp || !track.duration) continue;
+      if (!track.fileTimestamp || !track.duration) {
+        console.log(`Track ${i}: ${track.label} - SKIPPED (no timestamp or duration)`);
+        continue;
+      }
 
       // Calculate the audio track's time range in milliseconds
       const trackTime = track.fileTimestamp instanceof Date ? track.fileTimestamp.getTime() : track.fileTimestamp;
@@ -552,6 +600,8 @@
 
     if (bestMatch >= 0) {
       console.log(`✓ Selected Track ${bestMatch}: ${mediaData.audioTracks[bestMatch].label}`);
+    } else {
+      console.warn(`✗ No matching track found for image at ${new Date(imageTime).toLocaleString()}`);
     }
 
     return bestMatch;
