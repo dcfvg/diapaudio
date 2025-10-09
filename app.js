@@ -19,6 +19,7 @@
   const imageTimeOfDay = document.getElementById("image-timeofday");
   const delayRange = document.getElementById("delay-range");
   const delayNumber = document.getElementById("delay-number");
+  const timestampAtEndCheckbox = document.getElementById("timestamp-at-end");
 
   const audioMimeByExtension = new Map([
     ["mp3", "audio/mpeg"],
@@ -96,6 +97,14 @@
     wave.setPlaybackRate(speed);
   });
 
+  timestampAtEndCheckbox.addEventListener("change", () => {
+    if (mediaData && mediaData.images && mediaData.audioTracks) {
+      recalculateImageTimestamps();
+      renderAudioTimeline();
+      updateSlideForCurrentTime();
+    }
+  });
+
   delayRange.addEventListener("input", () => syncDelayInputs(delayRange.value));
   delayNumber.addEventListener("input", () => syncDelayInputs(delayNumber.value));
 
@@ -142,13 +151,16 @@
         throw new Error("No images with timestamps found in the folder.");
       }
 
-      const audioTracks = audioFiles.map((file, index) =>
-        createAudioTrack({
+      const audioTracks = audioFiles.map((file, index) => {
+        const filePath = getFilePath(file);
+        const fileTimestamp = parseTimestampFromName(filePath);
+        return createAudioTrack({
           url: URL.createObjectURL(file),
-          originalName: getFilePath(file),
+          originalName: filePath,
           index,
-        })
-      );
+          fileTimestamp,
+        });
+      });
 
       const images = await Promise.all(
         imageFiles.map(async (file) => {
@@ -302,12 +314,14 @@
     return normalized.toLowerCase().includes("/thumbnails/");
   }
 
-  function createAudioTrack({ url, originalName, index }) {
+  function createAudioTrack({ url, originalName, index, fileTimestamp = null }) {
     return {
       url,
       originalName,
       label: formatTrackLabel(originalName, index),
       duration: null,
+      fileTimestamp,
+      adjustedStartTime: null,
     };
   }
 
@@ -396,11 +410,46 @@
       const relative = (image.timestamp.getTime() - base) / 1000;
       return {
         ...image,
+        originalTimestamp: image.timestamp,
         relative,
         timecode: formatTime(relative),
         timeOfDay: formatClock(image.timestamp),
       };
     });
+  }
+
+  function recalculateImageTimestamps() {
+    if (!mediaData || !mediaData.images || !mediaData.audioTracks) return;
+
+    const isTimestampAtEnd = timestampAtEndCheckbox.checked;
+    
+    // Find the active audio track and get its timestamp and duration
+    const activeTrack = mediaData.audioTracks[mediaData.activeTrackIndex];
+    if (!activeTrack || !activeTrack.fileTimestamp || !activeTrack.duration) return;
+
+    // Calculate the adjusted start time for the audio
+    let audioStartTime;
+    if (isTimestampAtEnd) {
+      // If timestamp is at end, subtract duration to get start time
+      audioStartTime = new Date(activeTrack.fileTimestamp.getTime() - (activeTrack.duration * 1000));
+    } else {
+      // If timestamp is at beginning, use it directly
+      audioStartTime = activeTrack.fileTimestamp;
+    }
+
+    // Store the adjusted start time
+    activeTrack.adjustedStartTime = audioStartTime;
+
+    // Recalculate all image relative times based on the adjusted audio start time
+    const base = audioStartTime.getTime();
+    mediaData.images.forEach((image) => {
+      const relative = (image.originalTimestamp.getTime() - base) / 1000;
+      image.relative = relative;
+      image.timecode = formatTime(Math.max(0, relative));
+    });
+
+    // Re-sort images by relative time
+    mediaData.images.sort((a, b) => a.relative - b.relative);
   }
 
   function loadAudioTrack(index, autoPlay = false) {
@@ -436,6 +485,12 @@
       playToggle.textContent = "Play";
       sidebarEmpty.classList.add("hidden");
       track.duration = wave.getDuration();
+      
+      // Recalculate image timestamps if checkbox is checked
+      if (timestampAtEndCheckbox.checked) {
+        recalculateImageTimestamps();
+      }
+      
       renderAudioTimeline();
       startUpdateLoop();
       if (autoPlay) {
