@@ -21,6 +21,12 @@
   const delayNumber = document.getElementById("delay-number");
   const timestampAtEndCheckbox = document.getElementById("timestamp-at-end");
 
+  const utils = typeof window !== "undefined" ? window.DiapAudioUtils : null;
+  const parseTimestampFromName = utils ? utils.parseTimestampFromName : null;
+  if (typeof parseTimestampFromName !== "function") {
+    throw new Error("DiapAudio timestamp utilities not loaded");
+  }
+
   const audioMimeByExtension = new Map([
     ["mp3", "audio/mpeg"],
     ["wav", "audio/wav"],
@@ -42,6 +48,8 @@
   let updateTimer = null;
   let currentDisplayedImages = [];
   let lastCompositionChangeTime = -Infinity;
+  let pendingSeek = null;
+  let pendingSeekToken = 0;
 
   browseTrigger.addEventListener("click", () => folderInput.click());
 
@@ -115,6 +123,31 @@
 
   function getDelaySeconds() {
     return parseFloat(delayNumber.value) || 0;
+  }
+
+  // Remember the freshest seek request while a track is still loading.
+  function setPendingSeek(image, shouldPlay, trackIndex) {
+    pendingSeekToken += 1;
+    pendingSeek = {
+      id: pendingSeekToken,
+      image,
+      shouldPlay,
+      trackIndex,
+    };
+    return pendingSeek;
+  }
+
+  function consumePendingSeek(trackIndex) {
+    if (pendingSeek && pendingSeek.trackIndex === trackIndex) {
+      const request = pendingSeek;
+      pendingSeek = null;
+      return request;
+    }
+    return null;
+  }
+
+  function clearPendingSeek() {
+    pendingSeek = null;
   }
 
   async function handleFolder(files) {
@@ -256,6 +289,7 @@
 
     currentDisplayedImages = [];
     lastCompositionChangeTime = -Infinity;
+    clearPendingSeek();
 
     populateThumbnails(mediaData.images);
     loadAudioTrack(0);
@@ -282,6 +316,7 @@
     releaseMediaResources(mediaData);
     mediaData = null;
     destroyWaveform();
+    clearPendingSeek();
     if (audioTimeline) {
       audioTimeline.innerHTML = "";
       audioTimeline.classList.add("hidden");
@@ -370,73 +405,6 @@
     await Promise.all(promises);
   }
 
-  function parseTimestampFromName(name) {
-    const basename = name.split("/").pop() || name;
-    const clean = basename.replace(/\.[^.]+$/, "");
-    
-    // Try various date-time formats
-    const regexes = [
-      // Full date-time formats: YYYY-MM-DD HH:MM:SS (various separators)
-      /(\d{4})[-_]?(\d{2})[-_]?(\d{2})[ _-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
-      /(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/,
-      
-      // Date with time: DD-MM-YYYY HH:MM:SS
-      /(\d{2})[-_]?(\d{2})[-_]?(\d{4})[ _-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
-      
-      // Time-only formats: HH.MM.SS or HH:MM:SS or HH-MM-SS (at start of filename)
-      /^(\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
-    ];
-
-    for (const regex of regexes) {
-      const match = clean.match(regex);
-      if (match) {
-        // Check if this is a time-only format (3 groups)
-        if (match.length === 4) {
-          const [, hours, minutes, seconds] = match.map(Number);
-          // Use a reference date (today) with the extracted time
-          const now = new Date();
-          const ts = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, seconds);
-          if (!Number.isNaN(ts.getTime()) && hours < 24 && minutes < 60 && seconds < 60) {
-            return ts;
-          }
-        }
-        // Full date-time format (7 groups)
-        else if (match.length === 7) {
-          let [, p1, p2, p3, hours, minutes, seconds] = match.map(Number);
-          let year, month, day;
-          
-          // Determine if it's YYYY-MM-DD or DD-MM-YYYY based on first value
-          if (p1 > 1000) {
-            // YYYY-MM-DD format
-            year = p1;
-            month = p2;
-            day = p3;
-          } else {
-            // DD-MM-YYYY format
-            day = p1;
-            month = p2;
-            year = p3;
-          }
-          
-          // Validate and create date
-          if (!isNaN(year) && year >= 1900 && year <= 2100 &&
-              month >= 1 && month <= 12 &&
-              day >= 1 && day <= 31 &&
-              hours >= 0 && hours < 24 &&
-              minutes >= 0 && minutes < 60 &&
-              seconds >= 0 && seconds < 60) {
-            const ts = new Date(year, month - 1, day, hours, minutes, seconds);
-            if (!Number.isNaN(ts.getTime())) {
-              return ts;
-            }
-          }
-        }
-      }
-    }
-
-    return null;
-  }
-
   function recalculateImageTimestamps() {
     if (!mediaData || !mediaData.images || !mediaData.audioTracks) return;
 
@@ -481,6 +449,10 @@
     if (!mediaData || !Array.isArray(mediaData.audioTracks) || !mediaData.audioTracks.length) return;
     if (index < 0 || index >= mediaData.audioTracks.length) return;
 
+    if (pendingSeek && pendingSeek.trackIndex !== index) {
+      clearPendingSeek();
+    }
+
     mediaData.activeTrackIndex = index;
     renderAudioTimeline();
     setupWaveformForTrack(mediaData.audioTracks[index], autoPlay);
@@ -516,7 +488,15 @@
       
       renderAudioTimeline();
       startUpdateLoop();
-      if (autoPlay) {
+
+      let handledPlayback = false;
+      const pendingRequest = consumePendingSeek(mediaData.activeTrackIndex);
+      if (pendingRequest) {
+        seekToImageInCurrentTrack(pendingRequest.image, pendingRequest.shouldPlay);
+        handledPlayback = Boolean(pendingRequest.shouldPlay);
+      }
+
+      if (autoPlay && !handledPlayback) {
         wave.play();
       }
     });
@@ -851,8 +831,6 @@
       clockEl.textContent = image.timeOfDay;
 
       root.addEventListener("click", () => {
-        if (!wave) return;
-
         // Find which audio track contains this image's timestamp
         const correctTrackIndex = findAudioTrackForTimestamp(image.originalTimestamp);
         
@@ -864,17 +842,19 @@
           return;
         }
 
-        const wasPlaying = wave.isPlaying();
+        const wasPlaying = wave ? wave.isPlaying() : false;
+        const waveReady = wave && wave.getDuration() > 0;
 
         // Switch to the correct track if needed
         if (correctTrackIndex !== mediaData.activeTrackIndex) {
-          loadAudioTrack(correctTrackIndex, false);
-          // Wait a bit for the new track to load before seeking
-          setTimeout(() => {
-            seekToImageInCurrentTrack(image, wasPlaying);
-          }, 100);
+          setPendingSeek(image, wasPlaying, correctTrackIndex);
+          loadAudioTrack(correctTrackIndex, wasPlaying);
         } else {
-          seekToImageInCurrentTrack(image, wasPlaying);
+          if (waveReady) {
+            seekToImageInCurrentTrack(image, wasPlaying);
+          } else {
+            setPendingSeek(image, wasPlaying, correctTrackIndex);
+          }
         }
 
         showMainImages([image]);
