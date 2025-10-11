@@ -37,13 +37,33 @@
             <input type="file" webkitdirectory directory multiple id="folder-input" hidden />
           </div>
           <div class="viewer__content hidden" id="viewer-content">
-            <div class="viewer__top">
-              <div class="waveform" id="waveform"></div>
-              <div class="controls">
-                <button class="control-button" id="play-toggle" disabled>Play</button>
-                <label class="speed-control">
-                  <span>Speed</span>
-                  <select id="speed-select" class="speed-control__select">
+          <div class="viewer__top">
+            <div class="waveform" id="waveform"></div>
+            <div class="timeline hidden" id="timeline">
+              <div class="timeline__main">
+                <div class="timeline__gradient" id="timeline-gradient"></div>
+                <div class="timeline__axis" id="timeline-axis"></div>
+                <div class="timeline__tracks" id="timeline-tracks"></div>
+                <div class="timeline__images" id="timeline-images"></div>
+                <div class="timeline__cursor" id="timeline-cursor"></div>
+              </div>
+              <div class="timeline__minimap" id="timeline-minimap">
+                <div class="timeline__minimap-gradient" id="timeline-minimap-gradient"></div>
+                <div class="timeline__mini-tracks" id="timeline-minimap-tracks"></div>
+                <div class="timeline__mini-images" id="timeline-minimap-images"></div>
+                <div class="timeline__brush" id="timeline-brush">
+                  <div class="timeline__brush-handle timeline__brush-handle--left"></div>
+                  <div class="timeline__brush-region" id="timeline-brush-region"></div>
+                  <div class="timeline__brush-handle timeline__brush-handle--right"></div>
+                </div>
+              </div>
+              <div class="timeline__notices hidden" id="timeline-notices"></div>
+            </div>
+            <div class="controls">
+              <button class="control-button" id="play-toggle" disabled>Play</button>
+              <label class="speed-control">
+                <span>Speed</span>
+                <select id="speed-select" class="speed-control__select">
                     <option value="0.5">0.5×</option>
                     <option value="0.75">0.75×</option>
                     <option value="1" selected>1×</option>
@@ -64,7 +84,6 @@
                   <span>Audio timestamp at end</span>
                 </label>
               </div>
-              <div class="audio-timeline hidden" id="audio-timeline"></div>
             </div>
             <div class="viewer__slideshow">
               <div class="slideshow__container" id="slideshow-container">
@@ -75,6 +94,7 @@
                 <div class="viewer__badge viewer__badge--clock" id="image-timeofday"></div>
               </div>
             </div>
+          </div>
           </div>
         </section>
       </main>
@@ -87,17 +107,6 @@
           <span class="thumbnail__clock"></span>
         </div>
       </div>
-    </template>
-    <template id="audio-track-template">
-      <button type="button" class="audio-track">
-        <div class="audio-track__header">
-          <span class="audio-track__label"></span>
-          <span class="audio-track__duration"></span>
-        </div>
-        <div class="audio-track__timeline">
-          <!-- Image markers will be added dynamically -->
-        </div>
-      </button>
     </template>
   </body>
 </html>

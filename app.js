@@ -13,8 +13,20 @@
   const thumbnailGrid = document.getElementById("thumbnail-grid");
   const thumbnailTemplate = document.getElementById("thumbnail-template");
   const slideshowContainer = document.getElementById("slideshow-container");
-  const audioTimeline = document.getElementById("audio-timeline");
-  const audioTrackTemplate = document.getElementById("audio-track-template");
+  const timelineRoot = document.getElementById("timeline");
+  const timelineMain = timelineRoot ? timelineRoot.querySelector(".timeline__main") : null;
+  const timelineGradient = document.getElementById("timeline-gradient");
+  const timelineAxis = document.getElementById("timeline-axis");
+  const timelineTracks = document.getElementById("timeline-tracks");
+  const timelineImages = document.getElementById("timeline-images");
+  const timelineCursor = document.getElementById("timeline-cursor");
+  const timelineMinimap = document.getElementById("timeline-minimap");
+  const timelineMinimapGradient = document.getElementById("timeline-minimap-gradient");
+  const timelineMinimapTracks = document.getElementById("timeline-minimap-tracks");
+  const timelineMinimapImages = document.getElementById("timeline-minimap-images");
+  const timelineBrush = document.getElementById("timeline-brush");
+  const timelineBrushRegion = document.getElementById("timeline-brush-region");
+  const timelineNotices = document.getElementById("timeline-notices");
   const imageTimecode = document.getElementById("image-timecode");
   const imageTimeOfDay = document.getElementById("image-timeofday");
   const delayRange = document.getElementById("delay-range");
@@ -41,6 +53,14 @@
   
   // Configuration: Maximum frequency (in seconds) for composition changes
   const MAX_COMPOSITION_CHANGE_INTERVAL = 4;
+  const IMAGE_STACK_WINDOW_MS = 35_000;
+  const IMAGE_STACK_STEP_PX = 18;
+  const IMAGE_STACK_OFFSET_ORDER = [0, -1, 1, -2, 2, -3, 3];
+  const IMAGE_BASE_HEIGHT = 64;
+  const TRACK_LANE_HEIGHT = 36;
+  const MIN_BRUSH_SPAN = 0.02;
+  const TIMELINE_PADDING_RATIO = 0.08;
+  const OVERLAP_REPORT_THRESHOLD_MS = 5_000;
 
   let wave = null;
   let mediaData = null;
@@ -50,6 +70,25 @@
   let lastCompositionChangeTime = -Infinity;
   let pendingSeek = null;
   let pendingSeekToken = 0;
+  const timelineState = {
+    initialized: false,
+    trackRanges: [],
+    imageEntries: [],
+    trackLaneCount: 0,
+    minMs: 0,
+    maxMs: 0,
+    totalMs: 0,
+    viewStartMs: 0,
+    viewEndMs: 0,
+    brushStart: 0,
+    brushEnd: 1,
+    currentCursorMs: null,
+    highlightTimeMs: null,
+    imageStackMagnitude: 0,
+    anomalyMessages: [],
+  };
+  let timelineBrushDrag = null;
+  let timelineInteractionsReady = false;
 
   browseTrigger.addEventListener("click", () => folderInput.click());
 
@@ -108,13 +147,14 @@
   timestampAtEndCheckbox.addEventListener("change", () => {
     if (mediaData && mediaData.images && mediaData.audioTracks) {
       recalculateImageTimestamps();
-      renderAudioTimeline();
       updateSlideForCurrentTime();
     }
   });
 
   delayRange.addEventListener("input", () => syncDelayInputs(delayRange.value));
   delayNumber.addEventListener("input", () => syncDelayInputs(delayNumber.value));
+
+  setupTimelineInteractions();
 
   function syncDelayInputs(value) {
     delayRange.value = value;
@@ -274,6 +314,7 @@
 
     destroyWaveform();
     releaseMediaResources(mediaData);
+    destroyTimeline();
 
     mediaData = {
       audioTracks,
@@ -292,6 +333,7 @@
     clearPendingSeek();
 
     populateThumbnails(mediaData.images);
+    initializeTimeline();
     loadAudioTrack(0);
     viewerContent.classList.remove("hidden");
     dropzone.classList.add("hidden");
@@ -317,9 +359,9 @@
     mediaData = null;
     destroyWaveform();
     clearPendingSeek();
-    if (audioTimeline) {
-      audioTimeline.innerHTML = "";
-      audioTimeline.classList.add("hidden");
+    if (timelineRoot) {
+      destroyTimeline();
+      timelineRoot.classList.add("hidden");
     }
     if (slideshowContainer) {
       slideshowContainer.innerHTML = "";
@@ -409,27 +451,31 @@
     if (!mediaData || !mediaData.images || !mediaData.audioTracks) return;
 
     const isTimestampAtEnd = timestampAtEndCheckbox.checked;
-    
-    // Find the active audio track and get its timestamp and duration
+
+    mediaData.audioTracks.forEach((track) => {
+      if (!track || !track.fileTimestamp || !track.duration) return;
+      const referenceMs = track.fileTimestamp.getTime();
+      const durationMs = track.duration * 1000;
+      let startMs;
+
+      if (isTimestampAtEnd) {
+        startMs = referenceMs - durationMs;
+      } else {
+        startMs = referenceMs;
+      }
+
+      const endMs = startMs + durationMs;
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
+
+      track.adjustedStartTime = new Date(startMs);
+      track.adjustedEndTime = new Date(endMs);
+    });
+
     const activeTrack = mediaData.audioTracks[mediaData.activeTrackIndex];
-    if (!activeTrack || !activeTrack.fileTimestamp || !activeTrack.duration) return;
+    if (!activeTrack || !activeTrack.adjustedStartTime) return;
 
-    // Calculate the audio start time based on checkbox
-    let audioStartTime;
-    if (isTimestampAtEnd) {
-      // If timestamp is at end, subtract duration to get start time
-      audioStartTime = new Date(activeTrack.fileTimestamp.getTime() - (activeTrack.duration * 1000));
-    } else {
-      // If timestamp is at beginning, use it directly
-      audioStartTime = activeTrack.fileTimestamp;
-    }
+    const audioStartMs = activeTrack.adjustedStartTime.getTime();
 
-    // Store the adjusted start time
-    activeTrack.adjustedStartTime = audioStartTime;
-
-    // Calculate relative times for all images based on the audio start time
-    const audioStartMs = audioStartTime.getTime();
-    
     mediaData.images.forEach((image) => {
       const imageMs = image.originalTimestamp.getTime();
       const relative = (imageMs - audioStartMs) / 1000;
@@ -437,12 +483,14 @@
       image.timecode = formatTime(Math.max(0, relative));
     });
 
-    // Find first image that should be visible
-    const firstVisibleImage = mediaData.images.find(img => img.relative >= 0) || mediaData.images[0];
+    const firstVisibleImage =
+      mediaData.images.find((img) => img.relative >= 0) || mediaData.images[0];
     if (firstVisibleImage) {
       showMainImages([firstVisibleImage]);
       highlightThumbnail(firstVisibleImage);
     }
+
+    initializeTimeline({ preserveView: true });
   }
 
   function loadAudioTrack(index, autoPlay = false) {
@@ -454,7 +502,7 @@
     }
 
     mediaData.activeTrackIndex = index;
-    renderAudioTimeline();
+    timelineSetActiveTrack(index);
     setupWaveformForTrack(mediaData.audioTracks[index], autoPlay);
   }
 
@@ -486,7 +534,6 @@
       // Always recalculate image timestamps based on audio timestamp
       recalculateImageTimestamps();
       
-      renderAudioTimeline();
       startUpdateLoop();
 
       let handledPlayback = false;
@@ -605,78 +652,6 @@
     }
   }
 
-  function renderAudioTimeline() {
-    if (!audioTimeline || !audioTrackTemplate) return;
-    if (!mediaData || !Array.isArray(mediaData.audioTracks) || !mediaData.audioTracks.length) {
-      audioTimeline.innerHTML = "";
-      audioTimeline.classList.add("hidden");
-      return;
-    }
-
-    const previousScroll = audioTimeline.scrollLeft;
-    audioTimeline.innerHTML = "";
-    audioTimeline.classList.remove("hidden");
-
-    mediaData.audioTracks.forEach((track, index) => {
-      const node = document.importNode(audioTrackTemplate.content, true);
-      const button = node.querySelector(".audio-track");
-      const labelEl = node.querySelector(".audio-track__label");
-      const durationEl = node.querySelector(".audio-track__duration");
-      const timelineEl = node.querySelector(".audio-track__timeline");
-
-      labelEl.textContent = track.label;
-      durationEl.textContent = track.duration ? formatTime(Math.round(track.duration)) : "…";
-
-      if (index === mediaData.activeTrackIndex) {
-        button.classList.add("audio-track--active");
-      }
-
-      // Add image markers to the timeline
-      if (track.duration && track.fileTimestamp && mediaData.images && mediaData.images.length > 0) {
-        const timestampAtEnd = timestampAtEndCheckbox && timestampAtEndCheckbox.checked;
-        
-        // Calculate this track's time range in milliseconds
-        const trackTime = track.fileTimestamp instanceof Date ? track.fileTimestamp.getTime() : track.fileTimestamp;
-        const audioStartTime = timestampAtEnd
-          ? trackTime - (track.duration * 1000)
-          : trackTime;
-        const audioEndTime = audioStartTime + (track.duration * 1000);
-
-        mediaData.images.forEach((image) => {
-          if (!image.originalTimestamp) return;
-          
-          const imageTime = image.originalTimestamp instanceof Date ? image.originalTimestamp.getTime() : image.originalTimestamp;
-          
-          // Check if this image falls within this track's time range
-          if (imageTime >= audioStartTime && imageTime <= audioEndTime) {
-            // Calculate relative position within this specific track
-            const imageRelativeSeconds = (imageTime - audioStartTime) / 1000;
-            
-            if (imageRelativeSeconds >= 0 && imageRelativeSeconds <= track.duration) {
-              const marker = document.createElement("div");
-              marker.className = "audio-track__marker";
-              const position = (imageRelativeSeconds / track.duration) * 100;
-              marker.style.left = `${position}%`;
-              marker.title = `${image.timeOfDay} - ${image.timecode}`;
-              timelineEl.appendChild(marker);
-            }
-          }
-        });
-      }
-
-      button.addEventListener("click", () => {
-        const wasPlaying = wave && wave.isPlaying();
-        if (index !== mediaData.activeTrackIndex) {
-          loadAudioTrack(index, wasPlaying);
-        }
-      });
-
-      audioTimeline.appendChild(node);
-    });
-
-    audioTimeline.scrollLeft = previousScroll;
-  }
-
   function destroyWaveform() {
     stopUpdateLoop();
     if (wave) {
@@ -704,10 +679,23 @@
     const time = wave.getCurrentTime();
     const delay = getDelaySeconds();
     const adjusted = time + delay;
+    let absoluteMs = null;
+    const activeTrack = mediaData.audioTracks[mediaData.activeTrackIndex];
+    if (activeTrack && activeTrack.adjustedStartTime) {
+      absoluteMs = activeTrack.adjustedStartTime.getTime() + adjusted * 1000;
+    }
     const images = findImagesForTime(adjusted);
     if (images && images.length > 0) {
       showMainImages(images);
       highlightThumbnail(images[0]);
+    } else {
+      highlightTimelineImages([]);
+      if (absoluteMs !== null) {
+        updateTimelineActiveStates(absoluteMs);
+      }
+    }
+    if (absoluteMs !== null) {
+      updateTimelineCursor(absoluteMs);
     }
   }
 
@@ -810,6 +798,42 @@
     if (imageTimeOfDay) {
       imageTimeOfDay.textContent = firstImage.timeOfDay;
     }
+
+    highlightTimelineImages(images);
+    const highlightMs = firstImage?.originalTimestamp
+      ? firstImage.originalTimestamp.getTime()
+      : null;
+    updateTimelineActiveStates(highlightMs);
+  }
+
+  function jumpToImage(image, { thumbnailNode } = {}) {
+    if (!image || !mediaData || !mediaData.audioTracks) return;
+
+    const correctTrackIndex = findAudioTrackForTimestamp(image.originalTimestamp);
+
+    if (correctTrackIndex === -1) {
+      console.warn(
+        `Image "${image.name}" timestamp doesn't match any audio track`
+      );
+      showMainImages([image]);
+      highlightThumbnail(image, thumbnailNode);
+      return;
+    }
+
+    const wasPlaying = wave ? wave.isPlaying() : false;
+    const waveReady = wave && wave.getDuration() > 0;
+
+    if (correctTrackIndex !== mediaData.activeTrackIndex) {
+      setPendingSeek(image, wasPlaying, correctTrackIndex);
+      loadAudioTrack(correctTrackIndex, wasPlaying);
+    } else if (waveReady) {
+      seekToImageInCurrentTrack(image, wasPlaying);
+    } else {
+      setPendingSeek(image, wasPlaying, correctTrackIndex);
+    }
+
+    showMainImages([image]);
+    highlightThumbnail(image, thumbnailNode);
   }
 
   function populateThumbnails(images) {
@@ -831,34 +855,7 @@
       clockEl.textContent = image.timeOfDay;
 
       root.addEventListener("click", () => {
-        // Find which audio track contains this image's timestamp
-        const correctTrackIndex = findAudioTrackForTimestamp(image.originalTimestamp);
-        
-        if (correctTrackIndex === -1) {
-          // Image doesn't match any audio track time range
-          console.warn(`Image "${image.name}" timestamp doesn't match any audio track`);
-          showMainImages([image]);
-          highlightThumbnail(image, root);
-          return;
-        }
-
-        const wasPlaying = wave ? wave.isPlaying() : false;
-        const waveReady = wave && wave.getDuration() > 0;
-
-        // Switch to the correct track if needed
-        if (correctTrackIndex !== mediaData.activeTrackIndex) {
-          setPendingSeek(image, wasPlaying, correctTrackIndex);
-          loadAudioTrack(correctTrackIndex, wasPlaying);
-        } else {
-          if (waveReady) {
-            seekToImageInCurrentTrack(image, wasPlaying);
-          } else {
-            setPendingSeek(image, wasPlaying, correctTrackIndex);
-          }
-        }
-
-        showMainImages([image]);
-        highlightThumbnail(image, root);
+        jumpToImage(image, { thumbnailNode: root });
       });
 
       root.dataset.index = index.toString();
@@ -899,6 +896,783 @@
     const mins = String(date.getMinutes()).padStart(2, "0");
     const secs = String(date.getSeconds()).padStart(2, "0");
     return `${hrs}:${mins}:${secs}`;
+  }
+
+  function formatDurationMs(ms) {
+    const seconds = Math.max(0, Math.round(ms / 1000));
+    return formatTime(seconds);
+  }
+
+  function setupTimelineInteractions() {
+    if (timelineInteractionsReady) return;
+    if (!timelineBrush || !timelineMinimap) return;
+
+    timelineInteractionsReady = true;
+
+    const leftHandle = timelineBrush.querySelector(".timeline__brush-handle--left");
+    const rightHandle = timelineBrush.querySelector(".timeline__brush-handle--right");
+
+    if (leftHandle) {
+      leftHandle.addEventListener("pointerdown", (event) => startBrushDrag(event, "left"));
+    }
+    if (rightHandle) {
+      rightHandle.addEventListener("pointerdown", (event) => startBrushDrag(event, "right"));
+    }
+    if (timelineBrushRegion) {
+      timelineBrushRegion.addEventListener("pointerdown", (event) => startBrushDrag(event, "move"));
+    }
+    timelineMinimap.addEventListener("pointerdown", handleMinimapPointerDown);
+  }
+
+  function initializeTimeline(options = {}) {
+    if (!timelineRoot || !mediaData || !mediaData.audioTracks) return;
+
+    const data = buildTimelineData();
+    if (!data) {
+      destroyTimeline();
+      timelineRoot.classList.add("hidden");
+      return;
+    }
+
+    const preserve = options.preserveView && timelineState.initialized;
+    const previousBrush = preserve
+      ? { start: timelineState.brushStart, end: timelineState.brushEnd }
+      : null;
+
+    destroyTimeline();
+
+    timelineState.initialized = true;
+    timelineState.trackRanges = data.trackRanges;
+    timelineState.imageEntries = data.imageEntries;
+    timelineState.trackLaneCount = data.trackLaneCount;
+    timelineState.imageStackMagnitude = data.imageStackMagnitude || 0;
+    timelineState.anomalyMessages = data.anomalies || [];
+    timelineState.minMs = data.minMs;
+    timelineState.maxMs = data.maxMs;
+    timelineState.totalMs = Math.max(data.maxMs - data.minMs, 1);
+
+    const brushStart = previousBrush ? clamp(previousBrush.start, 0, 1 - MIN_BRUSH_SPAN) : 0;
+    const brushEnd = previousBrush ? clamp(previousBrush.end, brushStart + MIN_BRUSH_SPAN, 1) : 1;
+    timelineState.brushStart = brushStart;
+    timelineState.brushEnd = brushEnd;
+    timelineState.viewStartMs = timelineState.minMs + timelineState.totalMs * timelineState.brushStart;
+    timelineState.viewEndMs = timelineState.minMs + timelineState.totalMs * timelineState.brushEnd;
+
+    createTimelineTrackElements();
+    createTimelineImageElements();
+    updateTimelineGeometry();
+    updateTimelineBrushUI();
+    updateTimelineGradients();
+    updateTimelineAxis();
+    positionTimelineElements();
+    timelineSetActiveTrack(mediaData.activeTrackIndex);
+    highlightTimelineImages(currentDisplayedImages);
+    updateTimelineCursor(timelineState.currentCursorMs);
+    updateTimelineNotices();
+
+    timelineRoot.classList.remove("hidden");
+  }
+
+  function destroyTimeline() {
+    timelineState.initialized = false;
+    timelineState.trackRanges = [];
+    timelineState.imageEntries = [];
+    timelineState.trackLaneCount = 0;
+    timelineState.minMs = 0;
+    timelineState.maxMs = 0;
+    timelineState.totalMs = 0;
+    timelineState.viewStartMs = 0;
+    timelineState.viewEndMs = 0;
+    timelineState.brushStart = 0;
+    timelineState.brushEnd = 1;
+    timelineState.currentCursorMs = null;
+    timelineState.highlightTimeMs = null;
+    timelineState.imageStackMagnitude = 0;
+    timelineState.anomalyMessages = [];
+
+    if (timelineTracks) {
+      timelineTracks.innerHTML = "";
+      timelineTracks.style.removeProperty("--timeline-tracks-height");
+    }
+    if (timelineImages) {
+      timelineImages.innerHTML = "";
+      timelineImages.style.removeProperty("--timeline-images-height");
+    }
+    if (timelineMinimapTracks) {
+      timelineMinimapTracks.innerHTML = "";
+    }
+    if (timelineMinimapImages) {
+      timelineMinimapImages.innerHTML = "";
+    }
+    if (timelineAxis) {
+      timelineAxis.innerHTML = "";
+    }
+    if (timelineGradient) {
+      timelineGradient.style.removeProperty("backgroundImage");
+    }
+    if (timelineMinimapGradient) {
+      timelineMinimapGradient.style.removeProperty("backgroundImage");
+    }
+    if (timelineNotices) {
+      timelineNotices.innerHTML = "";
+      timelineNotices.classList.add("hidden");
+    }
+    if (timelineCursor) {
+      timelineCursor.classList.remove("timeline__cursor--visible");
+      timelineCursor.style.removeProperty("left");
+    }
+    if (timelineBrush) {
+      timelineBrush.style.left = "0%";
+      timelineBrush.style.width = "100%";
+    }
+    if (timelineMain) {
+      timelineMain.style.removeProperty("height");
+    }
+
+    if (mediaData?.audioTracks) {
+      mediaData.audioTracks.forEach((track) => {
+        if (track) {
+          track.timelineMainEl = null;
+          track.timelineMiniEl = null;
+        }
+      });
+    }
+    if (mediaData?.images) {
+      mediaData.images.forEach((image) => {
+        if (image) {
+          image.timelineMainEl = null;
+          image.timelineMiniEl = null;
+        }
+      });
+    }
+  }
+
+  function buildTimelineData() {
+    if (!mediaData || !Array.isArray(mediaData.audioTracks)) return null;
+
+    const trackRanges = [];
+    let minMs = Number.POSITIVE_INFINITY;
+    let maxMs = Number.NEGATIVE_INFINITY;
+
+    mediaData.audioTracks.forEach((track, index) => {
+      if (!track || !track.duration) return;
+      let startMs = track.adjustedStartTime ? track.adjustedStartTime.getTime() : null;
+      if (!Number.isFinite(startMs)) {
+        if (!(track.fileTimestamp instanceof Date)) return;
+        const referenceMs = track.fileTimestamp.getTime();
+        const durationMs = track.duration * 1000;
+        if (timestampAtEndCheckbox && timestampAtEndCheckbox.checked) {
+          startMs = referenceMs - durationMs;
+        } else {
+          startMs = referenceMs;
+        }
+        track.adjustedStartTime = new Date(startMs);
+        track.adjustedEndTime = new Date(startMs + durationMs);
+      }
+      if (!Number.isFinite(startMs)) return;
+      const endMs = startMs + track.duration * 1000;
+      track.adjustedEndTime = new Date(endMs);
+      trackRanges.push({ track, index, startMs, endMs });
+      if (startMs < minMs) minMs = startMs;
+      if (endMs > maxMs) maxMs = endMs;
+    });
+
+    if (!trackRanges.length) return null;
+
+    trackRanges.sort((a, b) => a.startMs - b.startMs);
+
+    const anomalies = [];
+    let latestEndMs = null;
+    let latestRange = null;
+
+    trackRanges.forEach((range, lane) => {
+      range.lane = lane;
+      if (latestRange) {
+        const overlap = (latestEndMs ?? latestRange.endMs) - range.startMs;
+        if (overlap > 0) {
+          range.overlapMs = overlap;
+          latestRange.overlapAheadMs = Math.max(latestRange.overlapAheadMs || 0, overlap);
+          if (overlap >= OVERLAP_REPORT_THRESHOLD_MS) {
+            anomalies.push(
+              `Overlap detected: "${range.track.label}" begins ${formatDurationMs(overlap)} before "${latestRange.track.label}" ends.`
+            );
+          }
+        } else {
+          range.gapMs = -overlap;
+        }
+      }
+      latestEndMs = Math.max(latestEndMs ?? range.endMs, range.endMs);
+      if (!latestRange || range.endMs >= latestRange.endMs) {
+        latestRange = range;
+      }
+    });
+
+    const imageEntries = mediaData.images
+      .filter((image) => image && image.originalTimestamp instanceof Date)
+      .map((image, idx) => {
+        const timeMs = image.originalTimestamp.getTime();
+        if (timeMs < minMs) minMs = timeMs;
+        if (timeMs > maxMs) maxMs = timeMs;
+        return { image, index: idx, timeMs };
+      })
+      .sort((a, b) => a.timeMs - b.timeMs);
+
+    const maxOffsetMagnitude = layoutImageEntries(imageEntries);
+
+    if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) {
+      return null;
+    }
+
+    const baseSpan = Math.max(maxMs - minMs, 1);
+    const padding = Math.max(
+      5 * 60 * 1000,
+      Math.min(baseSpan * TIMELINE_PADDING_RATIO, 30 * 60 * 1000)
+    );
+    const paddedMin = minMs - padding;
+    const paddedMax = maxMs + padding;
+
+    if (anomalies.length && timestampAtEndCheckbox) {
+      anomalies.push(
+        'Tip: toggle “Audio timestamp at end” to test whether the recorder stamped the file start or end time.'
+      );
+    }
+
+    return {
+      trackRanges,
+      imageEntries,
+      trackLaneCount: trackRanges.length,
+      imageStackMagnitude: maxOffsetMagnitude,
+      minMs: paddedMin,
+      maxMs: paddedMax,
+      anomalies,
+    };
+  }
+
+  function layoutImageEntries(entries) {
+    if (!entries.length) return 0;
+    const active = [];
+    let maxMagnitude = 0;
+
+    entries.forEach((entry) => {
+      while (active.length && entry.timeMs - active[0].timeMs > IMAGE_STACK_WINDOW_MS) {
+        active.shift();
+      }
+
+      const usedOffsets = new Set(active.map((item) => item.offsetIndex));
+      let offsetIndex = IMAGE_STACK_OFFSET_ORDER.find(
+        (candidate) => !usedOffsets.has(candidate)
+      );
+      if (offsetIndex === undefined) {
+        offsetIndex = 0;
+      }
+
+      entry.lane = 0;
+      entry.offsetIndex = offsetIndex;
+      entry.image.timelineLane = 0;
+      entry.image.timelineOffsetIndex = offsetIndex;
+
+      active.push({ timeMs: entry.timeMs, offsetIndex });
+      maxMagnitude = Math.max(maxMagnitude, Math.abs(offsetIndex));
+    });
+
+    return maxMagnitude;
+  }
+
+  function updateTimelineGeometry() {
+    if (!timelineState.initialized) return;
+
+    const trackArea = Math.max(timelineState.trackLaneCount, 1) * TRACK_LANE_HEIGHT;
+    const imageExtra = timelineState.imageStackMagnitude * IMAGE_STACK_STEP_PX * 2;
+    const imageArea = IMAGE_BASE_HEIGHT + imageExtra;
+    const totalHeight = 40 + trackArea + imageArea;
+
+    if (timelineTracks) {
+      timelineTracks.style.setProperty("--timeline-tracks-height", `${trackArea}px`);
+    }
+    if (timelineImages) {
+      timelineImages.style.setProperty("--timeline-images-height", `${imageArea}px`);
+    }
+    if (timelineMain) {
+      timelineMain.style.height = `${Math.max(150, totalHeight)}px`;
+    }
+  }
+
+  function createTimelineTrackElements() {
+    if (!timelineTracks || !timelineMinimapTracks) return;
+
+    const mainFragment = document.createDocumentFragment();
+    const miniFragment = document.createDocumentFragment();
+
+    timelineState.trackRanges.forEach((range) => {
+      const mainEl = document.createElement("div");
+      mainEl.className = "timeline-track";
+      mainEl.style.setProperty("--lane", range.lane);
+      mainEl.dataset.index = String(range.index);
+      const startLabel = formatClock(new Date(range.startMs));
+      const endLabel = formatClock(new Date(range.endMs));
+      let title = `"${range.track.label}"\n${startLabel} → ${endLabel}`;
+      if (range.track.duration) {
+        title += ` • ${formatTime(Math.round(range.track.duration))}`;
+      }
+      if (range.overlapMs) {
+        title += `\nOverlap with previous: ${formatDurationMs(range.overlapMs)}`;
+      } else if (range.overlapAheadMs) {
+        title += `\nOverlap with next: ${formatDurationMs(range.overlapAheadMs)}`;
+      }
+      mainEl.title = title;
+
+      const waveEl = document.createElement("div");
+      waveEl.className = "timeline-track__wave";
+      mainEl.appendChild(waveEl);
+
+      mainEl.addEventListener("click", () => {
+        if (!mediaData) return;
+        const wasPlaying = wave && wave.isPlaying();
+        if (range.index !== mediaData.activeTrackIndex) {
+          loadAudioTrack(range.index, wasPlaying);
+        }
+      });
+
+      mainFragment.appendChild(mainEl);
+      range.track.timelineMainEl = mainEl;
+
+      const miniEl = document.createElement("div");
+      miniEl.className = "timeline-track";
+      miniEl.style.setProperty("--lane", range.lane);
+      miniEl.title = title;
+      const miniWave = document.createElement("div");
+      miniWave.className = "timeline-track__wave";
+      miniEl.appendChild(miniWave);
+
+      miniFragment.appendChild(miniEl);
+      range.track.timelineMiniEl = miniEl;
+    });
+
+    timelineTracks.innerHTML = "";
+    timelineTracks.appendChild(mainFragment);
+    timelineMinimapTracks.innerHTML = "";
+    timelineMinimapTracks.appendChild(miniFragment);
+  }
+
+  function createTimelineImageElements() {
+    if (!timelineImages || !timelineMinimapImages) return;
+
+    const mainFragment = document.createDocumentFragment();
+    const miniFragment = document.createDocumentFragment();
+
+    timelineState.imageEntries.forEach((entry) => {
+      const { image } = entry;
+      const mainEl = document.createElement("div");
+      mainEl.className = "timeline-image";
+      const lane = entry.lane || 0;
+      const offsetIndex = entry.offsetIndex || 0;
+      mainEl.style.setProperty("--lane", lane);
+      mainEl.style.setProperty("--stack-offset", `${offsetIndex * IMAGE_STACK_STEP_PX}px`);
+      mainEl.title = `${image.timeOfDay} • ${image.timecode}`;
+
+      const imgEl = document.createElement("img");
+      imgEl.src = image.url;
+      imgEl.alt = image.name || `Capture ${entry.index + 1}`;
+      mainEl.appendChild(imgEl);
+
+      mainEl.addEventListener("click", (event) => {
+        event.stopPropagation();
+        jumpToImage(image);
+      });
+
+      mainFragment.appendChild(mainEl);
+      image.timelineMainEl = mainEl;
+
+      const miniEl = document.createElement("div");
+      miniEl.className = "timeline-image";
+      miniEl.style.setProperty("--lane", 0);
+      const miniImg = document.createElement("img");
+      miniImg.src = image.url;
+      miniImg.alt = "";
+      miniEl.appendChild(miniImg);
+
+      miniFragment.appendChild(miniEl);
+      image.timelineMiniEl = miniEl;
+    });
+
+    timelineImages.innerHTML = "";
+    timelineImages.appendChild(mainFragment);
+    timelineMinimapImages.innerHTML = "";
+    timelineMinimapImages.appendChild(miniFragment);
+  }
+
+  function positionTimelineElements() {
+    if (!timelineState.initialized) return;
+
+    const viewRange = timelineState.viewEndMs - timelineState.viewStartMs;
+    const totalRange = timelineState.totalMs;
+    if (viewRange <= 0 || totalRange <= 0) return;
+
+    timelineState.trackRanges.forEach((range) => {
+      const { track } = range;
+      const mainEl = track.timelineMainEl;
+      const miniEl = track.timelineMiniEl;
+      if (mainEl) {
+        const inViewStart = clamp(range.startMs, timelineState.viewStartMs, timelineState.viewEndMs);
+        const inViewEnd = clamp(range.endMs, timelineState.viewStartMs, timelineState.viewEndMs);
+        if (inViewEnd <= timelineState.viewStartMs || inViewStart >= timelineState.viewEndMs) {
+          mainEl.style.display = "none";
+        } else {
+          const leftPct = ((inViewStart - timelineState.viewStartMs) / viewRange) * 100;
+          const widthPct = Math.max(((inViewEnd - inViewStart) / viewRange) * 100, 0.4);
+          mainEl.style.display = "block";
+          mainEl.style.setProperty("--lane", range.lane);
+          mainEl.style.left = `${leftPct}%`;
+          mainEl.style.width = `${widthPct}%`;
+        }
+      }
+      if (miniEl) {
+        const leftPct = ((range.startMs - timelineState.minMs) / totalRange) * 100;
+        const widthPct = Math.max(((range.endMs - range.startMs) / totalRange) * 100, 0.25);
+        miniEl.style.setProperty("--lane", range.lane);
+        miniEl.style.left = `${leftPct}%`;
+        miniEl.style.width = `${widthPct}%`;
+      }
+    });
+
+    timelineState.imageEntries.forEach((entry) => {
+      const { image, timeMs, lane } = entry;
+      const mainEl = image.timelineMainEl;
+      const miniEl = image.timelineMiniEl;
+      const leftMain = ((timeMs - timelineState.viewStartMs) / viewRange) * 100;
+      const leftMini = ((timeMs - timelineState.minMs) / totalRange) * 100;
+
+      if (mainEl) {
+        if (leftMain < -10 || leftMain > 110) {
+          mainEl.style.display = "none";
+        } else {
+          mainEl.style.display = "block";
+          mainEl.style.setProperty("--lane", lane);
+          const offsetIndex = entry.offsetIndex || 0;
+          mainEl.style.setProperty("--stack-offset", `${offsetIndex * IMAGE_STACK_STEP_PX}px`);
+          mainEl.style.left = `${leftMain}%`;
+        }
+      }
+      if (miniEl) {
+        miniEl.style.setProperty("--lane", 0);
+        miniEl.style.left = `${leftMini}%`;
+      }
+    });
+  }
+
+  function updateTimelineAxis() {
+    if (!timelineAxis || !timelineState.initialized) return;
+    const range = timelineState.viewEndMs - timelineState.viewStartMs;
+    timelineAxis.innerHTML = "";
+    if (range <= 0) return;
+
+    const step = computeTickStep(range);
+    if (!step) return;
+
+    const firstTick = alignToStep(timelineState.viewStartMs, step);
+    for (let tick = firstTick; tick <= timelineState.viewEndMs + 1; tick += step) {
+      const position = ((tick - timelineState.viewStartMs) / range) * 100;
+      if (position < -2 || position > 102) continue;
+      const tickEl = document.createElement("div");
+      tickEl.className = "timeline__axis-tick";
+      tickEl.style.left = `${position}%`;
+      tickEl.textContent = formatClock(new Date(tick));
+      timelineAxis.appendChild(tickEl);
+    }
+  }
+
+  function computeTickStep(rangeMs) {
+    const hour = 60 * 60 * 1000;
+    const halfHour = 30 * 60 * 1000;
+    const quarterHour = 15 * 60 * 1000;
+    const fiveMinutes = 5 * 60 * 1000;
+    const minute = 60 * 1000;
+    const halfMinute = 30 * 1000;
+
+    if (rangeMs > 12 * hour) return 2 * hour;
+    if (rangeMs > 6 * hour) return hour;
+    if (rangeMs > 3 * hour) return halfHour;
+    if (rangeMs > 90 * 60 * 1000) return quarterHour;
+    if (rangeMs > 45 * 60 * 1000) return fiveMinutes;
+    if (rangeMs > 15 * 60 * 1000) return minute;
+    return halfMinute;
+  }
+
+  function alignToStep(startMs, stepMs) {
+    return Math.ceil(startMs / stepMs) * stepMs;
+  }
+
+  function updateTimelineGradients() {
+    if (!timelineState.initialized) return;
+    if (timelineGradient) {
+      timelineGradient.style.backgroundImage = createDayNightGradient(
+        timelineState.viewStartMs,
+        timelineState.viewEndMs
+      );
+    }
+    if (timelineMinimapGradient) {
+      timelineMinimapGradient.style.backgroundImage = createDayNightGradient(
+        timelineState.minMs,
+        timelineState.maxMs
+      );
+    }
+  }
+
+  function updateTimelineCursor(absoluteMs) {
+    if (!timelineCursor || !timelineState.initialized) return;
+    timelineState.currentCursorMs = absoluteMs;
+
+    const range = timelineState.viewEndMs - timelineState.viewStartMs;
+    if (
+      typeof absoluteMs !== "number" ||
+      !Number.isFinite(absoluteMs) ||
+      range <= 0 ||
+      absoluteMs < timelineState.viewStartMs ||
+      absoluteMs > timelineState.viewEndMs
+    ) {
+      timelineCursor.classList.remove("timeline__cursor--visible");
+      return;
+    }
+
+    const position = ((absoluteMs - timelineState.viewStartMs) / range) * 100;
+    timelineCursor.style.left = `${position}%`;
+    timelineCursor.classList.add("timeline__cursor--visible");
+  }
+
+  function updateTimelineActiveStates(highlightTimeMs) {
+    timelineState.highlightTimeMs =
+      typeof highlightTimeMs === "number" && Number.isFinite(highlightTimeMs)
+        ? highlightTimeMs
+        : null;
+
+    if (!timelineState.initialized) return;
+
+    timelineState.trackRanges.forEach((range) => {
+      const { track } = range;
+      const mainEl = track.timelineMainEl;
+      const miniEl = track.timelineMiniEl;
+      const isActive = mediaData?.activeTrackIndex === range.index;
+      const isHighlighted =
+        timelineState.highlightTimeMs !== null &&
+        timelineState.highlightTimeMs >= range.startMs &&
+        timelineState.highlightTimeMs <= range.endMs;
+      const hasOverlap = (range.overlapMs && range.overlapMs > 0) || (range.overlapAheadMs && range.overlapAheadMs > 0);
+
+      if (mainEl) {
+        mainEl.classList.toggle("timeline-track--active", !!isActive);
+        mainEl.classList.toggle("timeline-track--highlighted", !!isHighlighted);
+        mainEl.classList.toggle("timeline-track--overlap", !!hasOverlap);
+      }
+      if (miniEl) {
+        miniEl.classList.toggle("timeline-track--active", !!isActive);
+        miniEl.classList.toggle("timeline-track--highlighted", !!isHighlighted);
+        miniEl.classList.toggle("timeline-track--overlap", !!hasOverlap);
+      }
+    });
+  }
+
+  function updateTimelineNotices() {
+    if (!timelineNotices) return;
+    const messages = timelineState.anomalyMessages || [];
+    if (!messages.length) {
+      timelineNotices.innerHTML = "";
+      timelineNotices.classList.add("hidden");
+      return;
+    }
+
+    timelineNotices.innerHTML = messages
+      .map((message) => `<div>${message}</div>`)
+      .join("");
+    timelineNotices.classList.remove("hidden");
+  }
+
+  function highlightTimelineImages(images) {
+    if (!timelineState.initialized) return;
+    const activeIds = new Set((images || []).map((img) => img && img.index));
+
+    timelineState.imageEntries.forEach((entry) => {
+      const { image } = entry;
+      const isActive = activeIds.has(image.index);
+      if (image.timelineMainEl) {
+        image.timelineMainEl.classList.toggle("timeline-image--active", isActive);
+      }
+    });
+  }
+
+  function timelineSetActiveTrack(index) {
+    if (!timelineState.initialized) return;
+    if (typeof index !== "number" || Number.isNaN(index)) return;
+    updateTimelineActiveStates(timelineState.highlightTimeMs);
+  }
+
+  function updateTimelineBrushUI() {
+    if (!timelineBrush || !timelineState.initialized) return;
+    const width = timelineState.brushEnd - timelineState.brushStart;
+    timelineBrush.style.left = `${timelineState.brushStart * 100}%`;
+    timelineBrush.style.width = `${width * 100}%`;
+  }
+
+  function setBrushRange(start, end, { emit = true } = {}) {
+    if (!timelineState.initialized) return;
+
+    const span = clamp(end - start, MIN_BRUSH_SPAN, 1);
+    let clampedStart = clamp(start, 0, 1 - span);
+    let clampedEnd = clampedStart + span;
+
+    timelineState.brushStart = clampedStart;
+    timelineState.brushEnd = clampedEnd;
+    updateTimelineBrushUI();
+    if (emit) {
+      updateTimelineViewFromBrush();
+    }
+  }
+
+  function updateTimelineViewFromBrush() {
+    if (!timelineState.initialized) return;
+    timelineState.viewStartMs = timelineState.minMs + timelineState.totalMs * timelineState.brushStart;
+    timelineState.viewEndMs = timelineState.minMs + timelineState.totalMs * timelineState.brushEnd;
+    updateTimelineGradients();
+    updateTimelineAxis();
+    positionTimelineElements();
+    updateTimelineCursor(timelineState.currentCursorMs);
+    updateTimelineActiveStates(timelineState.highlightTimeMs);
+  }
+
+  function handleMinimapPointerDown(event) {
+    if (!timelineState.initialized || !timelineMinimap) return;
+    if (timelineBrush && timelineBrush.contains(event.target)) return;
+
+    const rect = timelineMinimap.getBoundingClientRect();
+    if (!rect.width) return;
+    const ratio = (event.clientX - rect.left) / rect.width;
+    const span = timelineState.brushEnd - timelineState.brushStart;
+    const start = clamp(ratio - span / 2, 0, 1 - span);
+    const end = start + span;
+    setBrushRange(start, end, { emit: true });
+    event.preventDefault();
+  }
+
+  function startBrushDrag(event, mode) {
+    if (!timelineState.initialized || !timelineMinimap) return;
+    const rect = timelineMinimap.getBoundingClientRect();
+    if (!rect.width) return;
+
+    event.preventDefault();
+    const pointerRatio = (event.clientX - rect.left) / rect.width;
+    timelineBrushDrag = {
+      type: mode,
+      pointerId: event.pointerId,
+      rect,
+      startStart: timelineState.brushStart,
+      startEnd: timelineState.brushEnd,
+      startPointerRatio: pointerRatio,
+      captureTarget: event.target,
+    };
+
+    if (event.target.setPointerCapture) {
+      try {
+        event.target.setPointerCapture(event.pointerId);
+      } catch (err) {
+        // ignore if pointer capture fails
+      }
+    }
+
+    window.addEventListener("pointermove", handleBrushPointerMove);
+    window.addEventListener("pointerup", stopBrushDrag);
+    window.addEventListener("pointercancel", stopBrushDrag);
+  }
+
+  function handleBrushPointerMove(event) {
+    if (!timelineBrushDrag) return;
+    const { rect, type, startStart, startEnd, startPointerRatio } = timelineBrushDrag;
+    if (!rect.width) return;
+
+    event.preventDefault();
+
+    const ratio = (event.clientX - rect.left) / rect.width;
+    const span = startEnd - startStart;
+    let newStart = startStart;
+    let newEnd = startEnd;
+
+    if (type === "left") {
+      newStart = clamp(ratio, 0, startEnd - MIN_BRUSH_SPAN);
+      newEnd = startEnd;
+    } else if (type === "right") {
+      newStart = startStart;
+      newEnd = clamp(ratio, startStart + MIN_BRUSH_SPAN, 1);
+    } else {
+      const delta = ratio - startPointerRatio;
+      newStart = clamp(startStart + delta, 0, 1 - span);
+      newEnd = newStart + span;
+    }
+
+    setBrushRange(newStart, newEnd, { emit: false });
+    updateTimelineViewFromBrush();
+  }
+
+  function stopBrushDrag(event) {
+    if (!timelineBrushDrag) return;
+    if (event.pointerId !== timelineBrushDrag.pointerId) return;
+
+    if (timelineBrushDrag.captureTarget?.releasePointerCapture) {
+      try {
+        timelineBrushDrag.captureTarget.releasePointerCapture(event.pointerId);
+      } catch (err) {
+        // ignore capture release errors
+      }
+    }
+
+    window.removeEventListener("pointermove", handleBrushPointerMove);
+    window.removeEventListener("pointerup", stopBrushDrag);
+    window.removeEventListener("pointercancel", stopBrushDrag);
+
+    timelineBrushDrag = null;
+  }
+
+  function createDayNightGradient(startMs, endMs) {
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      return "linear-gradient(to right, rgba(18, 31, 56, 0.45), rgba(23, 36, 58, 0.45))";
+    }
+
+    const total = endMs - startMs;
+    const segments = [];
+    let cursor = startMs;
+
+    while (cursor < endMs) {
+      const currentDate = new Date(cursor);
+      const hour = currentDate.getHours();
+      const isDay = hour >= 6 && hour < 18;
+      const boundary = new Date(currentDate);
+
+      if (isDay) {
+        boundary.setHours(18, 0, 0, 0);
+      } else if (hour < 6) {
+        boundary.setHours(6, 0, 0, 0);
+      } else {
+        boundary.setDate(boundary.getDate() + 1);
+        boundary.setHours(6, 0, 0, 0);
+      }
+
+      const boundaryMs = Math.min(boundary.getTime(), endMs);
+      const startPct = ((cursor - startMs) / total) * 100;
+      const endPct = ((boundaryMs - startMs) / total) * 100;
+      const color = isDay
+        ? "rgba(255, 214, 102, 0.16)"
+        : "rgba(22, 32, 64, 0.42)";
+      segments.push(`${color} ${startPct}% ${endPct}%`);
+
+      if (boundaryMs === cursor) {
+        cursor += 60 * 60 * 1000;
+      } else {
+        cursor = boundaryMs;
+      }
+    }
+
+    return `linear-gradient(to right, ${segments.join(", ")})`;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
   }
 
   function releaseMediaResources(data) {
