@@ -4,14 +4,10 @@
   const dropzoneLoader = document.getElementById("dropzone-loader");
   const folderInput = document.getElementById("folder-input");
   const browseTrigger = document.getElementById("browse-trigger");
-  const sidebar = document.getElementById("sidebar");
   const playToggle = document.getElementById("play-toggle");
   const speedSelect = document.getElementById("speed-select");
   const waveformContainer = document.getElementById("waveform");
   const viewerContent = document.getElementById("viewer-content");
-  const sidebarEmpty = document.getElementById("sidebar-empty");
-  const thumbnailGrid = document.getElementById("thumbnail-grid");
-  const thumbnailTemplate = document.getElementById("thumbnail-template");
   const slideshowContainer = document.getElementById("slideshow-container");
   const timelineRoot = document.getElementById("timeline");
   const timelineMain = timelineRoot ? timelineRoot.querySelector(".timeline__main") : null;
@@ -64,7 +60,6 @@
 
   let wave = null;
   let mediaData = null;
-  let currentThumbnail = null;
   let updateTimer = null;
   let lastUpdateTime = 0;
   let currentDisplayedImages = [];
@@ -334,7 +329,6 @@
     lastCompositionChangeTime = -Infinity;
     clearPendingSeek();
 
-    populateThumbnails(mediaData.images);
     initializeTimeline();
     loadAudioTrack(0);
     viewerContent.classList.remove("hidden");
@@ -355,8 +349,7 @@
     showLoadingState(false);
     dropzone.classList.remove("hidden");
     viewerContent.classList.add("hidden");
-    sidebarEmpty.innerHTML = `<p>${message}</p>`;
-    thumbnailGrid.innerHTML = "";
+    dropzoneMessage.innerHTML = message;
     releaseMediaResources(mediaData);
     mediaData = null;
     destroyWaveform();
@@ -489,7 +482,6 @@
       mediaData.images.find((img) => img.relative >= 0) || mediaData.images[0];
     if (firstVisibleImage) {
       showMainImages([firstVisibleImage]);
-      highlightThumbnail(firstVisibleImage);
     }
 
     initializeTimeline({ preserveView: true });
@@ -700,7 +692,7 @@
     const images = findImagesForTime(adjusted);
     if (images && images.length > 0) {
       showMainImages(images);
-      highlightThumbnail(images[0]);
+      highlightTimelineImages(images);
     } else {
       highlightTimelineImages([]);
       if (absoluteMs !== null) {
@@ -829,7 +821,7 @@
         `Image "${image.name}" timestamp doesn't match any audio track`
       );
       showMainImages([image]);
-      highlightThumbnail(image, thumbnailNode);
+      highlightTimelineImages([image]);
       return;
     }
 
@@ -846,51 +838,7 @@
     }
 
     showMainImages([image]);
-    highlightThumbnail(image, thumbnailNode);
-  }
-
-  function populateThumbnails(images) {
-    thumbnailGrid.innerHTML = "";
-    sidebarEmpty.classList.add("hidden");
-    currentThumbnail = null;
-
-    images.forEach((image, index) => {
-      image.index = index;
-      const node = document.importNode(thumbnailTemplate.content, true);
-      const root = node.querySelector(".thumbnail");
-      const img = node.querySelector(".thumbnail__image");
-      const timecodeEl = node.querySelector(".thumbnail__code");
-      const clockEl = node.querySelector(".thumbnail__clock");
-
-      img.src = image.url;
-      img.alt = image.name || `Capture ${index + 1}`;
-      timecodeEl.textContent = image.timecode;
-      clockEl.textContent = image.timeOfDay;
-
-      root.addEventListener("click", () => {
-        jumpToImage(image, { thumbnailNode: root });
-      });
-
-      root.dataset.index = index.toString();
-      image.thumbnailEl = root;
-
-      thumbnailGrid.appendChild(node);
-    });
-  }
-
-  function highlightThumbnail(image, explicitNode) {
-    if (!image) return;
-    const node = explicitNode || image.thumbnailEl || thumbnailGrid.querySelector(`.thumbnail[data-index="${image.index}"]`);
-    if (currentThumbnail === node) return;
-
-    if (currentThumbnail) {
-      currentThumbnail.classList.remove("active");
-    }
-    if (node) {
-      node.classList.add("active");
-      currentThumbnail = node;
-      ensureThumbnailVisible(node);
-    }
+    highlightTimelineImages([image]);
   }
 
   function formatTime(seconds) {
@@ -1303,6 +1251,11 @@
       miniImg.src = image.url;
       miniImg.alt = "";
       miniEl.appendChild(miniImg);
+
+      miniEl.addEventListener("click", (event) => {
+        event.stopPropagation();
+        jumpToImage(image);
+      });
 
       miniFragment.appendChild(miniEl);
       image.timelineMiniEl = miniEl;
@@ -1770,18 +1723,7 @@
     if (Array.isArray(data.images)) {
       data.images.forEach((image) => {
         if (image.url) URL.revokeObjectURL(image.url);
-        if (image.thumbnailEl) image.thumbnailEl = null;
       });
-    }
-  }
-
-  function ensureThumbnailVisible(node) {
-    if (!node) return;
-    const container = thumbnailGrid.parentElement || sidebar;
-    const containerRect = container.getBoundingClientRect();
-    const nodeRect = node.getBoundingClientRect();
-    if (nodeRect.top < containerRect.top || nodeRect.bottom > containerRect.bottom) {
-      node.scrollIntoView({ block: "center", behavior: "smooth" });
     }
   }
 })();
