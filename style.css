@@ -295,7 +295,6 @@ body {
 }
 
 .timeline-track {
-  --lane-height: 36px;
   position: absolute;
   top: calc(var(--lane, 0) * var(--lane-height));
   height: 32px;
@@ -306,6 +305,7 @@ body {
   pointer-events: auto;
   cursor: pointer;
   transition: box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  will-change: left, width;
 }
 
 .timeline-track__wave {
@@ -353,6 +353,7 @@ body {
   cursor: pointer;
   transform: translate3d(-50%, var(--stack-offset, 0), 0);
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  will-change: left, transform;
 }
 
 .timeline-image img {
@@ -382,6 +383,7 @@ body {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s ease;
+  will-change: left, opacity;
 }
 
 .timeline__cursor::after {
@@ -446,6 +448,7 @@ body {
   display: flex;
   align-items: stretch;
   pointer-events: none;
+  will-change: left, width;
 }
 
 .timeline__brush-region {

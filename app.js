@@ -66,6 +66,7 @@
   let mediaData = null;
   let currentThumbnail = null;
   let updateTimer = null;
+  let lastUpdateTime = 0;
   let currentDisplayedImages = [];
   let lastCompositionChangeTime = -Infinity;
   let pendingSeek = null;
@@ -89,6 +90,7 @@
   };
   let timelineBrushDrag = null;
   let timelineInteractionsReady = false;
+  let brushDragRafId = null;
 
   browseTrigger.addEventListener("click", () => folderInput.click());
 
@@ -664,12 +666,23 @@
 
   function startUpdateLoop() {
     stopUpdateLoop();
-    updateTimer = setInterval(updateSlideForCurrentTime, 250);
+    
+    function updateFrame(timestamp) {
+      // Throttle to roughly 4 times per second (250ms)
+      if (timestamp - lastUpdateTime >= 250) {
+        lastUpdateTime = timestamp;
+        updateSlideForCurrentTime();
+      }
+      
+      updateTimer = requestAnimationFrame(updateFrame);
+    }
+    
+    updateTimer = requestAnimationFrame(updateFrame);
   }
 
   function stopUpdateLoop() {
     if (updateTimer) {
-      clearInterval(updateTimer);
+      cancelAnimationFrame(updateTimer);
       updateTimer = null;
     }
   }
@@ -1308,30 +1321,40 @@
     const totalRange = timelineState.totalMs;
     if (viewRange <= 0 || totalRange <= 0) return;
 
+    // Batch DOM reads and writes to prevent layout thrashing
+    const trackUpdates = [];
+    const imageUpdates = [];
+
+    // First pass: Calculate all positions (DOM reads)
     timelineState.trackRanges.forEach((range) => {
       const { track } = range;
       const mainEl = track.timelineMainEl;
       const miniEl = track.timelineMiniEl;
+      
       if (mainEl) {
         const inViewStart = clamp(range.startMs, timelineState.viewStartMs, timelineState.viewEndMs);
         const inViewEnd = clamp(range.endMs, timelineState.viewStartMs, timelineState.viewEndMs);
-        if (inViewEnd <= timelineState.viewStartMs || inViewStart >= timelineState.viewEndMs) {
-          mainEl.style.display = "none";
-        } else {
-          const leftPct = ((inViewStart - timelineState.viewStartMs) / viewRange) * 100;
-          const widthPct = Math.max(((inViewEnd - inViewStart) / viewRange) * 100, 0.4);
-          mainEl.style.display = "block";
-          mainEl.style.setProperty("--lane", range.lane);
-          mainEl.style.left = `${leftPct}%`;
-          mainEl.style.width = `${widthPct}%`;
-        }
+        const isVisible = !(inViewEnd <= timelineState.viewStartMs || inViewStart >= timelineState.viewEndMs);
+        
+        trackUpdates.push({
+          mainEl,
+          isVisible,
+          leftPct: isVisible ? ((inViewStart - timelineState.viewStartMs) / viewRange) * 100 : 0,
+          widthPct: isVisible ? Math.max(((inViewEnd - inViewStart) / viewRange) * 100, 0.4) : 0,
+          lane: range.lane
+        });
       }
+      
       if (miniEl) {
         const leftPct = ((range.startMs - timelineState.minMs) / totalRange) * 100;
         const widthPct = Math.max(((range.endMs - range.startMs) / totalRange) * 100, 0.25);
-        miniEl.style.setProperty("--lane", range.lane);
-        miniEl.style.left = `${leftPct}%`;
-        miniEl.style.width = `${widthPct}%`;
+        
+        trackUpdates.push({
+          miniEl,
+          leftPct,
+          widthPct,
+          lane: range.lane
+        });
       }
     });
 
@@ -1343,19 +1366,51 @@
       const leftMini = ((timeMs - timelineState.minMs) / totalRange) * 100;
 
       if (mainEl) {
-        if (leftMain < -10 || leftMain > 110) {
-          mainEl.style.display = "none";
-        } else {
-          mainEl.style.display = "block";
-          mainEl.style.setProperty("--lane", lane);
-          const offsetIndex = entry.offsetIndex || 0;
-          mainEl.style.setProperty("--stack-offset", `${offsetIndex * IMAGE_STACK_STEP_PX}px`);
-          mainEl.style.left = `${leftMain}%`;
-        }
+        const isVisible = !(leftMain < -10 || leftMain > 110);
+        imageUpdates.push({
+          mainEl,
+          isVisible,
+          leftMain,
+          lane,
+          offsetIndex: entry.offsetIndex || 0
+        });
       }
+      
       if (miniEl) {
-        miniEl.style.setProperty("--lane", 0);
-        miniEl.style.left = `${leftMini}%`;
+        imageUpdates.push({
+          miniEl,
+          leftMini
+        });
+      }
+    });
+
+    // Second pass: Apply all DOM writes in batch
+    trackUpdates.forEach(update => {
+      if (update.mainEl) {
+        update.mainEl.style.display = update.isVisible ? 'block' : 'none';
+        if (update.isVisible) {
+          update.mainEl.style.setProperty('--lane', update.lane);
+          update.mainEl.style.left = `${update.leftPct}%`;
+          update.mainEl.style.width = `${update.widthPct}%`;
+        }
+      } else if (update.miniEl) {
+        update.miniEl.style.setProperty('--lane', update.lane);
+        update.miniEl.style.left = `${update.leftPct}%`;
+        update.miniEl.style.width = `${update.widthPct}%`;
+      }
+    });
+
+    imageUpdates.forEach(update => {
+      if (update.mainEl) {
+        update.mainEl.style.display = update.isVisible ? 'block' : 'none';
+        if (update.isVisible) {
+          update.mainEl.style.setProperty('--lane', update.lane);
+          update.mainEl.style.setProperty('--stack-offset', `${update.offsetIndex * IMAGE_STACK_STEP_PX}px`);
+          update.mainEl.style.left = `${update.leftMain}%`;
+        }
+      } else if (update.miniEl) {
+        update.miniEl.style.setProperty('--lane', 0);
+        update.miniEl.style.left = `${update.leftMini}%`;
       }
     });
   }
@@ -1512,7 +1567,7 @@
     timelineBrush.style.width = `${width * 100}%`;
   }
 
-  function setBrushRange(start, end, { emit = true } = {}) {
+  function setBrushRange(start, end, { emit = true, updateUIOnly = false } = {}) {
     if (!timelineState.initialized) return;
 
     const span = clamp(end - start, MIN_BRUSH_SPAN, 1);
@@ -1522,7 +1577,9 @@
     timelineState.brushStart = clampedStart;
     timelineState.brushEnd = clampedEnd;
     updateTimelineBrushUI();
-    if (emit) {
+    
+    // During drag, only update UI. Full update happens on drag end.
+    if (!updateUIOnly && emit) {
       updateTimelineViewFromBrush();
     }
   }
@@ -1584,10 +1641,25 @@
 
   function handleBrushPointerMove(event) {
     if (!timelineBrushDrag) return;
+    
+    event.preventDefault();
+    
+    // Cancel any pending RAF update
+    if (brushDragRafId !== null) {
+      cancelAnimationFrame(brushDragRafId);
+    }
+    
+    // Schedule update on next animation frame
+    brushDragRafId = requestAnimationFrame(() => {
+      brushDragRafId = null;
+      performBrushUpdate(event);
+    });
+  }
+
+  function performBrushUpdate(event) {
+    if (!timelineBrushDrag) return;
     const { rect, type, startStart, startEnd, startPointerRatio } = timelineBrushDrag;
     if (!rect.width) return;
-
-    event.preventDefault();
 
     const ratio = (event.clientX - rect.left) / rect.width;
     const span = startEnd - startStart;
@@ -1606,13 +1678,19 @@
       newEnd = newStart + span;
     }
 
-    setBrushRange(newStart, newEnd, { emit: false });
-    updateTimelineViewFromBrush();
+    // Only update brush UI immediately, defer expensive operations
+    setBrushRange(newStart, newEnd, { emit: false, updateUIOnly: true });
   }
 
   function stopBrushDrag(event) {
     if (!timelineBrushDrag) return;
     if (event.pointerId !== timelineBrushDrag.pointerId) return;
+
+    // Cancel any pending RAF update
+    if (brushDragRafId !== null) {
+      cancelAnimationFrame(brushDragRafId);
+      brushDragRafId = null;
+    }
 
     if (timelineBrushDrag.captureTarget?.releasePointerCapture) {
       try {
@@ -1625,6 +1703,9 @@
     window.removeEventListener("pointermove", handleBrushPointerMove);
     window.removeEventListener("pointerup", stopBrushDrag);
     window.removeEventListener("pointercancel", stopBrushDrag);
+
+    // Perform final full update after drag completes
+    updateTimelineViewFromBrush();
 
     timelineBrushDrag = null;
   }
