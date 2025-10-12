@@ -27,7 +27,6 @@
   const imageTimeOfDay = document.getElementById("image-timeofday");
   const delayRange = document.getElementById("delay-range");
   const delayNumber = document.getElementById("delay-number");
-  const timestampAtEndCheckbox = document.getElementById("timestamp-at-end");
 
   const utils = typeof window !== "undefined" ? window.DiapAudioUtils : null;
   const parseTimestampFromName = utils ? utils.parseTimestampFromName : null;
@@ -139,13 +138,6 @@
     if (!wave) return;
     const speed = parseFloat(speedSelect.value);
     wave.setPlaybackRate(speed);
-  });
-
-  timestampAtEndCheckbox.addEventListener("change", () => {
-    if (mediaData && mediaData.images && mediaData.audioTracks) {
-      recalculateImageTimestamps();
-      updateSlideForCurrentTime();
-    }
   });
 
   delayRange.addEventListener("input", () => syncDelayInputs(delayRange.value));
@@ -445,20 +437,13 @@
   function recalculateImageTimestamps() {
     if (!mediaData || !mediaData.images || !mediaData.audioTracks) return;
 
-    const isTimestampAtEnd = timestampAtEndCheckbox.checked;
-
     mediaData.audioTracks.forEach((track) => {
       if (!track || !track.fileTimestamp || !track.duration) return;
       const referenceMs = track.fileTimestamp.getTime();
       const durationMs = track.duration * 1000;
-      let startMs;
-
-      if (isTimestampAtEnd) {
-        startMs = referenceMs - durationMs;
-      } else {
-        startMs = referenceMs;
-      }
-
+      
+      // Use normal timestamp (audio starts at timestamp)
+      const startMs = referenceMs;
       const endMs = startMs + durationMs;
       if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
 
@@ -575,11 +560,10 @@
       return -1;
     }
 
-    const timestampAtEnd = timestampAtEndCheckbox && timestampAtEndCheckbox.checked;
     const imageTime = imageTimestamp instanceof Date ? imageTimestamp.getTime() : imageTimestamp;
 
     console.log(`\n=== Finding track for image at ${new Date(imageTime).toLocaleString()} ===`);
-    console.log(`Total tracks: ${mediaData.audioTracks.length}, Timestamp at end: ${timestampAtEnd}`);
+    console.log(`Total tracks: ${mediaData.audioTracks.length}`);
 
     let bestMatch = -1;
     let longestDuration = 0;
@@ -591,11 +575,9 @@
         continue;
       }
 
-      // Calculate the audio track's time range in milliseconds
+      // Calculate the audio track's time range in milliseconds (normal timestamp - start time)
       const trackTime = track.fileTimestamp instanceof Date ? track.fileTimestamp.getTime() : track.fileTimestamp;
-      const audioStartTime = timestampAtEnd
-        ? trackTime - (track.duration * 1000)
-        : trackTime;
+      const audioStartTime = trackTime;
       const audioEndTime = audioStartTime + (track.duration * 1000);
 
       // Debug logging
@@ -1022,11 +1004,8 @@
         if (!(track.fileTimestamp instanceof Date)) return;
         const referenceMs = track.fileTimestamp.getTime();
         const durationMs = track.duration * 1000;
-        if (timestampAtEndCheckbox && timestampAtEndCheckbox.checked) {
-          startMs = referenceMs - durationMs;
-        } else {
-          startMs = referenceMs;
-        }
+        // Use normal timestamp (audio starts at timestamp)
+        startMs = referenceMs;
         track.adjustedStartTime = new Date(startMs);
         track.adjustedEndTime = new Date(startMs + durationMs);
       }
@@ -1091,12 +1070,6 @@
     );
     const paddedMin = minMs - padding;
     const paddedMax = maxMs + padding;
-
-    if (anomalies.length && timestampAtEndCheckbox) {
-      anomalies.push(
-        'Tip: toggle “Audio timestamp at end” to test whether the recorder stamped the file start or end time.'
-      );
-    }
 
     return {
       trackRanges,
