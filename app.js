@@ -13,6 +13,7 @@
   const timelineRoot = document.getElementById("timeline");
   const timelineMain = timelineRoot ? timelineRoot.querySelector(".timeline__main") : null;
   const timelineGradient = document.getElementById("timeline-gradient");
+  const timelineGridlines = document.getElementById("timeline-gridlines");
   const timelineAxis = document.getElementById("timeline-axis");
   const timelineTracks = document.getElementById("timeline-tracks");
   const timelineImages = document.getElementById("timeline-images");
@@ -1247,6 +1248,12 @@
   function formatClock(date) {
     const hrs = String(date.getHours()).padStart(2, "0");
     const mins = String(date.getMinutes()).padStart(2, "0");
+    return `${hrs}:${mins}`;
+  }
+
+  function formatClockWithSeconds(date) {
+    const hrs = String(date.getHours()).padStart(2, "0");
+    const mins = String(date.getMinutes()).padStart(2, "0");
     const secs = String(date.getSeconds()).padStart(2, "0");
     return `${hrs}:${mins}:${secs}`;
   }
@@ -1273,7 +1280,7 @@
     
     // Update digital clock
     if (clockTime) {
-      clockTime.textContent = formatClock(date);
+      clockTime.textContent = formatClockWithSeconds(date);
     }
     
     // Update date display
@@ -1340,7 +1347,7 @@
     renderTimelineHoverImages(images);
 
     if (timelineHoverPreviewTime) {
-      timelineHoverPreviewTime.textContent = formatClock(new Date(absoluteMs));
+      timelineHoverPreviewTime.textContent = formatClockWithSeconds(new Date(absoluteMs));
     }
 
     highlightTimelineImages(images);
@@ -1843,6 +1850,9 @@
     if (!timelineAxis || !timelineState.initialized) return;
     const range = timelineState.viewEndMs - timelineState.viewStartMs;
     timelineAxis.innerHTML = "";
+    if (timelineGridlines) {
+      timelineGridlines.innerHTML = "";
+    }
     if (range <= 0) return;
 
     const step = computeTickStep(range);
@@ -1852,11 +1862,21 @@
     for (let tick = firstTick; tick <= timelineState.viewEndMs + 1; tick += step) {
       const position = ((tick - timelineState.viewStartMs) / range) * 100;
       if (position < -2 || position > 102) continue;
+      
+      // Create axis tick
       const tickEl = document.createElement("div");
       tickEl.className = "timeline__axis-tick";
       tickEl.style.left = `${position}%`;
       tickEl.textContent = formatClock(new Date(tick));
       timelineAxis.appendChild(tickEl);
+      
+      // Create gridline
+      if (timelineGridlines) {
+        const gridlineEl = document.createElement("div");
+        gridlineEl.className = "timeline__gridline";
+        gridlineEl.style.left = `${position}%`;
+        timelineGridlines.appendChild(gridlineEl);
+      }
     }
   }
 

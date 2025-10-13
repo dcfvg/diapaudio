@@ -168,34 +168,45 @@ body {
 
 .timeline__main {
   position: relative;
-  height: 72px; /* 28px axis + 16px tracks + 16px images + padding */
+  height: 53px; /* 16px images + 4px gap + 16px tracks + (25-36) + 28px axis */
   border-radius: 8px;
   overflow: visible;
   background: rgba(10, 12, 18, 0.6);
-  padding-top: 28px;
+  padding-top: 0;
 }
 
 .timeline__gradient,
 .timeline__minimap-gradient {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    to right,
-    rgba(32, 32, 32, 0.25),
-    rgba(18, 18, 18, 0.25)
-  );
-  opacity: 0.55;
-  z-index: 0;
+  display: none; /* Gradient removed */
 }
 
 .timeline__axis {
   position: absolute;
-  top: 0;
+  top: 25px; /* Directly after 16px images + 4px gap + 5px spacing */
   left: 0;
   right: 0;
   height: 28px;
   pointer-events: none;
+  z-index: 1;
+}
+
+.timeline__gridlines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 28px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.timeline__gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(-50%);
 }
 
 .timeline__axis-tick {
@@ -206,15 +217,12 @@ body {
   color: #d0d6e4;
   font-size: 0.68rem;
   letter-spacing: 0.01em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .timeline__axis-tick::before {
-  content: "";
-  display: block;
-  width: 1px;
-  height: 16px;
-  margin: 0 auto 0.2rem;
-  background: rgba(255, 255, 255, 0.25);
+  display: none; /* Tick marks removed, labels only */
 }
 
 .timeline__tracks,
@@ -222,26 +230,25 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  z-index: 1;
-}
-
-.timeline__tracks {
-  top: 28px;
-  height: 16px; /* Single line height for all tracks */
-  --lane-height: 16px;
-  z-index: 1;
 }
 
 .timeline__images {
-  top: 48px; /* Below tracks - on separate line */
-  height: 16px; /* Same height as tracks */
+  top: 0;
+  height: 16px; /* Images at the top */
   overflow: visible;
-  z-index: 1;
+  z-index: 3;
+}
+
+.timeline__tracks {
+  top: 20px; /* 16px images + 4px spacing */
+  height: 16px; /* Single line height for all tracks */
+  --lane-height: 16px;
+  z-index: 2;
 }
 
 .timeline-track {
   position: absolute;
-  top: 4px; /* Centered within the 16px container */
+  top: 1px; /* Minimal spacing from top edge */
   height: 8px; /* Thin horizontal rectangle */
   border-radius: 4px;
   background: linear-gradient(to right, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.36));
@@ -278,7 +285,7 @@ body {
   transform: translateX(-50%);
   transition: background 0.15s ease;
   will-change: left;
-  z-index: 2;
+  z-index: 3;
 }
 
 .timeline-image::after {
@@ -300,8 +307,8 @@ body {
 .timeline__hover-preview {
   position: absolute;
   left: 50%;
-  bottom: calc(100% - 24px);
-  transform: translate(-50%, -12px);
+  bottom: 100%;
+  transform: translate(-50%, -8px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -392,8 +399,8 @@ body {
 
 .timeline__cursor {
   position: absolute;
-  top: 26px;
-  bottom: 0;
+  top: 0;
+  height: 25px; /* Span from top to axis */
   width: 2px;
   background: rgba(255, 255, 255, 0.85);
   pointer-events: none;
@@ -405,7 +412,7 @@ body {
 .timeline__cursor::after {
   content: "";
   position: absolute;
-  top: -24px;
+  top: -6px;
   left: 50%;
   transform: translateX(-50%);
   width: 8px;
@@ -420,8 +427,8 @@ body {
 
 .timeline__seeker {
   position: absolute;
-  top: 26px;
-  bottom: 0;
+  top: 0;
+  height: 25px; /* Span from top to axis */
   width: 2px;
   background: rgba(180, 180, 180, 0.95);
   pointer-events: none;
