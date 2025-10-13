@@ -44,8 +44,12 @@
 
   const utils = typeof window !== "undefined" ? window.DiapAudioUtils : null;
   const parseTimestampFromName = utils ? utils.parseTimestampFromName : null;
+  const parseTimestampFromEXIF = utils ? utils.parseTimestampFromEXIF : null;
   if (typeof parseTimestampFromName !== "function") {
     throw new Error("DiapAudio timestamp utilities not loaded");
+  }
+  if (typeof parseTimestampFromEXIF !== "function") {
+    throw new Error("DiapAudio EXIF utilities not loaded");
   }
 
   const audioMimeByExtension = new Map([
@@ -900,11 +904,8 @@
           // If no timestamp from filename, try EXIF metadata
           let finalTimestamp = timestamp;
           if (!timestamp) {
-            console.warn(`No timestamp in filename for ${file.name}, checking EXIF metadata...`);
-            finalTimestamp = await extractTimestampFromEXIF(file);
-            if (finalTimestamp) {
-              console.log(`Found EXIF timestamp for ${file.name}: ${finalTimestamp.toLocaleString()}`);
-            } else {
+            finalTimestamp = await parseTimestampFromEXIF(file);
+            if (!finalTimestamp) {
               console.warn(`Unable to parse timestamp from ${file.name}. Skipping.`);
               return null;
             }
@@ -1076,86 +1077,6 @@
   /**
    * Extract timestamp from EXIF metadata (DateTimeOriginal or DateTime)
    */
-  async function extractTimestampFromEXIF(file) {
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const dataView = new DataView(arrayBuffer);
-      
-      // Check for JPEG signature
-      if (dataView.getUint16(0) !== 0xFFD8) {
-        return null; // Not a JPEG
-      }
-      
-      // Find EXIF marker (0xFFE1)
-      let offset = 2;
-      while (offset < dataView.byteLength) {
-        const marker = dataView.getUint16(offset);
-        if (marker === 0xFFE1) {
-          // Found EXIF marker
-          const exifLength = dataView.getUint16(offset + 2);
-          const exifData = new DataView(arrayBuffer, offset + 4, exifLength - 2);
-          
-          // Check for "Exif\0\0" header
-          if (exifData.getUint32(0) !== 0x45786966 || exifData.getUint16(4) !== 0) {
-            return null;
-          }
-          
-          // Parse TIFF header
-          const tiffOffset = 6;
-          const byteOrder = exifData.getUint16(tiffOffset);
-          const littleEndian = byteOrder === 0x4949; // "II" for little endian
-          
-          // Find IFD0 offset
-          const ifd0Offset = tiffOffset + exifData.getUint32(tiffOffset + 4, littleEndian);
-          
-          // Read IFD0 entries
-          const numEntries = exifData.getUint16(ifd0Offset, littleEndian);
-          
-          for (let i = 0; i < numEntries; i++) {
-            const entryOffset = ifd0Offset + 2 + i * 12;
-            const tag = exifData.getUint16(entryOffset, littleEndian);
-            
-            // Tag 0x0132 = DateTime, 0x9003 = DateTimeOriginal
-            if (tag === 0x0132 || tag === 0x9003) {
-              const valueOffset = tiffOffset + exifData.getUint32(entryOffset + 8, littleEndian);
-              let dateString = '';
-              
-              for (let j = 0; j < 19; j++) {
-                const charCode = exifData.getUint8(valueOffset + j);
-                if (charCode === 0) break;
-                dateString += String.fromCharCode(charCode);
-              }
-              
-              // Parse EXIF date format: "YYYY:MM:DD HH:MM:SS"
-              const match = dateString.match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
-              if (match) {
-                const [, year, month, day, hour, minute, second] = match;
-                return new Date(
-                  parseInt(year),
-                  parseInt(month) - 1,
-                  parseInt(day),
-                  parseInt(hour),
-                  parseInt(minute),
-                  parseInt(second)
-                );
-              }
-            }
-          }
-          
-          break;
-        }
-        
-        // Move to next marker
-        const segmentLength = dataView.getUint16(offset + 2);
-        offset += 2 + segmentLength;
-      }
-    } catch (error) {
-      console.error('Error reading EXIF data:', error);
-    }
-    
-    return null;
-  }
-
   /**
    * Load durations for all audio tracks by creating temporary audio elements.
    * This allows us to know all track durations before playback starts.
@@ -1199,6 +1120,7 @@
       // So startMs should be earlier (timestamp + negative delay = earlier time)
       const startMs = referenceMs + delayMs;
       const endMs = startMs + durationMs;
+      
       if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
 
       track.adjustedStartTime = new Date(startMs);

@@ -18,6 +18,25 @@ diapodio is a web-based tool that synchronizes your photos with audio recordings
 
 The app will generate a synchronized slideshow you can play, navigate, and export.
 
+### Timestamp Detection
+
+diapodio extracts timestamps from your images using two methods (in priority order):
+
+1. **EXIF metadata** (primary) - Reads the actual capture time from JPEG images:
+   - `DateTimeOriginal` - When the photo was taken (preferred)
+   - `DateTime` - File modification time
+   - `DateTimeDigitized` - When the image was digitized
+   
+   This ensures you get the **actual capture time**, not the file creation date, which is critical for accurate synchronization.
+
+2. **Filename parsing** (fallback) - If EXIF data is not available, recognizes various timestamp formats in filenames:
+   - `YYYY-MM-DD_HH-MM-SS.jpg` (e.g., `2025-01-15_14-30-45.jpg`)
+   - `YYYYMMDD_HHMMSS.jpg` (e.g., `20250115_143045.jpg`)
+   - `DD-MM-YYYY_HH-MM-SS.jpg` (e.g., `15-01-2025_14-30-45.jpg`)
+   - `HH-MM-SS.jpg` (e.g., `14-30-45.jpg` - uses current date)
+
+This prioritization ensures the most accurate timestamps are used for synchronization.
+
 ### About `_delay.txt`
 
 The `_delay.txt` file is used to fix time setting differences between devices. Since your camera and audio recorder may have different clock settings, this file corrects the offset.
@@ -34,6 +53,7 @@ This tells diapodio to account for the 23 minutes and 45 seconds offset between 
 ## Features
 
 - Automatic timestamp-based synchronization
+- Intelligent timestamp extraction from filenames and EXIF metadata
 - Audio playback with visual timeline
 - Keyboard shortcuts for navigation
 - Real-time preview
