@@ -237,6 +237,7 @@ body {
   height: 16px; /* Images at the top */
   overflow: visible;
   z-index: 3;
+  margin-top: 6px;
 }
 
 .timeline__tracks {
@@ -277,7 +278,7 @@ body {
   position: absolute;
   top: 0;
   width: 1px; /* Thin vertical line */
-  height: 100%; /* Full height of container */
+  height: 50%; /* Half height of container */
   border-radius: 0;
   background: #f4f4f8;
   border: none;
@@ -324,68 +325,40 @@ body {
 }
 
 .timeline__hover-preview-images {
-  display: grid;
-  gap: 2px;
-  padding: 0.35rem 0.45rem;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
   background: rgba(8, 10, 16, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
-  width: 240px;
-  height: 240px;
-}
-
-/* Single image - full preview */
-.timeline__hover-preview-images:not([class*="split-"]) {
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr;
-}
-
-/* 2 images - side by side */
-.timeline__hover-preview-images.split-2 {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr;
-}
-
-/* 3 images - one large on left, two stacked on right */
-.timeline__hover-preview-images.split-3 {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
-
-.timeline__hover-preview-images.split-3 img:first-child {
-  grid-row: 1 / 3;
-}
-
-/* 4 images - 2x2 grid */
-.timeline__hover-preview-images.split-4 {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
-
-/* 5 images - 2 on top, 3 on bottom */
-.timeline__hover-preview-images.split-5 {
-  grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
-
-.timeline__hover-preview-images.split-5 img:nth-child(1),
-.timeline__hover-preview-images.split-5 img:nth-child(2) {
-  grid-column: span 1.5;
-}
-
-/* 6 images - 3x2 grid */
-.timeline__hover-preview-images.split-6 {
-  grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  width: 300px;
+  height: 300px;
 }
 
 .timeline__hover-preview-images img {
-  width: 100%;
-  height: 100%;
+  flex: 1;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   border-radius: 4px;
   background: rgba(20, 20, 20, 0.8);
+}
+
+/* Match slideshow composition sizing */
+.timeline__hover-preview-images.split-2 img {
+  max-width: 50%;
+}
+
+.timeline__hover-preview-images.split-3 img {
+  max-width: 33.333%;
+}
+
+.timeline__hover-preview-images.split-4 img {
+  max-width: 25%;
 }
 
 .timeline__hover-preview-time {
@@ -400,7 +373,7 @@ body {
 .timeline__cursor {
   position: absolute;
   top: 0;
-  height: 25px; /* Span from top to axis */
+  height: 100%; /* Span full timeline height */
   width: 2px;
   background: rgba(255, 255, 255, 0.85);
   pointer-events: none;
@@ -428,7 +401,7 @@ body {
 .timeline__seeker {
   position: absolute;
   top: 0;
-  height: 25px; /* Span from top to axis */
+  height: 100%; /* Span full timeline height */
   width: 2px;
   background: rgba(180, 180, 180, 0.95);
   pointer-events: none;

@@ -1337,23 +1337,22 @@
       hoverOriginalCursorMs = timelineState.currentCursorMs;
     }
 
-    const images = getImagesForAbsoluteTime(absoluteMs);
-
+    // Update seeker and preview position immediately (no flicker)
     if (timelineHoverPreview) {
       timelineHoverPreview.classList.remove("hidden");
       timelineHoverPreview.style.left = `${ratio * 100}%`;
     }
 
-    renderTimelineHoverImages(images);
-
     if (timelineHoverPreviewTime) {
       timelineHoverPreviewTime.textContent = formatClockWithSeconds(new Date(absoluteMs));
     }
 
-    highlightTimelineImages(images);
-    // Don't update track highlight during hover - only during playback
-    // updateTimelineActiveStates(absoluteMs);
     updateTimelineSeeker(absoluteMs);
+
+    // Render image preview immediately
+    const images = getImagesForAbsoluteTime(absoluteMs);
+    renderTimelineHoverImages(images);
+    highlightTimelineImages(images);
   }
 
   function handleTimelineHoverLeave() {
@@ -1398,11 +1397,11 @@
       currentHoverPreviewKey = key;
       timelineHoverPreviewImages.innerHTML = "";
       timelineHoverPreviewImages.className = "timeline__hover-preview-images";
-      const count = Math.min(images.length, 6);
+      const count = Math.min(images.length, 4);
       if (count > 1) {
         timelineHoverPreviewImages.classList.add(`split-${count}`);
       }
-      images.slice(0, 6).forEach((image, index) => {
+      images.slice(0, 4).forEach((image, index) => {
         const img = document.createElement("img");
         img.src = image.url;
         img.alt = image.name || `Preview ${index + 1}`;
