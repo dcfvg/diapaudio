@@ -56,8 +56,12 @@
     ["flac", "audio/flac"],
   ]);
 
-  // Configuration: Minimum time (in seconds) an image should be displayed
-  const MIN_IMAGE_DISPLAY_DURATION = 8;
+  // Configuration
+  const MIN_IMAGE_DISPLAY_DURATION = 4;
+  const MIN_IMAGE_DISPLAY_DURATION_MS = MIN_IMAGE_DISPLAY_DURATION * 1000;
+  const MAX_IMAGE_CARRYOVER_MS = 60_000;
+  const MAX_COMPOSITION_CHANGE_INTERVAL_MS = 2_000;
+  const MAX_VISIBLE_IMAGES = 6;
   const IMAGE_STACK_WINDOW_MS = 35_000;
   const IMAGE_STACK_STEP_PX = 18;
   const IMAGE_STACK_OFFSET_ORDER = [0, -1, 1, -2, 2, -3, 3];
@@ -370,6 +374,14 @@
 
   let mediaData = null;
   let currentDisplayedImages = [];
+  const compositionState = {
+    layoutSize: 1,
+    slots: [],
+    lastChangeMs: -Infinity,
+    renderedLayoutSize: 0,
+    renderedSlotSignature: [],
+  };
+  let forceNextComposition = false;
   let pendingSeek = null;
   let pendingSeekToken = 0;
   let audioLoadToken = 0;
@@ -884,7 +896,8 @@
       })),
     };
 
-    currentDisplayedImages = [];
+    precomputeImageCompositions(mediaData.images);
+
     clearPendingSeek();
 
     initializeTimeline();
@@ -915,9 +928,6 @@
     if (timelineRoot) {
       destroyTimeline();
       timelineRoot.classList.add("hidden");
-    }
-    if (slideshowContainer) {
-      slideshowContainer.innerHTML = "";
     }
   }
 
@@ -1109,10 +1119,19 @@
       image.timecode = formatTime(Math.max(0, relative));
     });
 
+    precomputeImageCompositions(mediaData.images);
+
     const firstVisibleImage =
       mediaData.images.find((img) => img.relative >= 0) || mediaData.images[0];
     if (firstVisibleImage) {
-      showMainImages([firstVisibleImage]);
+      const firstMs = firstVisibleImage.originalTimestamp?.getTime?.();
+      showMainImages([firstVisibleImage], {
+        absoluteMs: Number.isFinite(firstMs) ? firstMs : Date.now(),
+        force: true,
+      });
+      if (firstVisibleImage.originalTimestamp) {
+        updateAnalogClock(firstVisibleImage.originalTimestamp);
+      }
     }
 
     initializeTimeline({ preserveView: true });
@@ -1134,7 +1153,7 @@
   function setupAudioForTrack(track, autoPlay = false) {
     if (!track) return;
 
-    destroyWaveform({ preserveClock: true });
+    destroyWaveform({ preserveClock: true, resetComposition: false });
 
     audioLoadToken += 1;
     const loadId = audioLoadToken;
@@ -1165,7 +1184,9 @@
           seekToImageInCurrentTrack(pendingRequest.image, pendingRequest.shouldPlay);
           handledPlayback = Boolean(pendingRequest.shouldPlay);
         } else if (typeof pendingRequest.timeMs === "number") {
-          seekToAbsoluteMs(pendingRequest.timeMs, pendingRequest.shouldPlay);
+          seekToAbsoluteMs(pendingRequest.timeMs, pendingRequest.shouldPlay, {
+            forceDisplay: true,
+          });
           handledPlayback = Boolean(pendingRequest.shouldPlay);
         }
       } else {
@@ -1251,11 +1272,15 @@
     if (!image?.originalTimestamp) return;
     const targetMs = image.originalTimestamp.getTime();
     if (!Number.isFinite(targetMs)) return;
-    seekToAbsoluteMs(targetMs, shouldPlay);
+    seekToAbsoluteMs(targetMs, shouldPlay, { forceDisplay: true });
   }
 
-  function seekToAbsoluteMs(absoluteMs, shouldPlay = null) {
+  function seekToAbsoluteMs(absoluteMs, shouldPlay = null, options = {}) {
     if (!Number.isFinite(absoluteMs)) return;
+
+    if (options.forceDisplay) {
+      forceNextComposition = true;
+    }
 
     playback.setAbsoluteTime(absoluteMs, {
       autoplay: typeof shouldPlay === "boolean" ? shouldPlay : null,
@@ -1268,7 +1293,10 @@
     }
   }
 
-  function destroyWaveform({ preserveClock = false } = {}) {
+  function destroyWaveform({ preserveClock = false, resetComposition = true } = {}) {
+    if (resetComposition) {
+      resetCompositionState({ clearDom: !preserveClock });
+    }
     if (!preserveClock) {
       playback.reset();
       setPlayToggleState("play");
@@ -1286,12 +1314,17 @@
     
     // Get images for this absolute time
     const images = getImagesForAbsoluteTime(absoluteMs);
-    showMainImages(images);
-    highlightTimelineImages(images);
+    const visibleImages = showMainImages(images, { absoluteMs });
+    const orderedImages = sortImagesByTimestamp(visibleImages);
+    highlightTimelineImages(orderedImages);
     
     // Update timeline
     updateTimelineCursor(absoluteMs);
-    updateTimelineActiveStates(absoluteMs);
+    const primaryImage = orderedImages.length
+      ? orderedImages[orderedImages.length - 1]
+      : null;
+    const highlightMs = primaryImage?.originalTimestamp?.getTime?.() ?? absoluteMs;
+    updateTimelineActiveStates(highlightMs);
     
     // Update analog clock
     if (!isHoverScrubbing) {
@@ -1306,6 +1339,64 @@
     }
   }
 
+  function precomputeImageCompositions(images) {
+    if (!Array.isArray(images) || !images.length) return;
+
+    for (let i = 0; i < images.length; i++) {
+      const anchor = images[i];
+      const anchorMs = anchor?.originalTimestamp?.getTime?.();
+      if (!Number.isFinite(anchorMs)) {
+        anchor.precomputedVisible = [];
+        anchor.compositionSize = 1;
+        continue;
+      }
+
+      const windowStart = anchorMs - MIN_IMAGE_DISPLAY_DURATION_MS;
+      const windowEnd = anchorMs + MIN_IMAGE_DISPLAY_DURATION_MS;
+
+      let start = i;
+      while (start > 0) {
+        const candidateMs = images[start - 1]?.originalTimestamp?.getTime?.();
+        if (!Number.isFinite(candidateMs) || candidateMs < windowStart) break;
+        start -= 1;
+      }
+
+      let end = i;
+      while (end + 1 < images.length) {
+        const candidateMs = images[end + 1]?.originalTimestamp?.getTime?.();
+        if (!Number.isFinite(candidateMs) || candidateMs > windowEnd) break;
+        end += 1;
+      }
+
+      const cluster = [];
+      let clusterStartMs = Number.POSITIVE_INFINITY;
+      let clusterEndMs = Number.NEGATIVE_INFINITY;
+      for (let j = start; j <= end && cluster.length < MAX_VISIBLE_IMAGES; j++) {
+        const candidate = images[j];
+        const candidateMs = candidate?.originalTimestamp?.getTime?.();
+        if (!Number.isFinite(candidateMs)) continue;
+        cluster.push(candidate);
+        clusterStartMs = Math.min(clusterStartMs, candidateMs);
+        clusterEndMs = Math.max(clusterEndMs, candidateMs);
+      }
+
+      const finalCluster = cluster.length ? cluster : [anchor];
+      if (!Number.isFinite(clusterStartMs) || !Number.isFinite(clusterEndMs)) {
+        const times = finalCluster
+          .map((entry) => entry?.originalTimestamp?.getTime?.())
+          .filter((value) => Number.isFinite(value));
+        const fallbackStart = times.length ? Math.min(...times) : anchorMs;
+        const fallbackEnd = times.length ? Math.max(...times) : anchorMs;
+        clusterStartMs = fallbackStart;
+        clusterEndMs = fallbackEnd;
+      }
+      anchor.precomputedVisible = finalCluster;
+      anchor.clusterStartMs = Number.isFinite(clusterStartMs) ? clusterStartMs : anchorMs;
+      anchor.clusterEndMs = Number.isFinite(clusterEndMs) ? clusterEndMs : anchorMs;
+      anchor.compositionSize = Math.max(Math.min(finalCluster.length, MAX_VISIBLE_IMAGES), 1);
+    }
+  }
+
   function getImagesForAbsoluteTime(absoluteMs) {
     if (!mediaData || !Array.isArray(mediaData.images) || !mediaData.images.length) {
       return [];
@@ -1315,7 +1406,7 @@
     }
 
     const images = mediaData.images;
-    let anchorIndex = 0;
+    let anchorIndex = -1;
     for (let i = 0; i < images.length; i++) {
       const timestamp = images[i].originalTimestamp?.getTime?.() ?? null;
       if (!Number.isFinite(timestamp)) continue;
@@ -1326,157 +1417,305 @@
       }
     }
 
+    if (anchorIndex === -1) {
+      return images.length ? [images[0]] : [];
+    }
+
     const anchor = images[anchorIndex];
     if (!anchor) return [];
 
-    const anchorMs = anchor.originalTimestamp.getTime();
-    const windowEnd = anchorMs + MIN_IMAGE_DISPLAY_DURATION * 1000;
-    const result = [anchor];
+    const baseVisible = Array.isArray(anchor.precomputedVisible)
+      ? anchor.precomputedVisible
+      : [anchor];
 
-    for (let i = anchorIndex + 1; i < images.length; i++) {
-      const next = images[i];
-      const nextMs = next.originalTimestamp?.getTime?.();
-      if (!Number.isFinite(nextMs)) continue;
-      if (nextMs <= windowEnd) {
-        result.push(next);
-      } else {
-        break;
-      }
+    const clusterStart = Number.isFinite(anchor.clusterStartMs)
+      ? anchor.clusterStartMs
+      : anchor.originalTimestamp?.getTime?.();
+
+    if (!Number.isFinite(clusterStart)) {
+      return baseVisible.slice(0, MAX_VISIBLE_IMAGES);
     }
 
-    // If multiple images were found together, check if we're already past the first image's display window
-    // If so, filter out images that have already been displayed
-    if (result.length > 1) {
-      // Find the earliest image in the result that should still be visible
-      const firstValidIndex = result.findIndex((img) => {
-        const imgMs = img.originalTimestamp.getTime();
-        const imgWindowEnd = imgMs + MIN_IMAGE_DISPLAY_DURATION * 1000;
-        return absoluteMs < imgWindowEnd;
-      });
-      
-      // If we found a valid starting point, return from that point onwards
-      if (firstValidIndex > 0) {
-        return result.slice(firstValidIndex);
-      }
+    const windowEnd = clusterStart + MAX_IMAGE_CARRYOVER_MS;
+    if (absoluteMs < clusterStart || absoluteMs > windowEnd) {
+      return [];
     }
 
-    return result;
+    return baseVisible.slice(0, MAX_VISIBLE_IMAGES);
   }
 
-  function showMainImages(images) {
-    if (!images || images.length === 0) {
-      // Show black screen when no images are available
-      if (currentDisplayedImages.length > 0) {
-        currentDisplayedImages = [];
-        slideshowContainer.innerHTML = "";
-        slideshowContainer.className = "slideshow__container";
-      }
-      return;
-    }
-    
-    // Check if we need to update the display
-    const isSame = currentDisplayedImages.length === images.length &&
-                   currentDisplayedImages.every((img, i) => img === images[i]);
-    
-    if (isSame) return;
-    
-    // Determine the maximum number of slots we need (based on current and previous images)
-    const maxSlots = Math.max(currentDisplayedImages.length, images.length);
-    
-    // Create a map of old images by URL for quick lookup
-    const oldImagesMap = new Map();
-    currentDisplayedImages.forEach((img, idx) => {
-      oldImagesMap.set(img.url, idx);
-    });
-    
-    // Build the new slot arrangement, keeping images in their original positions
-    const slots = new Array(maxSlots).fill(null);
-    images.forEach((image) => {
-      // If this image was already displayed, keep it in the same slot
-      if (oldImagesMap.has(image.url)) {
-        const oldIndex = oldImagesMap.get(image.url);
-        slots[oldIndex] = image;
-      } else {
-        // New image - find the first available slot
-        const emptyIndex = slots.findIndex(slot => slot === null);
-        if (emptyIndex !== -1) {
-          slots[emptyIndex] = image;
-        } else {
-          slots.push(image);
-        }
-      }
-    });
-    
-    currentDisplayedImages = images;
-    
-    // Update split class based on total slots (including empty ones)
-    const visibleCount = slots.filter(s => s !== null).length;
-    slideshowContainer.className = "slideshow__container";
-    if (visibleCount > 1) {
-      slideshowContainer.classList.add(`split-${Math.min(visibleCount, 4)}`);
-    }
-    
-    // Update DOM elements to match the slots
-    const currentChildren = Array.from(slideshowContainer.children);
-    
-    // Adjust the number of children to match slots
-    while (currentChildren.length < slots.length) {
-      const placeholder = document.createElement("div");
-      placeholder.className = "slideshow__placeholder";
-      slideshowContainer.appendChild(placeholder);
-      currentChildren.push(placeholder);
-    }
-    while (currentChildren.length > slots.length) {
-      slideshowContainer.removeChild(currentChildren.pop());
-    }
-    
-    // Update each slot
-    slots.forEach((image, index) => {
-      const element = currentChildren[index];
-      
-      if (image === null) {
-        // Make this slot invisible
-        if (element.tagName === "IMG") {
-          const placeholder = document.createElement("div");
-          placeholder.className = "slideshow__placeholder";
-          placeholder.style.flex = "1";
-          placeholder.style.visibility = "hidden";
-          slideshowContainer.replaceChild(placeholder, element);
-        } else {
-          element.style.visibility = "hidden";
-        }
-      } else {
-        // Show image in this slot
-        if (element.tagName === "IMG") {
-          // Update existing img if needed
-          if (element.src !== image.url) {
-            element.src = image.url;
-            element.alt = image.name || `Capture ${index + 1}`;
-          }
-          element.style.visibility = "visible";
-        } else {
-          // Replace placeholder with img
-          const img = document.createElement("img");
-          img.src = image.url;
-          img.alt = image.name || `Capture ${index + 1}`;
-          slideshowContainer.replaceChild(img, element);
-        }
-      }
-    });
-    
-    // Update metadata with the first image
-    const firstImage = images[0];
-    
-    // Update analog clock
-    if (firstImage.originalTimestamp) {
-      updateAnalogClock(firstImage.originalTimestamp);
+  function showMainImages(images, options = {}) {
+    if (!slideshowContainer) return [];
+
+    const absoluteMs = Number.isFinite(options.absoluteMs)
+      ? options.absoluteMs
+      : images?.[0]?.originalTimestamp?.getTime?.() ?? Date.now();
+    const requestedForce = Boolean(options.force);
+    const shouldForce = requestedForce || forceNextComposition;
+    if (forceNextComposition) {
+      forceNextComposition = false;
     }
 
-    highlightTimelineImages(images);
-    const highlightMs = firstImage?.originalTimestamp
-      ? firstImage.originalTimestamp.getTime()
-      : null;
-    updateTimelineActiveStates(highlightMs);
+    const targetImages = Array.isArray(images)
+      ? images.slice(0, MAX_VISIBLE_IMAGES)
+      : [];
+
+    const slots = updateCompositionSlots(targetImages, absoluteMs, { force: shouldForce });
+    const visibleImages = slots
+      .map((entry) => entry?.image || null)
+      .filter(Boolean);
+    const orderedVisible = sortImagesByTimestamp(visibleImages);
+    renderSlideshow(slots);
+    currentDisplayedImages = orderedVisible;
+
+    return orderedVisible;
+  }
+
+  function resetCompositionState({ clearDom = false } = {}) {
+    compositionState.layoutSize = 1;
+    compositionState.slots = Array.from({ length: compositionState.layoutSize }, () => null);
+    compositionState.lastChangeMs = -Infinity;
+    compositionState.renderedLayoutSize = 0;
+    compositionState.renderedSlotSignature = [];
+    currentDisplayedImages = [];
+    forceNextComposition = false;
+
+    if (!slideshowContainer) return;
+
+    slideshowContainer.className = "slideshow__container";
+    slideshowContainer.innerHTML = "";
+    delete slideshowContainer.dataset.imageCount;
+    delete slideshowContainer.dataset.layoutSize;
+  }
+
+  function updateCompositionSlots(targetImages, absoluteMs, { force = false } = {}) {
+    const now = Number.isFinite(absoluteMs) ? absoluteMs : Date.now();
+    const hasTargets = Array.isArray(targetImages) && targetImages.length > 0;
+
+    let desiredLayoutSize = hasTargets
+      ? targetImages.reduce((max, image) => {
+          const size = Number.isFinite(image?.compositionSize)
+            ? image.compositionSize
+            : targetImages.length;
+          return Math.max(max, size);
+        }, Math.max(targetImages.length, 1))
+      : 1;
+
+    desiredLayoutSize = Math.min(desiredLayoutSize, MAX_VISIBLE_IMAGES);
+
+    const lastChangeMs = Number.isFinite(compositionState.lastChangeMs)
+      ? compositionState.lastChangeMs
+      : -Infinity;
+    const allowLayoutAdjustment = force || (now - lastChangeMs >= MAX_COMPOSITION_CHANGE_INTERVAL_MS);
+
+    let nextLayoutSize = compositionState.layoutSize || 1;
+
+    if (!hasTargets) {
+      nextLayoutSize = 1;
+    } else {
+      if (desiredLayoutSize > nextLayoutSize) {
+        nextLayoutSize = desiredLayoutSize;
+      } else if (desiredLayoutSize < nextLayoutSize && allowLayoutAdjustment) {
+        nextLayoutSize = desiredLayoutSize;
+      }
+    }
+
+    if (force && hasTargets) {
+      nextLayoutSize = Math.max(nextLayoutSize, desiredLayoutSize);
+    }
+
+    if (nextLayoutSize < 1) {
+      nextLayoutSize = 1;
+    }
+
+    let layoutAdjusted = false;
+
+    if (nextLayoutSize !== compositionState.layoutSize) {
+      const existingImages = (compositionState.slots || [])
+        .map((entry) => entry?.image || null)
+        .filter(Boolean);
+
+      compositionState.layoutSize = nextLayoutSize;
+      compositionState.slots = Array.from({ length: nextLayoutSize }, (_, index) => {
+        const image = existingImages[index] || null;
+        return image ? { image, enteredAtMs: now } : null;
+      });
+      compositionState.lastChangeMs = now;
+      layoutAdjusted = true;
+    }
+
+    if (!compositionState.slots || compositionState.slots.length !== compositionState.layoutSize) {
+      compositionState.slots = Array.from({ length: compositionState.layoutSize }, () => null);
+    }
+
+    if (!hasTargets) {
+      if (compositionState.slots.some(Boolean)) {
+        compositionState.slots = Array.from({ length: compositionState.layoutSize }, () => null);
+        compositionState.lastChangeMs = now;
+      }
+      return compositionState.slots;
+    }
+
+    const targetSet = new Set(targetImages);
+    const visibleSet = new Set();
+    let changeOccurred = false;
+
+    const allowImmediateReplacement = force || layoutAdjusted;
+    const mayChange = allowImmediateReplacement || (now - compositionState.lastChangeMs >= MAX_COMPOSITION_CHANGE_INTERVAL_MS);
+
+    for (let i = 0; i < compositionState.slots.length; i++) {
+      const entry = compositionState.slots[i];
+      if (!entry) continue;
+
+      const elapsed = now - entry.enteredAtMs;
+      const inTarget = targetSet.has(entry.image);
+      const shouldKeep =
+        inTarget || (!allowImmediateReplacement && (elapsed < MIN_IMAGE_DISPLAY_DURATION_MS || !mayChange));
+
+      if (shouldKeep) {
+        visibleSet.add(entry.image);
+      } else {
+        compositionState.slots[i] = null;
+        changeOccurred = true;
+      }
+    }
+
+    const availableIndices = [];
+    for (let i = 0; i < compositionState.slots.length; i++) {
+      if (!compositionState.slots[i]) {
+        availableIndices.push(i);
+      }
+    }
+
+    if ((force || mayChange) && availableIndices.length) {
+      const orderedTargets = targetImages
+        .filter((image) => !visibleSet.has(image))
+        .sort((a, b) => {
+          const aMs = a?.originalTimestamp?.getTime?.() ?? 0;
+          const bMs = b?.originalTimestamp?.getTime?.() ?? 0;
+          return aMs - bMs;
+        });
+
+      for (const image of orderedTargets) {
+        if (!availableIndices.length) break;
+        const slotIndex = availableIndices.shift();
+        compositionState.slots[slotIndex] = { image, enteredAtMs: now };
+        visibleSet.add(image);
+        changeOccurred = true;
+      }
+    }
+
+    if (changeOccurred) {
+      compositionState.lastChangeMs = now;
+    }
+
+    return compositionState.slots;
+  }
+
+  function renderSlideshow(slots) {
+    if (!slideshowContainer) return;
+
+    const layoutSize = Math.max(compositionState.layoutSize || 1, 1);
+    const normalizedSlots = Array.from({ length: layoutSize }, (_, index) => slots?.[index] ?? null);
+    const signature = normalizedSlots.map((entry) => entry?.image || null);
+
+    const isSame =
+      compositionState.renderedLayoutSize === layoutSize &&
+      compositionState.renderedSlotSignature.length === signature.length &&
+      signature.every((image, index) => compositionState.renderedSlotSignature[index] === image);
+
+    if (isSame) return;
+
+    compositionState.renderedLayoutSize = layoutSize;
+    compositionState.renderedSlotSignature = signature.slice();
+
+    slideshowContainer.className = "slideshow__container";
+    slideshowContainer.dataset.layoutSize = String(layoutSize);
+    slideshowContainer.dataset.imageCount = String(signature.filter(Boolean).length);
+    slideshowContainer.classList.add(`split-${Math.min(layoutSize, MAX_VISIBLE_IMAGES)}`);
+
+    for (let index = 0; index < normalizedSlots.length; index++) {
+      const entry = normalizedSlots[index];
+      const existing = slideshowContainer.children[index] || null;
+
+      if (entry?.image) {
+        const image = entry.image;
+
+        if (
+          existing &&
+          existing.tagName === "IMG" &&
+          existing.dataset.imageId === image.url &&
+          existing.dataset.slotIndex === String(index)
+        ) {
+          existing.dataset.slotIndex = String(index);
+          existing.dataset.imageId = image.url;
+          existing.classList.add("slideshow__image", "slideshow__image--visible");
+          continue;
+        }
+
+        const imgEl = existing && existing.tagName === "IMG" ? existing : document.createElement("img");
+
+        if (!imgEl.classList.contains("slideshow__image")) {
+          imgEl.classList.add("slideshow__image");
+        }
+
+        imgEl.dataset.slotIndex = String(index);
+        imgEl.dataset.imageId = image.url;
+        imgEl.src = image.url;
+        imgEl.alt = image.name || `Capture ${index + 1}`;
+        imgEl.loading = "lazy";
+        imgEl.decoding = "async";
+
+        if (imgEl.classList.contains("slideshow__image--visible")) {
+          imgEl.classList.remove("slideshow__image--visible");
+        }
+
+        if (existing === imgEl) {
+          // reused element, no need to reinsert
+        } else if (existing) {
+          slideshowContainer.replaceChild(imgEl, existing);
+        } else {
+          slideshowContainer.appendChild(imgEl);
+        }
+
+        requestAnimationFrame(() => {
+          imgEl.classList.add("slideshow__image--visible");
+        });
+      } else {
+        if (
+          existing &&
+          existing.classList &&
+          existing.classList.contains("slideshow__placeholder") &&
+          existing.dataset.slotIndex === String(index)
+        ) {
+          existing.dataset.slotIndex = String(index);
+          continue;
+        }
+
+        const placeholder =
+          existing && existing.classList && existing.classList.contains("slideshow__placeholder")
+            ? existing
+            : document.createElement("div");
+
+        placeholder.className = "slideshow__placeholder";
+        placeholder.dataset.slotIndex = String(index);
+        placeholder.setAttribute("aria-hidden", "true");
+
+        if (existing === placeholder) {
+          // already in place
+        } else if (existing) {
+          slideshowContainer.replaceChild(placeholder, existing);
+        } else {
+          slideshowContainer.appendChild(placeholder);
+        }
+      }
+    }
+
+    while (slideshowContainer.children.length > normalizedSlots.length) {
+      const lastChild = slideshowContainer.lastElementChild;
+      if (!lastChild) break;
+      slideshowContainer.removeChild(lastChild);
+    }
   }
 
   function jumpToImage(image, { thumbnailNode } = {}) {
@@ -1488,8 +1727,25 @@
       console.warn(
         `Image "${image.name}" timestamp doesn't match any audio track`
       );
-      showMainImages([image]);
-      highlightTimelineImages([image]);
+      const targetMs = image.originalTimestamp?.getTime?.();
+      const visibleAlone = showMainImages([image], {
+        absoluteMs: Number.isFinite(targetMs) ? targetMs : Date.now(),
+        force: true,
+      });
+      const orderedVisible = sortImagesByTimestamp(visibleAlone);
+      highlightTimelineImages(orderedVisible);
+      const fallbackImage = orderedVisible.length
+        ? orderedVisible[orderedVisible.length - 1]
+        : null;
+      const fallbackMs = fallbackImage?.originalTimestamp?.getTime?.() ?? targetMs;
+      if (Number.isFinite(fallbackMs ?? NaN)) {
+        timelineState.currentCursorMs = fallbackMs;
+        updateTimelineCursor(fallbackMs);
+        updateTimelineActiveStates(fallbackMs);
+      }
+      if (image.originalTimestamp) {
+        updateAnalogClock(image.originalTimestamp);
+      }
       return;
     }
 
@@ -1505,8 +1761,25 @@
       setPendingSeek(image, wasPlaying, correctTrackIndex);
     }
 
-    showMainImages([image]);
-    highlightTimelineImages([image]);
+    const targetMs = image.originalTimestamp?.getTime?.();
+    const visibleImages = showMainImages([image], {
+      absoluteMs: Number.isFinite(targetMs) ? targetMs : Date.now(),
+      force: true,
+    });
+    const orderedVisible = sortImagesByTimestamp(visibleImages);
+    highlightTimelineImages(orderedVisible);
+    const highlightImage = orderedVisible.length
+      ? orderedVisible[orderedVisible.length - 1]
+      : null;
+    const highlightMs = highlightImage?.originalTimestamp?.getTime?.() ?? targetMs;
+    if (Number.isFinite(highlightMs ?? NaN)) {
+      timelineState.currentCursorMs = highlightMs;
+      updateTimelineCursor(highlightMs);
+      updateTimelineActiveStates(highlightMs);
+    }
+    if (image.originalTimestamp) {
+      updateAnalogClock(image.originalTimestamp);
+    }
   }
 
   function formatTime(seconds) {
@@ -1531,6 +1804,18 @@
     const mins = String(date.getMinutes()).padStart(2, "0");
     const secs = String(date.getSeconds()).padStart(2, "0");
     return `${hrs}:${mins}:${secs}`;
+  }
+
+  function sortImagesByTimestamp(images) {
+    if (!Array.isArray(images)) return [];
+    return [...images].sort((a, b) => {
+      const aMs = a?.originalTimestamp?.getTime?.();
+      const bMs = b?.originalTimestamp?.getTime?.();
+      if (!Number.isFinite(aMs) && !Number.isFinite(bMs)) return 0;
+      if (!Number.isFinite(aMs)) return -1;
+      if (!Number.isFinite(bMs)) return 1;
+      return aMs - bMs;
+    });
   }
 
   function updateAnalogClock(date) {
@@ -1626,8 +1911,9 @@
 
     // Render image preview immediately
     const images = getImagesForAbsoluteTime(absoluteMs);
-    renderTimelineHoverImages(images);
-    highlightTimelineImages(images);
+    const orderedPreviewImages = sortImagesByTimestamp(images);
+    renderTimelineHoverImages(orderedPreviewImages);
+    highlightTimelineImages(orderedPreviewImages);
   }
 
   function handleTimelineHoverLeave() {
@@ -1666,7 +1952,7 @@
     isHoverScrubbing = false;
 
     // Always seek to the clicked time, regardless of images
-    seekToAbsoluteMs(absoluteMs, shouldPlay);
+    seekToAbsoluteMs(absoluteMs, shouldPlay, { forceDisplay: true });
     
     showHud();
   }
@@ -1769,7 +2055,7 @@
     updateTimelineAxis();
     positionTimelineElements();
     timelineSetActiveTrack(mediaData.activeTrackIndex);
-    highlightTimelineImages(currentDisplayedImages);
+    highlightTimelineImages(sortImagesByTimestamp(currentDisplayedImages));
     updateTimelineCursor(timelineState.currentCursorMs);
     updateTimelineNotices();
 
