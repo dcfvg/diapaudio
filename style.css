@@ -340,6 +340,19 @@ body {
   line-height: 1.6;
 }
 
+.dropzone__note a {
+  color: #52d29c;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.18s ease;
+}
+
+.dropzone__note a:hover,
+.dropzone__note a:focus-visible {
+  color: #8df0c5;
+  text-decoration: underline;
+}
+
 @media (max-width: 640px) {
   .dropzone__content {
     gap: 2rem;
@@ -1021,6 +1034,7 @@ body {
   opacity: 0;
   transition: opacity 0.18s ease;
   background: rgba(8, 8, 8, 0.6);
+  -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
   padding: 2rem;
 }
