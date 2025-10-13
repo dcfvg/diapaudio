@@ -238,52 +238,31 @@ body {
 
 .timeline-image {
   position: absolute;
-  top: 50%;
-  width: 8px; /* Smaller dots */
-  height: 8px; /* Smaller dots */
-  border-radius: 50%;
+  top: 0;
+  width: 1px; /* Thin vertical line */
+  height: 100%; /* Full height of container */
+  border-radius: 0;
   background: #f4f4f8;
-  border: 1.5px solid rgba(255, 255, 255, 0.6);
-  pointer-events: auto;
-  cursor: pointer;
-  transform: translate3d(-50%, -50%, 0);
-  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  border: none;
+  pointer-events: none; /* Not clickable */
+  transform: translateX(-50%);
+  transition: background 0.15s ease;
   will-change: left;
   z-index: 2;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 2px rgba(255, 255, 255, 0.3);
 }
 
 .timeline-image::after {
-  content: "";
-  position: absolute;
-  inset: -4px; /* Adjust for smaller dots */
-  border-radius: 50%;
-  background: rgba(79, 140, 255, 0.08);
-  opacity: 0;
-  transition: opacity 0.15s ease;
+  display: none; /* No hover effect needed */
 }
 
 .timeline-image img {
   display: none;
 }
 
-.timeline-image:hover {
-  transform: translate3d(-50%, -50%, 0) scale(1.2);
-  border-color: rgba(79, 140, 255, 0.9);
-}
-
-.timeline-image:hover::after {
-  opacity: 1;
-}
-
 .timeline-image--active {
-  background: #ffb347;
-  border-color: #ffd766;
-}
-
-.timeline-image--active::after {
-  opacity: 1;
-  background: rgba(255, 214, 102, 0.2);
+  background: #ffb347; /* Highlighted color for active image */
+  box-shadow: 0 0 4px rgba(255, 179, 71, 0.6);
 }
 
 .timeline-track__wave {
@@ -618,13 +597,53 @@ body {
 }
 
 .viewer__clock {
+  position: absolute;
+  top: 16px;
+  right: 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.3rem;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.85);
   padding: 0.6rem;
   border-radius: 8px;
+  z-index: 1000;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  pointer-events: auto;
+}
+
+.viewer__clock:hover {
+  background: rgba(0, 0, 0, 0.95);
+}
+
+.clock-analog {
+  display: block;
+}
+
+.clock-analog.hidden {
+  display: none;
+}
+
+.clock-digital {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+}
+
+.clock-digital.hidden {
+  display: none;
+}
+
+.clock-time {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #f4f4f8;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
 }
 
 .clock-svg {
@@ -671,20 +690,6 @@ body {
   color: #c6ccdf;
   text-align: center;
   font-variant-numeric: tabular-nums;
-}
-
-.viewer__badge {
-  padding: 0.4rem 0.7rem;
-  background: rgba(0, 0, 0, 0.7);
-  border-radius: 999px;
-  font-size: 0.9rem;
-  line-height: 1;
-  color: #f4f4f8;
-}
-
-.viewer__badge--clock {
-  font-size: 0.85rem;
-  color: #c6ccdf;
 }
 
 .viewer__hud {

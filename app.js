@@ -33,6 +33,10 @@
   const clockMinuteHand = document.getElementById("clock-minute-hand");
   const clockSecondHand = document.getElementById("clock-second-hand");
   const clockDate = document.getElementById("clock-date");
+  const viewerClock = document.getElementById("viewer-clock");
+  const clockAnalog = document.getElementById("clock-analog");
+  const clockDigital = document.getElementById("clock-digital");
+  const clockTime = document.getElementById("clock-time");
 
   const utils = typeof window !== "undefined" ? window.DiapAudioUtils : null;
   const parseTimestampFromName = utils ? utils.parseTimestampFromName : null;
@@ -98,8 +102,25 @@
   const alwaysShowHud = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(hover: none)").matches;
   let timelineHoverReady = false;
   let currentHoverPreviewKey = null;
+  let isAnalogClock = true; // Track clock mode
 
   browseTrigger.addEventListener("click", () => folderInput.click());
+
+  // Toggle between analog and digital clock on click
+  if (viewerClock) {
+    viewerClock.addEventListener("click", (event) => {
+      event.stopPropagation();
+      isAnalogClock = !isAnalogClock;
+      
+      if (isAnalogClock) {
+        clockAnalog.classList.remove("hidden");
+        clockDigital.classList.add("hidden");
+      } else {
+        clockAnalog.classList.add("hidden");
+        clockDigital.classList.remove("hidden");
+      }
+    });
+  }
 
   folderInput.addEventListener("change", (event) => {
     const files = Array.from(event.target.files);
@@ -528,12 +549,6 @@
     if (slideshowContainer) {
       slideshowContainer.innerHTML = "";
     }
-    if (imageTimecode) {
-      imageTimecode.textContent = "";
-    }
-    if (imageTimeOfDay) {
-      imageTimeOfDay.textContent = "";
-    }
   }
 
   function isImage(name) {
@@ -899,8 +914,46 @@
     if (!Number.isFinite(absoluteMs)) return;
 
     const targetTrackIndex = findAudioTrackForTimestamp(absoluteMs);
+    
     if (targetTrackIndex === -1) {
       console.warn(`No audio track covers ${new Date(absoluteMs).toISOString()}`);
+      
+      // Try to find the closest audio track (next available)
+      let closestTrackIndex = -1;
+      let closestDistance = Infinity;
+      
+      for (let i = 0; i < mediaData.audioTracks.length; i++) {
+        const track = mediaData.audioTracks[i];
+        if (!track || !track.adjustedStartTime) continue;
+        
+        const trackStartMs = track.adjustedStartTime.getTime();
+        const distance = Math.abs(absoluteMs - trackStartMs);
+        
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestTrackIndex = i;
+        }
+      }
+      
+      if (closestTrackIndex !== -1) {
+        // Load the closest track and seek to beginning or end
+        const track = mediaData.audioTracks[closestTrackIndex];
+        const trackStartMs = track.adjustedStartTime.getTime();
+        const shouldResume = typeof shouldPlay === "boolean" ? shouldPlay : !audioElement.paused;
+        
+        if (absoluteMs < trackStartMs) {
+          // Before this track - seek to beginning
+          setPendingSeek(null, shouldResume, closestTrackIndex, trackStartMs);
+          loadAudioTrack(closestTrackIndex, shouldResume);
+        } else {
+          // After this track - load track and seek to the time (will be clamped)
+          setPendingSeek(null, shouldResume, closestTrackIndex, absoluteMs);
+          loadAudioTrack(closestTrackIndex, shouldResume);
+        }
+      } else {
+        // No audio tracks at all - just update display
+        updateSlideForCurrentTime();
+      }
       return;
     }
 
@@ -983,6 +1036,8 @@
       showMainImages(images);
       highlightTimelineImages(images);
     } else {
+      // No images for this time - show black screen
+      showMainImages([]);
       highlightTimelineImages([]);
       if (Number.isFinite(absoluteMs)) {
         updateTimelineActiveStates(absoluteMs);
@@ -990,7 +1045,7 @@
     }
     if (Number.isFinite(absoluteMs)) {
       updateTimelineCursor(absoluteMs);
-      // Update analog clock while playing
+      // Update analog clock while playing (even if no images)
       if (!isHoverScrubbing) {
         updateAnalogClock(new Date(absoluteMs));
       }
@@ -1093,7 +1148,15 @@
   }
 
   function showMainImages(images) {
-    if (!images || images.length === 0) return;
+    if (!images || images.length === 0) {
+      // Show black screen when no images are available
+      if (currentDisplayedImages.length > 0) {
+        currentDisplayedImages = [];
+        slideshowContainer.innerHTML = "";
+        slideshowContainer.className = "slideshow__container";
+      }
+      return;
+    }
     
     // Check if we need to update the display
     const isSame = currentDisplayedImages.length === images.length &&
@@ -1125,16 +1188,6 @@
     
     // Update metadata with the first image
     const firstImage = images[0];
-    if (imageTimecode) {
-      if (images.length > 1) {
-        imageTimecode.textContent = `${firstImage.timecode} (+${images.length - 1})`;
-      } else {
-        imageTimecode.textContent = firstImage.timecode;
-      }
-    }
-    if (imageTimeOfDay) {
-      imageTimeOfDay.textContent = firstImage.timeOfDay;
-    }
     
     // Update analog clock
     if (firstImage.originalTimestamp) {
@@ -1209,12 +1262,17 @@
     const minuteAngle = (minutes * 6) + (seconds * 0.1); // 6° per minute + second adjustment
     const secondAngle = seconds * 6; // 6° per second
     
-    // Apply rotation to clock hands
+    // Apply rotation to clock hands (analog)
     clockHourHand.setAttribute('transform', `rotate(${hourAngle} 50 50)`);
     clockMinuteHand.setAttribute('transform', `rotate(${minuteAngle} 50 50)`);
     
     if (clockSecondHand) {
       clockSecondHand.setAttribute('transform', `rotate(${secondAngle} 50 50)`);
+    }
+    
+    // Update digital clock
+    if (clockTime) {
+      clockTime.textContent = formatClock(date);
     }
     
     // Update date display
@@ -1321,35 +1379,24 @@
 
     // Always start playing when clicking on timeline
     const shouldPlay = true;
-    const images = getImagesForAbsoluteTime(absoluteMs);
 
     hidePreviewImages();
     hideTimelineHoverPreview();
     isHoverScrubbing = false;
 
-    if (images.length) {
-      // Jump to the image and start playing
-      const correctTrackIndex = findAudioTrackForTimestamp(images[0].originalTimestamp);
-      
-      if (correctTrackIndex === -1) {
-        console.warn(`Image "${images[0].name}" timestamp doesn't match any audio track`);
-        showMainImages([images[0]]);
-        highlightTimelineImages([images[0]]);
-        return;
-      }
-
-      if (correctTrackIndex !== mediaData.activeTrackIndex) {
-        setPendingSeek(images[0], shouldPlay, correctTrackIndex);
-        loadAudioTrack(correctTrackIndex, shouldPlay);
-      } else {
-        seekToImageInCurrentTrack(images[0], shouldPlay);
-      }
-
-      showMainImages([images[0]]);
-      highlightTimelineImages([images[0]]);
+    // Always seek to the clicked time, regardless of images
+    seekToAbsoluteMs(absoluteMs, shouldPlay);
+    
+    // Update display with images at this time (or show black screen if none)
+    const images = getImagesForAbsoluteTime(absoluteMs);
+    if (images.length > 0) {
+      showMainImages(images);
+      highlightTimelineImages(images);
     } else {
-      seekToAbsoluteMs(absoluteMs, shouldPlay);
+      showMainImages([]);
+      highlightTimelineImages([]);
     }
+    
     updateSlideForCurrentTime();
     showHud();
   }
@@ -1725,10 +1772,8 @@
       imgEl.alt = image.name || `Capture ${entry.index + 1}`;
       mainEl.appendChild(imgEl);
 
-      mainEl.addEventListener("click", (event) => {
-        event.stopPropagation();
-        jumpToImage(image);
-      });
+      // Remove click handler - images are not clickable
+      // mainEl.addEventListener("click", (event) => { ... });
 
       mainFragment.appendChild(mainEl);
       image.timelineMainEl = mainEl;
