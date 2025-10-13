@@ -824,6 +824,11 @@ body {
   object-fit: contain;
 }
 
+.slideshow__placeholder {
+  flex: 1;
+  visibility: hidden;
+}
+
 .slideshow__container.split-2 img {
   max-width: 50%;
 }

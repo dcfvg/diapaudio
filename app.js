@@ -1344,6 +1344,22 @@
       }
     }
 
+    // If multiple images were found together, check if we're already past the first image's display window
+    // If so, filter out images that have already been displayed
+    if (result.length > 1) {
+      // Find the earliest image in the result that should still be visible
+      const firstValidIndex = result.findIndex((img) => {
+        const imgMs = img.originalTimestamp.getTime();
+        const imgWindowEnd = imgMs + MIN_IMAGE_DISPLAY_DURATION * 1000;
+        return absoluteMs < imgWindowEnd;
+      });
+      
+      // If we found a valid starting point, return from that point onwards
+      if (firstValidIndex > 0) {
+        return result.slice(firstValidIndex);
+      }
+    }
+
     return result;
   }
 
@@ -1364,23 +1380,88 @@
     
     if (isSame) return;
     
+    // Determine the maximum number of slots we need (based on current and previous images)
+    const maxSlots = Math.max(currentDisplayedImages.length, images.length);
+    
+    // Create a map of old images by URL for quick lookup
+    const oldImagesMap = new Map();
+    currentDisplayedImages.forEach((img, idx) => {
+      oldImagesMap.set(img.url, idx);
+    });
+    
+    // Build the new slot arrangement, keeping images in their original positions
+    const slots = new Array(maxSlots).fill(null);
+    images.forEach((image) => {
+      // If this image was already displayed, keep it in the same slot
+      if (oldImagesMap.has(image.url)) {
+        const oldIndex = oldImagesMap.get(image.url);
+        slots[oldIndex] = image;
+      } else {
+        // New image - find the first available slot
+        const emptyIndex = slots.findIndex(slot => slot === null);
+        if (emptyIndex !== -1) {
+          slots[emptyIndex] = image;
+        } else {
+          slots.push(image);
+        }
+      }
+    });
+    
     currentDisplayedImages = images;
     
-    // Clear the container
-    slideshowContainer.innerHTML = "";
-    
-    // Update split class
+    // Update split class based on total slots (including empty ones)
+    const visibleCount = slots.filter(s => s !== null).length;
     slideshowContainer.className = "slideshow__container";
-    if (images.length > 1) {
-      slideshowContainer.classList.add(`split-${Math.min(images.length, 4)}`);
+    if (visibleCount > 1) {
+      slideshowContainer.classList.add(`split-${Math.min(visibleCount, 4)}`);
     }
     
-    // Add images
-    images.forEach((image, index) => {
-      const img = document.createElement("img");
-      img.src = image.url;
-      img.alt = image.name || `Capture ${index + 1}`;
-      slideshowContainer.appendChild(img);
+    // Update DOM elements to match the slots
+    const currentChildren = Array.from(slideshowContainer.children);
+    
+    // Adjust the number of children to match slots
+    while (currentChildren.length < slots.length) {
+      const placeholder = document.createElement("div");
+      placeholder.className = "slideshow__placeholder";
+      slideshowContainer.appendChild(placeholder);
+      currentChildren.push(placeholder);
+    }
+    while (currentChildren.length > slots.length) {
+      slideshowContainer.removeChild(currentChildren.pop());
+    }
+    
+    // Update each slot
+    slots.forEach((image, index) => {
+      const element = currentChildren[index];
+      
+      if (image === null) {
+        // Make this slot invisible
+        if (element.tagName === "IMG") {
+          const placeholder = document.createElement("div");
+          placeholder.className = "slideshow__placeholder";
+          placeholder.style.flex = "1";
+          placeholder.style.visibility = "hidden";
+          slideshowContainer.replaceChild(placeholder, element);
+        } else {
+          element.style.visibility = "hidden";
+        }
+      } else {
+        // Show image in this slot
+        if (element.tagName === "IMG") {
+          // Update existing img if needed
+          if (element.src !== image.url) {
+            element.src = image.url;
+            element.alt = image.name || `Capture ${index + 1}`;
+          }
+          element.style.visibility = "visible";
+        } else {
+          // Replace placeholder with img
+          const img = document.createElement("img");
+          img.src = image.url;
+          img.alt = image.name || `Capture ${index + 1}`;
+          slideshowContainer.replaceChild(img, element);
+        }
+      }
     });
     
     // Update metadata with the first image
