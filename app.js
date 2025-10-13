@@ -30,6 +30,7 @@
   const imageTimecode = document.getElementById("image-timecode");
   const imageTimeOfDay = document.getElementById("image-timeofday");
   const delayField = document.getElementById("delay-field");
+  const exportFcpButton = document.getElementById("export-fcp-button");
   const viewerHud = document.getElementById("viewer-hud");
   const slideshowPreview = document.getElementById("slideshow-preview");
   const clockHourHand = document.getElementById("clock-hour-hand");
@@ -557,6 +558,16 @@
         commitDelay();
         delayField.blur();
       }
+    });
+  }
+
+  if (exportFcpButton) {
+    exportFcpButton.addEventListener("click", () => {
+      if (!mediaData || !mediaData.images || mediaData.images.length === 0) {
+        alert("No media loaded. Please load a folder with images and audio first.");
+        return;
+      }
+      exportFinalCutProXML();
     });
   }
 
@@ -2659,5 +2670,351 @@
         if (image.url) URL.revokeObjectURL(image.url);
       });
     }
+  }
+
+  // ============================================================================
+  // Final Cut Pro XML Export
+  // ============================================================================
+  // This export simulates the composition logic to generate accurate clips with:
+  // - Proper durations based on actual visibility (not just MIN_IMAGE_DISPLAY_DURATION)
+  // - Correct track assignments matching the slot system
+  // - Markers with layout info (scale/position for multi-image layouts)
+  // - Timeline structure compatible with Premiere Pro, DaVinci Resolve, and FCP
+  //
+  // NOTE: Motion effects are exported as MARKERS instead of effects because
+  // Premiere Pro has difficulty translating FCP XML motion effects. The markers
+  // contain all layout information (scale, position) for manual application.
+
+  function exportFinalCutProXML() {
+    const frameRate = 30;
+    const timebase = 30;
+    const width = 3840; // 4K
+    const height = 2160; // 4K
+
+    // Calculate timeline boundaries
+    const timelineStart = mediaData.images[0]?.originalTimestamp?.getTime() || 0;
+    const lastImage = mediaData.images[mediaData.images.length - 1];
+    const timelineEnd = lastImage 
+      ? lastImage.originalTimestamp.getTime() + MIN_IMAGE_DISPLAY_DURATION_MS
+      : 0;
+    const timelineDuration = timelineEnd - timelineStart;
+    const timelineDurationFrames = msToFrames(timelineDuration, frameRate);
+
+    // Generate XML
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE xmeml>
+<xmeml version="5">
+  <sequence id="sequence-1">
+    <name>Diapodio Slideshow</name>
+    <duration>${timelineDurationFrames}</duration>
+    <rate>
+      <timebase>${timebase}</timebase>
+      <ntsc>FALSE</ntsc>
+    </rate>
+    <timecode>
+      <rate>
+        <timebase>${timebase}</timebase>
+        <ntsc>FALSE</ntsc>
+      </rate>
+      <string>00:00:00:00</string>
+      <frame>0</frame>
+      <displayformat>NDF</displayformat>
+    </timecode>
+    <media>
+      <video>
+        <format>
+          <samplecharacteristics>
+            <rate>
+              <timebase>${timebase}</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <width>${width}</width>
+            <height>${height}</height>
+            <pixelaspectratio>Square</pixelaspectratio>
+          </samplecharacteristics>
+        </format>`;
+
+    // Generate image clips with proper layering
+    const imageClips = generateImageClips(timelineStart, frameRate);
+    const trackGroups = groupClipsByTrack(imageClips);
+
+    // Add video tracks
+    Object.keys(trackGroups).sort((a, b) => Number(a) - Number(b)).forEach(trackNum => {
+      const clips = trackGroups[trackNum];
+      xml += `
+        <track>`;
+      
+      clips.forEach(clip => {
+        const relativePath = getRelativePath(clip.filepath);
+        xml += `
+          <clipitem id="${clip.id}">
+            <name>${escapeXml(clip.name)}</name>
+            <duration>${clip.duration}</duration>
+            <rate>
+              <timebase>${timebase}</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>${clip.start}</start>
+            <end>${clip.end}</end>
+            <in>0</in>
+            <out>${clip.duration}</out>
+            <file id="${clip.fileId}">
+              <name>${escapeXml(clip.filename)}</name>
+              <pathurl>${relativePath}</pathurl>
+              <rate>
+                <timebase>${timebase}</timebase>
+              </rate>
+              <duration>${clip.duration}</duration>
+              <media>
+                <video>
+                  <duration>${clip.duration}</duration>
+                  <samplecharacteristics>
+                    <width>${width}</width>
+                    <height>${height}</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>${generateLayoutMarker(clip.trackNum, clip.totalTracks)}
+          </clipitem>`;
+      });
+      
+      xml += `
+        </track>`;
+    });
+
+    xml += `
+      </video>
+      <audio>
+        <numOutputChannels>2</numOutputChannels>
+        <format>
+          <samplecharacteristics>
+            <depth>16</depth>
+            <samplerate>48000</samplerate>
+          </samplecharacteristics>
+        </format>`;
+
+    // Add audio tracks
+    mediaData.audioTracks.forEach((track, index) => {
+      const audioStartMs = track.adjustedStartTime?.getTime() || 0;
+      const audioStartFrames = Math.max(0, msToFrames(audioStartMs - timelineStart, frameRate));
+      const audioDurationFrames = msToFrames(track.duration * 1000, frameRate);
+      const audioEndFrames = audioStartFrames + audioDurationFrames;
+      const relativePath = getRelativePath(track.originalName);
+      
+      // Only add track if it's within timeline bounds
+      if (audioStartFrames < timelineDurationFrames && audioEndFrames > 0) {
+        xml += `
+        <track>
+          <clipitem id="audio-${index}">
+            <name>${escapeXml(track.originalName)}</name>
+            <duration>${audioDurationFrames}</duration>
+            <rate>
+              <timebase>${timebase}</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>${audioStartFrames}</start>
+            <end>${audioEndFrames}</end>
+            <in>0</in>
+            <out>${audioDurationFrames}</out>
+            <file id="audio-file-${index}">
+              <name>${escapeXml(track.originalName)}</name>
+              <pathurl>${relativePath}</pathurl>
+              <rate>
+                <timebase>${timebase}</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>${audioDurationFrames}</duration>
+              <media>
+                <audio>
+                  <samplecharacteristics>
+                    <depth>16</depth>
+                    <samplerate>48000</samplerate>
+                  </samplecharacteristics>
+                </audio>
+              </media>
+            </file>
+            <sourcetrack>
+              <mediatype>audio</mediatype>
+            </sourcetrack>
+          </clipitem>
+        </track>`;
+      }
+    });
+
+    xml += `
+      </audio>
+    </media>
+  </sequence>
+</xmeml>`;
+
+    // Download XML file
+    const blob = new Blob([xml], { type: "application/xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "diapodio-timeline.xml";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function generateImageClips(timelineStart, frameRate) {
+    const clips = [];
+    let clipId = 1;
+    
+    // Simulate the composition over time to get accurate clip timings and layouts
+    const timeStep = 100; // Check every 100ms for composition changes
+    const timelineEnd = mediaData.images[mediaData.images.length - 1].originalTimestamp.getTime() + MIN_IMAGE_DISPLAY_DURATION_MS;
+    const totalDuration = timelineEnd - timelineStart;
+    
+    // Track active clips: Map<imageIndex, { trackNum, startMs, layoutSize }>
+    const activeClips = new Map();
+    let nextTrackNum = 1;
+    
+    for (let currentMs = 0; currentMs <= totalDuration; currentMs += timeStep) {
+      const absoluteMs = timelineStart + currentMs;
+      
+      // Get images that should be visible at this time using the actual composition logic
+      const visibleImages = getImagesForAbsoluteTime(absoluteMs);
+      const visibleIndices = new Set(
+        visibleImages.map(img => mediaData.images.indexOf(img))
+      );
+      
+      const currentLayoutSize = visibleImages.length;
+      
+      // End clips that are no longer visible
+      const toRemove = [];
+      activeClips.forEach((clipData, imageIndex) => {
+        if (!visibleIndices.has(imageIndex)) {
+          // Image is no longer visible - finalize the clip
+          const durationMs = currentMs - clipData.startMs;
+          const durationFrames = msToFrames(durationMs, frameRate);
+          const startFrames = msToFrames(clipData.startMs, frameRate);
+          
+          if (durationFrames > 0) {
+            const image = mediaData.images[imageIndex];
+            clips.push({
+              id: `clip-${clipId++}`,
+              fileId: `file-${imageIndex}`,
+              name: image.name,
+              filename: image.name,
+              filepath: image.name,
+              trackNum: clipData.trackNum,
+              totalTracks: clipData.layoutSize,
+              start: startFrames,
+              end: startFrames + durationFrames,
+              duration: durationFrames
+            });
+          }
+          
+          toRemove.push(imageIndex);
+        } else {
+          // Update layout size if changed
+          clipData.layoutSize = currentLayoutSize;
+        }
+      });
+      
+      // Remove finished clips
+      toRemove.forEach(idx => activeClips.delete(idx));
+      
+      // Start new clips for newly visible images
+      visibleImages.forEach((image, slotIndex) => {
+        const imageIndex = mediaData.images.indexOf(image);
+        if (!activeClips.has(imageIndex)) {
+          // Assign track number based on slot position
+          activeClips.set(imageIndex, {
+            trackNum: slotIndex + 1,
+            startMs: currentMs,
+            layoutSize: currentLayoutSize
+          });
+        }
+      });
+    }
+    
+    // Finalize any remaining active clips at timeline end
+    activeClips.forEach((clipData, imageIndex) => {
+      const durationMs = totalDuration - clipData.startMs;
+      const durationFrames = msToFrames(durationMs, frameRate);
+      const startFrames = msToFrames(clipData.startMs, frameRate);
+      
+      if (durationFrames > 0) {
+        const image = mediaData.images[imageIndex];
+        clips.push({
+          id: `clip-${clipId++}`,
+          fileId: `file-${imageIndex}`,
+          name: image.name,
+          filename: image.name,
+          filepath: image.name,
+          trackNum: clipData.trackNum,
+          totalTracks: clipData.layoutSize,
+          start: startFrames,
+          end: startFrames + durationFrames,
+          duration: durationFrames
+        });
+      }
+    });
+    
+    return clips;
+  }
+
+  function groupClipsByTrack(clips) {
+    const tracks = {};
+    clips.forEach(clip => {
+      if (!tracks[clip.trackNum]) {
+        tracks[clip.trackNum] = [];
+      }
+      tracks[clip.trackNum].push(clip);
+    });
+    return tracks;
+  }
+
+  function generateLayoutMarker(trackNum, totalTracks) {
+    if (totalTracks === 1) return "";
+    
+    // Calculate layout info for the marker
+    let layoutDesc = "";
+    let scaleValue = 100;
+    let positionDesc = "center";
+    
+    if (totalTracks === 2) {
+      scaleValue = 50;
+      positionDesc = trackNum === 1 ? "left" : "right";
+      layoutDesc = `Layout: 2-column split, ${positionDesc}, scale ${scaleValue}%`;
+    } else if (totalTracks === 3) {
+      scaleValue = 33.33;
+      positionDesc = trackNum === 1 ? "left" : trackNum === 2 ? "center" : "right";
+      layoutDesc = `Layout: 3-column split, ${positionDesc}, scale ${scaleValue}%`;
+    } else if (totalTracks >= 4) {
+      scaleValue = 25;
+      positionDesc = `column ${trackNum}`;
+      layoutDesc = `Layout: 4-column split, ${positionDesc}, scale ${scaleValue}%`;
+    }
+    
+    // Add a marker at the start of the clip
+    return `
+            <marker>
+              <name>${escapeXml(layoutDesc)}</name>
+              <comment>Track ${trackNum} of ${totalTracks} | Scale: ${scaleValue}% | Position: ${positionDesc}</comment>
+              <in>0</in>
+              <out>-1</out>
+            </marker>`;
+  }
+
+  function msToFrames(ms, frameRate) {
+    return Math.round((ms / 1000) * frameRate);
+  }
+
+  function getRelativePath(filename) {
+    // Extract just the filename from any path
+    const name = filename.split(/[/\\]/).pop();
+    return name;
+  }
+
+  function escapeXml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
   }
 })();

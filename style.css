@@ -325,8 +325,8 @@ body {
   gap: 0.45rem;
   padding: 0.35rem 0.6rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
+  /* border: 1px solid rgba(255, 255, 255, 0.12); */
+  /* background: rgba(255, 255, 255, 0.04); */
   transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
 }
 
@@ -755,6 +755,41 @@ body {
   background: rgba(24, 24, 24, 0.95);
 }
 
+.export-button {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 999px;
+  color: rgba(147, 197, 253, 1);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.export-button:hover {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+.export-button:active {
+  transform: translateY(0);
+}
+
+.export-button__icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.export-button__label {
+  line-height: 1;
+}
+
 .viewer__slideshow {
   flex: 1;
   position: relative;
@@ -1119,6 +1154,12 @@ body {
   .timeline__inputs label select,
   .timeline__inputs label input[type="text"] {
     flex: 1 1 auto;
+  }
+
+  .export-button {
+    width: 100%;
+    justify-content: center;
+    padding: 0.5rem 1rem;
   }
 
   .delay-control__inputs {
