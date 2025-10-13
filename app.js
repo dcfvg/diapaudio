@@ -129,6 +129,49 @@
   let currentAbsoluteTimeMs = null;
   let lastPlaybackTimestamp = null;
 
+  // LocalStorage helpers
+  const STORAGE_KEYS = {
+    PLAYBACK_SPEED: 'diapaudio_playback_speed',
+    SKIP_SILENCE: 'diapaudio_skip_silence',
+    CLOCK_MODE: 'diapaudio_clock_mode'
+  };
+
+  function saveToStorage(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+      console.warn('Failed to save to localStorage:', e);
+    }
+  }
+
+  function loadFromStorage(key, defaultValue) {
+    try {
+      const item = localStorage.getItem(key);
+      return item !== null ? JSON.parse(item) : defaultValue;
+    } catch (e) {
+      console.warn('Failed to load from localStorage:', e);
+      return defaultValue;
+    }
+  }
+
+  // Initialize settings from localStorage
+  const savedSpeed = loadFromStorage(STORAGE_KEYS.PLAYBACK_SPEED, 1);
+  if (speedSelect) {
+    speedSelect.value = String(savedSpeed);
+    audioElement.playbackRate = savedSpeed;
+  }
+
+  isAnalogClock = loadFromStorage(STORAGE_KEYS.CLOCK_MODE, true);
+  if (clockAnalog && clockDigital) {
+    if (isAnalogClock) {
+      clockAnalog.classList.remove("hidden");
+      clockDigital.classList.add("hidden");
+    } else {
+      clockAnalog.classList.add("hidden");
+      clockDigital.classList.remove("hidden");
+    }
+  }
+
   browseTrigger.addEventListener("click", () => folderInput.click());
 
   setPlayToggleState("play");
@@ -138,6 +181,7 @@
     viewerClock.addEventListener("click", (event) => {
       event.stopPropagation();
       isAnalogClock = !isAnalogClock;
+      saveToStorage(STORAGE_KEYS.CLOCK_MODE, isAnalogClock);
       
       if (isAnalogClock) {
         clockAnalog.classList.remove("hidden");
@@ -234,6 +278,7 @@
   speedSelect.addEventListener("change", () => {
     const speed = parseFloat(speedSelect.value);
     audioElement.playbackRate = Number.isFinite(speed) ? speed : 1;
+    saveToStorage(STORAGE_KEYS.PLAYBACK_SPEED, audioElement.playbackRate);
   });
 
   if (delayField) {
