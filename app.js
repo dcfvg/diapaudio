@@ -150,7 +150,6 @@
 
     function computeAbsolute(now) {
       const activeTrack = getActiveTrack();
-      const delaySeconds = getDelaySeconds();
 
       if (
         state.playing &&
@@ -163,7 +162,8 @@
         const audioSeconds = Number.isFinite(audioElement.currentTime)
           ? audioElement.currentTime
           : 0;
-        return trackStartMs + (audioSeconds + delaySeconds) * 1000;
+        // Note: delay is already applied in adjustedStartTime
+        return trackStartMs + audioSeconds * 1000;
       }
 
       if (!Number.isFinite(state.absoluteMs)) {
@@ -213,7 +213,7 @@
 
       const trackStartMs = track.adjustedStartTime.getTime();
       const relativeSeconds = (absoluteMs - trackStartMs) / 1000;
-      const delayAdjustedSeconds = relativeSeconds - getDelaySeconds();
+      // Note: delay is already applied in adjustedStartTime, so relativeSeconds is the actual position in the audio
 
       const canControlAudio =
         audioElement.readyState >= 1 || Number.isFinite(audioElement.duration);
@@ -227,8 +227,8 @@
         // Only apply a tiny buffer (0.01 seconds) to prevent seeking past the actual end
         const maxSeekPosition = Number.isFinite(duration) ? Math.max(0, duration - 0.01) : duration;
         const targetSeconds = Number.isFinite(duration)
-          ? clamp(delayAdjustedSeconds, 0, maxSeekPosition)
-          : Math.max(delayAdjustedSeconds, 0);
+          ? clamp(relativeSeconds, 0, maxSeekPosition)
+          : Math.max(relativeSeconds, 0);
 
         if (
           Math.abs(audioElement.currentTime - targetSeconds) >
@@ -583,6 +583,13 @@
     if (!Number.isFinite(value)) return;
     delaySeconds = value;
     updateDelayField();
+    
+    // Recalculate track positions and images with new delay
+    if (mediaData && mediaData.audioTracks) {
+      recalculateImageTimestamps();
+      initializeTimeline({ preserveView: true });
+    }
+    
     playback.refresh();
   }
 
@@ -1073,13 +1080,16 @@
   function recalculateImageTimestamps() {
     if (!mediaData || !mediaData.images || !mediaData.audioTracks) return;
 
+    const delayMs = getDelaySeconds() * 1000;
+
     mediaData.audioTracks.forEach((track) => {
       if (!track || !track.fileTimestamp || !track.duration) return;
       const referenceMs = track.fileTimestamp.getTime();
       const durationMs = track.duration * 1000;
       
-      // Use normal timestamp (audio starts at timestamp)
-      const startMs = referenceMs;
+      // Apply delay: negative delay means audio started recording earlier than the timestamp
+      // So startMs should be earlier (timestamp + negative delay = earlier time)
+      const startMs = referenceMs + delayMs;
       const endMs = startMs + durationMs;
       if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
 
@@ -1200,14 +1210,25 @@
 
     for (let i = 0; i < mediaData.audioTracks.length; i++) {
       const track = mediaData.audioTracks[i];
-      if (!track.fileTimestamp || !track.duration) {
+      if (!track.duration) {
         continue;
       }
 
-      // Calculate the audio track's time range in milliseconds (normal timestamp - start time)
-      const trackTime = track.fileTimestamp instanceof Date ? track.fileTimestamp.getTime() : track.fileTimestamp;
-      const audioStartTime = trackTime;
-      const audioEndTime = audioStartTime + (track.duration * 1000);
+      // Use adjusted start/end times which include delay
+      let audioStartTime, audioEndTime;
+      
+      if (track.adjustedStartTime && track.adjustedEndTime) {
+        audioStartTime = track.adjustedStartTime.getTime();
+        audioEndTime = track.adjustedEndTime.getTime();
+      } else if (track.fileTimestamp) {
+        // Fallback: calculate with delay if adjusted times not yet set
+        const delayMs = getDelaySeconds() * 1000;
+        const trackTime = track.fileTimestamp.getTime();
+        audioStartTime = trackTime + delayMs;
+        audioEndTime = audioStartTime + (track.duration * 1000);
+      } else {
+        continue;
+      }
 
       // Check if image timestamp falls within this track's time range
       // Use < instead of <= for the end boundary to avoid exact end-of-file edge cases
@@ -1751,6 +1772,8 @@
     let minMs = Number.POSITIVE_INFINITY;
     let maxMs = Number.NEGATIVE_INFINITY;
 
+    const delayMs = getDelaySeconds() * 1000;
+
     mediaData.audioTracks.forEach((track, index) => {
       if (!track || !track.duration) return;
       let startMs = track.adjustedStartTime ? track.adjustedStartTime.getTime() : null;
@@ -1758,8 +1781,8 @@
         if (!(track.fileTimestamp instanceof Date)) return;
         const referenceMs = track.fileTimestamp.getTime();
         const durationMs = track.duration * 1000;
-        // Use normal timestamp (audio starts at timestamp)
-        startMs = referenceMs;
+        // Apply delay: negative delay means audio started recording earlier
+        startMs = referenceMs + delayMs;
         track.adjustedStartTime = new Date(startMs);
         track.adjustedEndTime = new Date(startMs + durationMs);
       }
