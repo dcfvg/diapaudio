@@ -223,8 +223,11 @@
           Number.isFinite(audioElement.duration) && audioElement.duration > 0
             ? audioElement.duration
             : track.duration;
+        // Ensure we don't seek beyond the duration, but allow getting very close to the end
+        // Only apply a tiny buffer (0.01 seconds) to prevent seeking past the actual end
+        const maxSeekPosition = Number.isFinite(duration) ? Math.max(0, duration - 0.01) : duration;
         const targetSeconds = Number.isFinite(duration)
-          ? clamp(delayAdjustedSeconds, 0, duration)
+          ? clamp(delayAdjustedSeconds, 0, maxSeekPosition)
           : Math.max(delayAdjustedSeconds, 0);
 
         if (
@@ -1207,7 +1210,8 @@
       const audioEndTime = audioStartTime + (track.duration * 1000);
 
       // Check if image timestamp falls within this track's time range
-      if (imageTime >= audioStartTime && imageTime <= audioEndTime) {
+      // Use < instead of <= for the end boundary to avoid exact end-of-file edge cases
+      if (imageTime >= audioStartTime && imageTime < audioEndTime) {
         // If multiple tracks match, prefer the longest one (most complete recording)
         if (track.duration > longestDuration) {
           bestMatch = i;
