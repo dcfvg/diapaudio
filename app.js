@@ -379,6 +379,28 @@
     showLoadingState(true);
 
     try {
+      // Check for _delay.txt file and read delay setting
+      const delayFile = files.find(file => {
+        const path = getFilePath(file);
+        const name = path.split('/').pop();
+        return name === '_delay.txt';
+      });
+
+      if (delayFile) {
+        try {
+          const text = await delayFile.text();
+          const parsed = parseDelayField(text.trim());
+          if (parsed !== null) {
+            setDelaySeconds(parsed);
+            console.log(`Loaded delay setting from _delay.txt: ${formatDelay(parsed)}`);
+          } else {
+            console.warn(`Invalid delay format in _delay.txt: "${text.trim()}"`);
+          }
+        } catch (err) {
+          console.error('Error reading _delay.txt:', err);
+        }
+      }
+
       const audioFiles = files
         .filter((file) => {
           const path = getFilePath(file);

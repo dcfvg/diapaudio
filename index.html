@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DiapAudio Sync</title>
+    <title>diapodio</title>
     <link rel="stylesheet" href="style.css" />
     <script src="timestamp-utils.js" defer></script>
     <script src="app.js" defer></script>
@@ -14,13 +14,26 @@
         <section class="viewer">
           <div class="dropzone" id="dropzone">
             <div class="dropzone__content">
-              <p>
-                <span id="dropzone-message">Drop a folder containing <strong>audio files</strong> and <strong>timestamped images</strong> here or </span>
-                <span class="dropzone__browse" id="browse-trigger">browse</span>
-              </p>
-              <p class="dropzone__instructions">
-                Expected result: Images will synchronize with audio playback based on their timestamps.
-              </p>
+              <div class="dropzone__brand">
+                <div class="dropzone__heading">
+                  <h1 class="dropzone__title">diapodio</h1>
+                  <p class="dropzone__tagline">Synchronize photographs with recordings based on timestamps.</p>
+                </div>
+              </div>
+              <div class="dropzone__body">
+                <div class="dropzone__preflight">
+                  <h2 class="dropzone__subtitle">folder struture</h2>
+                  <ul class="dropzone__checklist">
+                    <li>Name each file with its capture time, e.g. <code>2025-01-01_08-00-00.jpg</code>.</li>
+                    <li>Keep the audio and images together inside a single folder.</li>
+                  </ul>
+                </div>
+                <div class="dropzone__cta">
+                  <p class="dropzone__cta-text" id="dropzone-message">Drag and drop the prepared folder anywhere in this zone.</p>
+                  <button type="button" class="dropzone__browse" id="browse-trigger">or browse</button>
+                </div>
+                <p class="dropzone__note">diapodio will match each image to the nearest audio moment using its timestamp.</p>
+              </div>
               <div class="dropzone__loader hidden" id="dropzone-loader">
                 <div class="loader-spinner"></div>
                 <p>Loading files...</p>
