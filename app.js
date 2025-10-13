@@ -29,6 +29,9 @@
   const delayDisplay = document.getElementById("delay-display");
   const viewerHud = document.getElementById("viewer-hud");
   const slideshowPreview = document.getElementById("slideshow-preview");
+  const clockHourHand = document.getElementById("clock-hour-hand");
+  const clockMinuteHand = document.getElementById("clock-minute-hand");
+  const clockDate = document.getElementById("clock-date");
 
   const utils = typeof window !== "undefined" ? window.DiapAudioUtils : null;
   const parseTimestampFromName = utils ? utils.parseTimestampFromName : null;
@@ -202,6 +205,11 @@
     delaySeconds = value;
     updateDelayField();
     updateDelayDisplay(delaySeconds);
+    
+    // Update timeline positions and cursor when delay changes
+    if (timelineState.initialized) {
+      updateSlideForCurrentTime();
+    }
   }
 
   function updateDelayField() {
@@ -385,14 +393,24 @@
         imageFiles.map(async (file) => {
           const url = URL.createObjectURL(file);
           const timestamp = parseTimestampFromName(getFilePath(file));
+          
+          // If no timestamp from filename, try EXIF metadata
+          let finalTimestamp = timestamp;
           if (!timestamp) {
-            console.warn(`Unable to parse timestamp from ${file.name}. Skipping.`);
-            return null;
+            console.warn(`No timestamp in filename for ${file.name}, checking EXIF metadata...`);
+            finalTimestamp = await extractTimestampFromEXIF(file);
+            if (finalTimestamp) {
+              console.log(`Found EXIF timestamp for ${file.name}: ${finalTimestamp.toLocaleString()}`);
+            } else {
+              console.warn(`Unable to parse timestamp from ${file.name}. Skipping.`);
+              return null;
+            }
           }
+          
           return {
             name: file.name,
             url,
-            timestamp,
+            timestamp: finalTimestamp,
           };
         })
       );
@@ -559,6 +577,89 @@
 
   function getFilePath(file) {
     return file.webkitRelativePath || file.path || file.name;
+  }
+
+  /**
+   * Extract timestamp from EXIF metadata (DateTimeOriginal or DateTime)
+   */
+  async function extractTimestampFromEXIF(file) {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const dataView = new DataView(arrayBuffer);
+      
+      // Check for JPEG signature
+      if (dataView.getUint16(0) !== 0xFFD8) {
+        return null; // Not a JPEG
+      }
+      
+      // Find EXIF marker (0xFFE1)
+      let offset = 2;
+      while (offset < dataView.byteLength) {
+        const marker = dataView.getUint16(offset);
+        if (marker === 0xFFE1) {
+          // Found EXIF marker
+          const exifLength = dataView.getUint16(offset + 2);
+          const exifData = new DataView(arrayBuffer, offset + 4, exifLength - 2);
+          
+          // Check for "Exif\0\0" header
+          if (exifData.getUint32(0) !== 0x45786966 || exifData.getUint16(4) !== 0) {
+            return null;
+          }
+          
+          // Parse TIFF header
+          const tiffOffset = 6;
+          const byteOrder = exifData.getUint16(tiffOffset);
+          const littleEndian = byteOrder === 0x4949; // "II" for little endian
+          
+          // Find IFD0 offset
+          const ifd0Offset = tiffOffset + exifData.getUint32(tiffOffset + 4, littleEndian);
+          
+          // Read IFD0 entries
+          const numEntries = exifData.getUint16(ifd0Offset, littleEndian);
+          
+          for (let i = 0; i < numEntries; i++) {
+            const entryOffset = ifd0Offset + 2 + i * 12;
+            const tag = exifData.getUint16(entryOffset, littleEndian);
+            
+            // Tag 0x0132 = DateTime, 0x9003 = DateTimeOriginal
+            if (tag === 0x0132 || tag === 0x9003) {
+              const valueOffset = tiffOffset + exifData.getUint32(entryOffset + 8, littleEndian);
+              let dateString = '';
+              
+              for (let j = 0; j < 19; j++) {
+                const charCode = exifData.getUint8(valueOffset + j);
+                if (charCode === 0) break;
+                dateString += String.fromCharCode(charCode);
+              }
+              
+              // Parse EXIF date format: "YYYY:MM:DD HH:MM:SS"
+              const match = dateString.match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+              if (match) {
+                const [, year, month, day, hour, minute, second] = match;
+                return new Date(
+                  parseInt(year),
+                  parseInt(month) - 1,
+                  parseInt(day),
+                  parseInt(hour),
+                  parseInt(minute),
+                  parseInt(second)
+                );
+              }
+            }
+          }
+          
+          break;
+        }
+        
+        // Move to next marker
+        const segmentLength = dataView.getUint16(offset + 2);
+        offset += 2 + segmentLength;
+      }
+    } catch (error) {
+      console.error('Error reading EXIF data:', error);
+    }
+    
+    return null;
   }
 
   /**
@@ -1029,6 +1130,11 @@
     if (imageTimeOfDay) {
       imageTimeOfDay.textContent = firstImage.timeOfDay;
     }
+    
+    // Update analog clock
+    if (firstImage.originalTimestamp) {
+      updateAnalogClock(firstImage.originalTimestamp);
+    }
 
     highlightTimelineImages(images);
     const highlightMs = firstImage?.originalTimestamp
@@ -1084,6 +1190,28 @@
     const mins = String(date.getMinutes()).padStart(2, "0");
     const secs = String(date.getSeconds()).padStart(2, "0");
     return `${hrs}:${mins}:${secs}`;
+  }
+
+  function updateAnalogClock(date) {
+    if (!clockHourHand || !clockMinuteHand || !clockDate) return;
+    
+    const hours = date.getHours() % 12;
+    const minutes = date.getMinutes();
+    const seconds = date.getSeconds();
+    
+    // Calculate angles (12 o'clock is 0 degrees, clockwise)
+    const hourAngle = (hours * 30) + (minutes * 0.5) + (seconds * 0.00833); // 30° per hour + minute adjustment
+    const minuteAngle = (minutes * 6) + (seconds * 0.1); // 6° per minute + second adjustment
+    
+    // Apply rotation to clock hands
+    clockHourHand.setAttribute('transform', `rotate(${hourAngle} 50 50)`);
+    clockMinuteHand.setAttribute('transform', `rotate(${minuteAngle} 50 50)`);
+    
+    // Update date display
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    clockDate.textContent = `${day}/${month}/${year}`;
   }
 
   function formatDurationMs(ms) {
@@ -1492,27 +1620,25 @@
   function updateTimelineGeometry() {
     if (!timelineState.initialized) return;
 
-    const trackArea = Math.max(timelineState.trackLaneCount, 1) * TRACK_LANE_HEIGHT;
-    const imageExtra = timelineState.imageStackMagnitude * IMAGE_STACK_STEP_PX * 2;
-    const imageArea = IMAGE_BASE_HEIGHT + imageExtra;
-    const totalHeight = 40 + trackArea + imageArea;
-
+    // Fixed minimal timeline - all tracks on one line
+    // No dynamic height calculation needed since CSS handles it
+    
+    // Don't override the CSS styles - keep timeline compact
     if (timelineTracks) {
-      timelineTracks.style.setProperty("--timeline-tracks-height", `${trackArea}px`);
+      timelineTracks.style.removeProperty("--timeline-tracks-height");
     }
     if (timelineImages) {
-      timelineImages.style.setProperty("--timeline-images-height", `${imageArea}px`);
+      timelineImages.style.removeProperty("--timeline-images-height");
     }
     if (timelineMain) {
-      timelineMain.style.height = `${Math.max(150, totalHeight)}px`;
+      timelineMain.style.removeProperty("height");
     }
   }
 
   function createTimelineTrackElements() {
-    if (!timelineTracks || !timelineMinimapTracks) return;
+    if (!timelineTracks) return;
 
     const mainFragment = document.createDocumentFragment();
-    const miniFragment = document.createDocumentFragment();
 
     timelineState.trackRanges.forEach((range) => {
       const mainEl = document.createElement("div");
@@ -1543,26 +1669,18 @@
       mainFragment.appendChild(mainEl);
       range.track.timelineMainEl = mainEl;
 
-      const miniEl = document.createElement("div");
-      miniEl.className = "timeline-track";
-      miniEl.style.setProperty("--lane", range.lane);
-      miniEl.title = title;
-
-      miniFragment.appendChild(miniEl);
-      range.track.timelineMiniEl = miniEl;
+      // Minimap removed - set to null
+      range.track.timelineMiniEl = null;
     });
 
     timelineTracks.innerHTML = "";
     timelineTracks.appendChild(mainFragment);
-    timelineMinimapTracks.innerHTML = "";
-    timelineMinimapTracks.appendChild(miniFragment);
   }
 
   function createTimelineImageElements() {
-    if (!timelineImages || !timelineMinimapImages) return;
+    if (!timelineImages) return;
 
     const mainFragment = document.createDocumentFragment();
-    const miniFragment = document.createDocumentFragment();
 
     timelineState.imageEntries.forEach((entry) => {
       const { image } = entry;
@@ -1587,27 +1705,12 @@
       mainFragment.appendChild(mainEl);
       image.timelineMainEl = mainEl;
 
-      const miniEl = document.createElement("div");
-      miniEl.className = "timeline-image";
-      miniEl.style.setProperty("--lane", 0);
-      const miniImg = document.createElement("img");
-      miniImg.src = image.url;
-      miniImg.alt = "";
-      miniEl.appendChild(miniImg);
-
-      miniEl.addEventListener("click", (event) => {
-        event.stopPropagation();
-        jumpToImage(image);
-      });
-
-      miniFragment.appendChild(miniEl);
-      image.timelineMiniEl = miniEl;
+      // Minimap removed - set to null
+      image.timelineMiniEl = null;
     });
 
     timelineImages.innerHTML = "";
     timelineImages.appendChild(mainFragment);
-    timelineMinimapImages.innerHTML = "";
-    timelineMinimapImages.appendChild(miniFragment);
   }
 
   function positionTimelineElements() {
@@ -1625,7 +1728,6 @@
     timelineState.trackRanges.forEach((range) => {
       const { track } = range;
       const mainEl = track.timelineMainEl;
-      const miniEl = track.timelineMiniEl;
       
       if (mainEl) {
         const inViewStart = clamp(range.startMs, timelineState.viewStartMs, timelineState.viewEndMs);
@@ -1637,20 +1739,7 @@
           mainEl,
           isVisible,
           leftPct: isVisible ? ((inViewStart - timelineState.viewStartMs) / viewRange) * 100 : 0,
-          widthPct: isVisible ? clamp(spanPct, AUDIO_MARKER_MIN_WIDTH_PCT, 1.2) : 0,
-          lane: range.lane
-        });
-      }
-      
-      if (miniEl) {
-        const leftPct = ((range.startMs - timelineState.minMs) / totalRange) * 100;
-        const spanPct = ((range.endMs - range.startMs) / totalRange) * 100;
-        const widthPct = clamp(spanPct, AUDIO_MARKER_MIN_WIDTH_PCT, 1);
-        
-        trackUpdates.push({
-          miniEl,
-          leftPct,
-          widthPct,
+          widthPct: isVisible ? clamp(spanPct, AUDIO_MARKER_MIN_WIDTH_PCT, 100) : 0,
           lane: range.lane
         });
       }
@@ -1659,9 +1748,7 @@
     timelineState.imageEntries.forEach((entry) => {
       const { image, timeMs, lane } = entry;
       const mainEl = image.timelineMainEl;
-      const miniEl = image.timelineMiniEl;
       const leftMain = ((timeMs - timelineState.viewStartMs) / viewRange) * 100;
-      const leftMini = ((timeMs - timelineState.minMs) / totalRange) * 100;
 
       if (mainEl) {
         const isVisible = !(leftMain < -10 || leftMain > 110);
@@ -1673,42 +1760,24 @@
           offsetIndex: entry.offsetIndex || 0
         });
       }
-      
-      if (miniEl) {
-        imageUpdates.push({
-          miniEl,
-          leftMini
-        });
-      }
     });
 
     // Second pass: Apply all DOM writes in batch
     trackUpdates.forEach(update => {
-      if (update.mainEl) {
-        update.mainEl.style.display = update.isVisible ? 'block' : 'none';
-        if (update.isVisible) {
-          update.mainEl.style.setProperty('--lane', update.lane);
-          update.mainEl.style.left = `${update.leftPct}%`;
-          update.mainEl.style.width = `${update.widthPct}%`;
-        }
-      } else if (update.miniEl) {
-        update.miniEl.style.setProperty('--lane', update.lane);
-        update.miniEl.style.left = `${update.leftPct}%`;
-        update.miniEl.style.width = `${update.widthPct}%`;
+      update.mainEl.style.display = update.isVisible ? 'block' : 'none';
+      if (update.isVisible) {
+        update.mainEl.style.setProperty('--lane', update.lane);
+        update.mainEl.style.left = `${update.leftPct}%`;
+        update.mainEl.style.width = `${update.widthPct}%`;
       }
     });
 
     imageUpdates.forEach(update => {
-      if (update.mainEl) {
-        update.mainEl.style.display = update.isVisible ? 'block' : 'none';
-        if (update.isVisible) {
-          update.mainEl.style.setProperty('--lane', update.lane);
-          update.mainEl.style.setProperty('--stack-offset', `${update.offsetIndex * IMAGE_STACK_STEP_PX}px`);
-          update.mainEl.style.left = `${update.leftMain}%`;
-        }
-      } else if (update.miniEl) {
-        update.miniEl.style.setProperty('--lane', 0);
-        update.miniEl.style.left = `${update.leftMini}%`;
+      update.mainEl.style.display = update.isVisible ? 'block' : 'none';
+      if (update.isVisible) {
+        update.mainEl.style.setProperty('--lane', update.lane);
+        update.mainEl.style.setProperty('--stack-offset', `${update.offsetIndex * IMAGE_STACK_STEP_PX}px`);
+        update.mainEl.style.left = `${update.leftMain}%`;
       }
     });
   }

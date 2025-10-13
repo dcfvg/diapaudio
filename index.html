@@ -15,8 +15,11 @@
           <div class="dropzone" id="dropzone">
             <div class="dropzone__content">
               <p>
-                <span id="dropzone-message">Drop folder here or </span>
+                <span id="dropzone-message">Drop a folder containing <strong>audio files</strong> and <strong>timestamped images</strong> here or </span>
                 <span class="dropzone__browse" id="browse-trigger">browse</span>
+              </p>
+              <p class="dropzone__instructions">
+                Expected result: Images will synchronize with audio playback based on their timestamps.
               </p>
               <div class="dropzone__loader hidden" id="dropzone-loader">
                 <div class="loader-spinner"></div>
@@ -32,6 +35,19 @@
               </div>
               <div class="slideshow__preview hidden" id="slideshow-preview"></div>
               <div class="viewer__meta">
+                <div class="viewer__clock" id="viewer-clock">
+                  <svg class="clock-svg" viewBox="0 0 100 100">
+                    <circle class="clock-face" cx="50" cy="50" r="48" />
+                    <line class="clock-tick" x1="50" y1="2" x2="50" y2="8" />
+                    <line class="clock-tick" x1="98" y1="50" x2="92" y2="50" />
+                    <line class="clock-tick" x1="50" y1="98" x2="50" y2="92" />
+                    <line class="clock-tick" x1="2" y1="50" x2="8" y2="50" />
+                    <line class="clock-hour-hand" id="clock-hour-hand" x1="50" y1="50" x2="50" y2="30" />
+                    <line class="clock-minute-hand" id="clock-minute-hand" x1="50" y1="50" x2="50" y2="18" />
+                    <circle class="clock-center" cx="50" cy="50" r="3" />
+                  </svg>
+                  <div class="clock-date" id="clock-date">01/01/2025</div>
+                </div>
                 <div class="viewer__badge" id="image-timecode"></div>
                 <div class="viewer__badge viewer__badge--clock" id="image-timeofday"></div>
               </div>
@@ -47,11 +63,6 @@
                       <div class="timeline__hover-preview-images" id="timeline-hover-preview-images"></div>
                       <div class="timeline__hover-preview-time" id="timeline-hover-preview-time"></div>
                     </div>
-                  </div>
-                  <div class="timeline__minimap" id="timeline-minimap">
-                    <div class="timeline__minimap-gradient" id="timeline-minimap-gradient"></div>
-                    <div class="timeline__mini-tracks" id="timeline-minimap-tracks"></div>
-                    <div class="timeline__mini-images" id="timeline-minimap-images"></div>
                   </div>
                   <div class="timeline__notices hidden" id="timeline-notices"></div>
                 </div>

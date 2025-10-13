@@ -50,6 +50,12 @@ body {
   text-align: center;
 }
 
+.dropzone__instructions {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #7a8194;
+}
+
 .dropzone__loader {
   display: flex;
   flex-direction: column;
@@ -132,11 +138,11 @@ body {
 
 .timeline__main {
   position: relative;
-  height: 88px;
+  height: 72px; /* 28px axis + 16px tracks + 16px images + padding */
   border-radius: 8px;
   overflow: visible;
   background: rgba(10, 12, 18, 0.6);
-  padding-top: 32px;
+  padding-top: 28px;
 }
 
 .timeline__gradient,
@@ -146,10 +152,11 @@ body {
   pointer-events: none;
   background: linear-gradient(
     to right,
-    rgba(15, 23, 38, 0.45),
-    rgba(19, 28, 42, 0.45)
+    rgba(15, 23, 38, 0.2),
+    rgba(19, 28, 42, 0.2)
   );
   opacity: 0.55;
+  z-index: 0;
 }
 
 .timeline__axis {
@@ -185,36 +192,40 @@ body {
   position: absolute;
   left: 0;
   right: 0;
+  z-index: 1;
 }
 
 .timeline__tracks {
-  top: 36px;
-  height: var(--timeline-tracks-height, 72px);
-  --lane-height: 18px;
+  top: 28px;
+  height: 16px; /* Single line height for all tracks */
+  --lane-height: 16px;
+  z-index: 1;
 }
 
 .timeline__images {
-  bottom: 6px;
-  height: var(--timeline-images-height, 64px);
+  top: 48px; /* Below tracks - on separate line */
+  height: 16px; /* Same height as tracks */
   overflow: visible;
+  z-index: 1;
 }
 
 .timeline-track {
   position: absolute;
-  top: calc(var(--lane, 0) * var(--lane-height, 18px));
-  height: 10px;
-  border-radius: 999px;
-  background: linear-gradient(to right, rgba(123, 148, 255, 0.24), rgba(79, 140, 255, 0.65));
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  top: 4px; /* Centered within the 16px container */
+  height: 8px; /* Thin horizontal rectangle */
+  border-radius: 4px;
+  background: linear-gradient(to right, rgba(123, 148, 255, 0.6), rgba(79, 140, 255, 0.9));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   pointer-events: auto;
   cursor: pointer;
   will-change: left, width;
   transition: box-shadow 0.18s ease, transform 0.18s ease, background 0.18s ease;
+  z-index: 1;
 }
 
 .timeline-track:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  transform: scaleY(1.5); /* Scale vertically instead of translateY */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .timeline-track--active {
@@ -234,22 +245,24 @@ body {
 .timeline-image {
   position: absolute;
   top: 50%;
-  width: 14px;
-  height: 14px;
+  width: 8px; /* Smaller dots */
+  height: 8px; /* Smaller dots */
   border-radius: 50%;
   background: #f4f4f8;
-  border: 2px solid rgba(255, 255, 255, 0.35);
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
   pointer-events: auto;
   cursor: pointer;
   transform: translate3d(-50%, -50%, 0);
   transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
   will-change: left;
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .timeline-image::after {
   content: "";
   position: absolute;
-  inset: -6px;
+  inset: -4px; /* Adjust for smaller dots */
   border-radius: 50%;
   background: rgba(79, 140, 255, 0.08);
   opacity: 0;
@@ -345,7 +358,7 @@ body {
 
 .timeline__cursor {
   position: absolute;
-  top: 28px;
+  top: 26px;
   bottom: 0;
   width: 2px;
   background: #ffd766;
@@ -358,7 +371,7 @@ body {
 .timeline__cursor::after {
   content: "";
   position: absolute;
-  top: -26px;
+  top: -24px;
   left: 50%;
   transform: translateX(-50%);
   width: 8px;
@@ -372,6 +385,7 @@ body {
 }
 
 .timeline__minimap {
+  display: none; /* Minimap removed */
   position: relative;
   height: 48px;
   border-radius: 6px;
@@ -527,7 +541,7 @@ body {
   justify-content: center;
   overflow: hidden;
   width: 100%;
-  min-height: 0;
+  min-height: 70vh;
 }
 
 .slideshow__container {
@@ -607,6 +621,56 @@ body {
   align-items: flex-end;
   pointer-events: none;
   gap: 0.5rem;
+}
+
+.viewer__clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 0.5rem;
+  border-radius: 8px;
+}
+
+.clock-svg {
+  width: 60px;
+  height: 60px;
+}
+
+.clock-face {
+  fill: rgba(20, 20, 20, 0.5);
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 1;
+}
+
+.clock-tick {
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.clock-hour-hand {
+  stroke: #f4f4f8;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.clock-minute-hand {
+  stroke: #ffd766;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.clock-center {
+  fill: #ffd766;
+}
+
+.clock-date {
+  font-size: 0.7rem;
+  color: #c6ccdf;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .viewer__badge {
