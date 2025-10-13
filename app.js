@@ -45,11 +45,15 @@
   const utils = typeof window !== "undefined" ? window.DiapAudioUtils : null;
   const parseTimestampFromName = utils ? utils.parseTimestampFromName : null;
   const parseTimestampFromEXIF = utils ? utils.parseTimestampFromEXIF : null;
+  const parseTimestampFromAudio = utils ? utils.parseTimestampFromAudio : null;
   if (typeof parseTimestampFromName !== "function") {
     throw new Error("DiapAudio timestamp utilities not loaded");
   }
   if (typeof parseTimestampFromEXIF !== "function") {
     throw new Error("DiapAudio EXIF utilities not loaded");
+  }
+  if (typeof parseTimestampFromAudio !== "function") {
+    throw new Error("DiapAudio audio metadata utilities not loaded");
   }
 
   const audioMimeByExtension = new Map([
@@ -59,6 +63,8 @@
     ["m4a", "audio/mp4"],
     ["aac", "audio/aac"],
     ["flac", "audio/flac"],
+    ["aifc", "audio/aiff"],
+    ["aiff", "audio/aiff"],
   ]);
 
   // Configuration: Visual Comfort & Smoothness Focus
@@ -880,16 +886,27 @@
         throw new Error("No images with timestamps found in the folder.");
       }
 
-      const audioTracks = audioFiles.map((file, index) => {
-        const filePath = getFilePath(file);
-        const fileTimestamp = parseTimestampFromName(filePath);
-        return createAudioTrack({
-          url: URL.createObjectURL(file),
-          originalName: filePath,
-          index,
-          fileTimestamp,
-        });
-      });
+      const audioTracks = await Promise.all(
+        audioFiles.map(async (file, index) => {
+          const filePath = getFilePath(file);
+          let fileTimestamp = parseTimestampFromName(filePath);
+          
+          // If no timestamp from filename, try audio metadata
+          if (!fileTimestamp) {
+            fileTimestamp = await parseTimestampFromAudio(file);
+            if (fileTimestamp) {
+              console.log(`Extracted timestamp from audio metadata for ${file.name}:`, fileTimestamp);
+            }
+          }
+          
+          return createAudioTrack({
+            url: URL.createObjectURL(file),
+            originalName: filePath,
+            index,
+            fileTimestamp,
+          });
+        })
+      );
 
       // Load durations for all audio tracks
       console.log('Loading durations for all audio tracks...');

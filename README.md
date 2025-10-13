@@ -20,22 +20,43 @@ The app will generate a synchronized slideshow you can play, navigate, and expor
 
 ### Timestamp Detection
 
-diapodio extracts timestamps from your images using two methods (in priority order):
+diapodio extracts timestamps from your media files using multiple methods:
 
-1. **EXIF metadata** (primary) - Reads the actual capture time from JPEG images:
-   - `DateTimeOriginal` - When the photo was taken (preferred)
-   - `DateTime` - File modification time
-   - `DateTimeDigitized` - When the image was digitized
+#### Images
+
+1. **Filename parsing** (primary) - Recognizes various timestamp formats in filenames:
+   - ISO 8601: `2025-01-15_14-30-45.jpg` or `2025-01-15T14:30:45.jpg`
+   - Compact: `20250115_143045.jpg` or `20250115143045.jpg`
+   - With milliseconds: `2025-01-15_14-30-45.123.jpg`
+   - European format: `15-01-2025_14-30-45.jpg`
+   - US format: `01-15-2025_14-30-45.jpg`
+   - Camera style: `IMG_20250115_143045.jpg`
+   - Screenshot: `Screenshot_2025-01-15-14-30-45.png`
+   - WhatsApp: `IMG-20250115-WA0001.jpg`
+   - Unix timestamp: `1737815445.jpg`
+   - Time only: `14-30-45.jpg` (uses current date)
+
+2. **EXIF metadata** (fallback) - If no timestamp in filename, reads the actual capture time from JPEG images:
+   - `DateTimeOriginal` (0x9003) - When the photo was taken (preferred)
+   - `DateTimeDigitized` (0x9004) - When the image was digitized
+   - `DateTime` (0x0132) - File modification time
    
    This ensures you get the **actual capture time**, not the file creation date, which is critical for accurate synchronization.
 
-2. **Filename parsing** (fallback) - If EXIF data is not available, recognizes various timestamp formats in filenames:
-   - `YYYY-MM-DD_HH-MM-SS.jpg` (e.g., `2025-01-15_14-30-45.jpg`)
-   - `YYYYMMDD_HHMMSS.jpg` (e.g., `20250115_143045.jpg`)
-   - `DD-MM-YYYY_HH-MM-SS.jpg` (e.g., `15-01-2025_14-30-45.jpg`)
-   - `HH-MM-SS.jpg` (e.g., `14-30-45.jpg` - uses current date)
+#### Audio Files
 
-This prioritization ensures the most accurate timestamps are used for synchronization.
+1. **Filename parsing** (primary) - Uses the same filename patterns as images
+
+2. **Audio metadata** (fallback) - If no timestamp in filename, reads recording time from audio file tags:
+   - **MP3 (ID3v2)**: `TDRC` (recording time), `TDOR` (original release), `TYER` (year)
+   - **M4A/AAC**: `©day` atom (creation date)
+   - **OGG Vorbis**: `DATE` or `CREATION_TIME` comment tags
+   - **WAV**: Broadcast Wave Format `bext` chunk (originationDate/Time), or RIFF INFO chunks (`ICRD`, `IDIT`)
+   - **AIFF/AIFC**: `NAME`, `AUTH`, `ANNO`, or copyright chunks with date information
+   
+   This allows audio files to be automatically synchronized even without timestamp filenames.
+
+This prioritization (filename first, metadata second) ensures fast processing while still providing fallback timestamp extraction.
 
 ### About `_delay.txt`
 
@@ -50,10 +71,27 @@ It should contain a single timestamp in the format `HH:MM:SS` (e.g., `14:23:45`)
 
 This tells diapodio to account for the 23 minutes and 45 seconds offset between the two devices' clocks when syncing.
 
+## Supported Formats
+
+### Audio Formats
+- **MP3** (.mp3) - MPEG Audio Layer III
+- **M4A/AAC** (.m4a, .aac) - Advanced Audio Coding
+- **OGG** (.ogg, .oga) - Ogg Vorbis
+- **WAV** (.wav) - Waveform Audio File Format
+- **AIFF/AIFC** (.aif, .aiff, .aifc) - Audio Interchange File Format
+- **FLAC** (.flac) - Free Lossless Audio Codec
+
+### Image Formats
+- **JPEG** (.jpg, .jpeg) - With EXIF metadata support
+- **PNG** (.png)
+- **GIF** (.gif)
+- **WebP** (.webp)
+- Other formats supported by your browser
+
 ## Features
 
 - Automatic timestamp-based synchronization
-- Intelligent timestamp extraction from filenames and EXIF metadata
+- Intelligent timestamp extraction from filenames and EXIF/audio metadata
 - Audio playback with visual timeline
 - Keyboard shortcuts for navigation
 - Real-time preview

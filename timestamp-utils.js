@@ -499,9 +499,576 @@
     return !Number.isNaN(date.getTime()) ? date : null;
   }
 
+  /**
+   * Extract timestamp from audio file metadata
+   * Supports MP3 (ID3v2), M4A/AAC, and OGG formats
+   * @param {File} file - Audio file to read metadata from
+   * @returns {Promise<Date|null>} - Promise resolving to Date or null
+   */
+  async function parseTimestampFromAudio(file) {
+    if (!file || !(file instanceof File)) {
+      return null;
+    }
+
+    // Only process audio files
+    if (!file.type.startsWith('audio/')) {
+      return null;
+    }
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const dataView = new DataView(arrayBuffer);
+
+      // Try MP3 ID3v2 tags
+      if (file.type === 'audio/mpeg' || file.type === 'audio/mp3' || file.name.toLowerCase().endsWith('.mp3')) {
+        const id3Date = parseID3v2Timestamp(dataView);
+        if (id3Date) return id3Date;
+      }
+
+      // Try M4A/AAC metadata
+      if (file.type === 'audio/mp4' || file.type === 'audio/x-m4a' || file.name.toLowerCase().endsWith('.m4a') || file.name.toLowerCase().endsWith('.aac')) {
+        const m4aDate = parseM4ATimestamp(dataView);
+        if (m4aDate) return m4aDate;
+      }
+
+      // Try OGG Vorbis comments
+      if (file.type === 'audio/ogg' || file.name.toLowerCase().endsWith('.ogg') || file.name.toLowerCase().endsWith('.oga')) {
+        const oggDate = parseOGGTimestamp(dataView);
+        if (oggDate) return oggDate;
+      }
+
+      // Try WAV metadata
+      if (file.type === 'audio/wav' || file.type === 'audio/wave' || file.name.toLowerCase().endsWith('.wav')) {
+        const wavDate = parseWAVTimestamp(dataView);
+        if (wavDate) return wavDate;
+      }
+
+      // Try AIFF/AIFC metadata
+      if (file.type === 'audio/aiff' || file.type === 'audio/x-aiff' || file.name.toLowerCase().endsWith('.aif') || file.name.toLowerCase().endsWith('.aiff') || file.name.toLowerCase().endsWith('.aifc')) {
+        const aiffDate = parseAIFFTimestamp(dataView);
+        if (aiffDate) return aiffDate;
+      }
+
+    } catch (error) {
+      console.warn('Error reading audio metadata:', error);
+    }
+
+    return null;
+  }
+
+  /**
+   * Parse MP3 ID3v2 tags for timestamp
+   * Looks for TDRC (recording time), TDOR (original release), or TDAT/TYER (ID3v2.3)
+   * @param {DataView} dataView - DataView of MP3 file
+   * @returns {Date|null} - Extracted timestamp or null
+   */
+  function parseID3v2Timestamp(dataView) {
+    try {
+      // Check for ID3v2 header
+      if (dataView.byteLength < 10) return null;
+      
+      const id3Header = String.fromCharCode(
+        dataView.getUint8(0),
+        dataView.getUint8(1),
+        dataView.getUint8(2)
+      );
+      
+      if (id3Header !== 'ID3') return null;
+
+      const version = dataView.getUint8(3);
+      const flags = dataView.getUint8(5);
+      
+      // Parse syncsafe integer for tag size
+      const size = 
+        ((dataView.getUint8(6) & 0x7F) << 21) |
+        ((dataView.getUint8(7) & 0x7F) << 14) |
+        ((dataView.getUint8(8) & 0x7F) << 7) |
+        (dataView.getUint8(9) & 0x7F);
+
+      let offset = 10;
+
+      // Skip extended header if present
+      if (flags & 0x40) {
+        const extHeaderSize = 
+          ((dataView.getUint8(offset) & 0x7F) << 21) |
+          ((dataView.getUint8(offset + 1) & 0x7F) << 14) |
+          ((dataView.getUint8(offset + 2) & 0x7F) << 7) |
+          (dataView.getUint8(offset + 3) & 0x7F);
+        offset += extHeaderSize;
+      }
+
+      const endOffset = 10 + size;
+      
+      // Look for timestamp frames: TDRC (v2.4), TDOR (v2.4), or TYER+TDAT (v2.3)
+      while (offset < endOffset - 10) {
+        const frameId = String.fromCharCode(
+          dataView.getUint8(offset),
+          dataView.getUint8(offset + 1),
+          dataView.getUint8(offset + 2),
+          dataView.getUint8(offset + 3)
+        );
+
+        if (frameId === '\0\0\0\0') break;
+
+        let frameSize;
+        if (version === 4) {
+          // ID3v2.4 uses syncsafe integers
+          frameSize = 
+            ((dataView.getUint8(offset + 4) & 0x7F) << 21) |
+            ((dataView.getUint8(offset + 5) & 0x7F) << 14) |
+            ((dataView.getUint8(offset + 6) & 0x7F) << 7) |
+            (dataView.getUint8(offset + 7) & 0x7F);
+        } else {
+          // ID3v2.3 uses regular integers
+          frameSize = 
+            (dataView.getUint8(offset + 4) << 24) |
+            (dataView.getUint8(offset + 5) << 16) |
+            (dataView.getUint8(offset + 6) << 8) |
+            dataView.getUint8(offset + 7);
+        }
+
+        // TDRC = Recording time (ID3v2.4), TDOR = Original release time
+        if (frameId === 'TDRC' || frameId === 'TDOR' || frameId === 'TYER') {
+          const encoding = dataView.getUint8(offset + 10);
+          let textOffset = offset + 11;
+          
+          // Skip BOM for UTF-16
+          if (encoding === 1 || encoding === 2) {
+            textOffset += 2;
+          }
+
+          let dateStr = '';
+          for (let i = textOffset; i < offset + 10 + frameSize && i < dataView.byteLength; i++) {
+            const byte = dataView.getUint8(i);
+            if (byte === 0) break;
+            dateStr += String.fromCharCode(byte);
+          }
+
+          // Parse ISO 8601 date: YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD or YYYY
+          const parsed = parseDateString(dateStr);
+          if (parsed) return parsed;
+        }
+
+        offset += 10 + frameSize;
+      }
+
+    } catch (error) {
+      console.warn('Error parsing ID3v2 tags:', error);
+    }
+
+    return null;
+  }
+
+  /**
+   * Parse M4A/AAC metadata atoms for timestamp
+   * @param {DataView} dataView - DataView of M4A file
+   * @returns {Date|null} - Extracted timestamp or null
+   */
+  function parseM4ATimestamp(dataView) {
+    try {
+      // Look for moov > udta > meta > ilst atoms
+      // M4A files use atom structure: [size:4][type:4][data...]
+      
+      const moovOffset = findAtom(dataView, 'moov', 0);
+      if (moovOffset === -1) return null;
+
+      const udtaOffset = findAtom(dataView, 'udta', moovOffset);
+      if (udtaOffset === -1) return null;
+
+      const metaOffset = findAtom(dataView, 'meta', udtaOffset);
+      if (metaOffset === -1) return null;
+
+      // Skip meta version/flags (4 bytes after 'meta')
+      const ilstOffset = findAtom(dataView, 'ilst', metaOffset + 4);
+      if (ilstOffset === -1) return null;
+
+      // Look for ©day atom (creation date)
+      const dayAtomOffset = findAtom(dataView, '©day', ilstOffset);
+      if (dayAtomOffset !== -1) {
+        // Read the data atom inside ©day
+        const dataOffset = findAtom(dataView, 'data', dayAtomOffset);
+        if (dataOffset !== -1) {
+          const dataSize = dataView.getUint32(dataOffset - 4, false);
+          const textStart = dataOffset + 8; // Skip type and locale
+          
+          let dateStr = '';
+          for (let i = textStart; i < dataOffset - 4 + dataSize && i < dataView.byteLength; i++) {
+            const byte = dataView.getUint8(i);
+            if (byte === 0) break;
+            dateStr += String.fromCharCode(byte);
+          }
+
+          const parsed = parseDateString(dateStr);
+          if (parsed) return parsed;
+        }
+      }
+
+    } catch (error) {
+      console.warn('Error parsing M4A metadata:', error);
+    }
+
+    return null;
+  }
+
+  /**
+   * Find an atom in M4A file structure
+   * @param {DataView} dataView - DataView of file
+   * @param {string} atomType - 4-character atom type
+   * @param {number} startOffset - Where to start searching
+   * @returns {number} - Offset to atom data (after size+type) or -1
+   */
+  function findAtom(dataView, atomType, startOffset) {
+    try {
+      const parentSize = dataView.byteLength;
+      let offset = startOffset;
+
+      while (offset < parentSize - 8) {
+        const atomSize = dataView.getUint32(offset, false);
+        const type = String.fromCharCode(
+          dataView.getUint8(offset + 4),
+          dataView.getUint8(offset + 5),
+          dataView.getUint8(offset + 6),
+          dataView.getUint8(offset + 7)
+        );
+
+        if (type === atomType) {
+          return offset + 8; // Return offset to data (after size+type)
+        }
+
+        if (atomSize === 0 || atomSize > parentSize - offset) break;
+        offset += atomSize;
+      }
+    } catch (error) {
+      // Ignore parsing errors
+    }
+
+    return -1;
+  }
+
+  /**
+   * Parse OGG Vorbis comments for timestamp
+   * @param {DataView} dataView - DataView of OGG file
+   * @returns {Date|null} - Extracted timestamp or null
+   */
+  function parseOGGTimestamp(dataView) {
+    try {
+      // OGG format: pages with segments containing Vorbis comment packets
+      // Look for "OggS" page markers and Vorbis comment header
+      
+      let offset = 0;
+      while (offset < dataView.byteLength - 4) {
+        // Find OggS page
+        if (String.fromCharCode(
+          dataView.getUint8(offset),
+          dataView.getUint8(offset + 1),
+          dataView.getUint8(offset + 2),
+          dataView.getUint8(offset + 3)
+        ) === 'OggS') {
+          
+          // Skip to segments
+          const segmentCount = dataView.getUint8(offset + 26);
+          let pageDataOffset = offset + 27 + segmentCount;
+          
+          // Check for Vorbis comment packet (starts with 0x03 + "vorbis")
+          if (pageDataOffset + 7 < dataView.byteLength) {
+            const packetType = dataView.getUint8(pageDataOffset);
+            const vorbisStr = String.fromCharCode(
+              dataView.getUint8(pageDataOffset + 1),
+              dataView.getUint8(pageDataOffset + 2),
+              dataView.getUint8(pageDataOffset + 3),
+              dataView.getUint8(pageDataOffset + 4),
+              dataView.getUint8(pageDataOffset + 5),
+              dataView.getUint8(pageDataOffset + 6)
+            );
+            
+            if (packetType === 0x03 && vorbisStr === 'vorbis') {
+              // Found Vorbis comment header
+              // Skip vendor string
+              pageDataOffset += 7;
+              const vendorLength = dataView.getUint32(pageDataOffset, true);
+              pageDataOffset += 4 + vendorLength;
+              
+              // Read comment count
+              const commentCount = dataView.getUint32(pageDataOffset, true);
+              pageDataOffset += 4;
+              
+              // Parse comments
+              for (let i = 0; i < commentCount && pageDataOffset < dataView.byteLength - 4; i++) {
+                const commentLength = dataView.getUint32(pageDataOffset, true);
+                pageDataOffset += 4;
+                
+                let comment = '';
+                for (let j = 0; j < commentLength && pageDataOffset + j < dataView.byteLength; j++) {
+                  comment += String.fromCharCode(dataView.getUint8(pageDataOffset + j));
+                }
+                
+                // Look for DATE= or CREATION_TIME= tags
+                if (comment.toUpperCase().startsWith('DATE=')) {
+                  const dateStr = comment.substring(5);
+                  const parsed = parseDateString(dateStr);
+                  if (parsed) return parsed;
+                }
+                if (comment.toUpperCase().startsWith('CREATION_TIME=')) {
+                  const dateStr = comment.substring(14);
+                  const parsed = parseDateString(dateStr);
+                  if (parsed) return parsed;
+                }
+                
+                pageDataOffset += commentLength;
+              }
+              
+              return null; // Found comment header but no date
+            }
+          }
+        }
+        
+        offset++;
+      }
+
+    } catch (error) {
+      console.warn('Error parsing OGG metadata:', error);
+    }
+
+    return null;
+  }
+
+  /**
+   * Parse WAV file metadata for timestamp
+   * Looks for RIFF INFO chunks (ICRD, IDIT) or Broadcast Wave Format bext chunk
+   * @param {DataView} dataView - DataView of WAV file
+   * @returns {Date|null} - Extracted timestamp or null
+   */
+  function parseWAVTimestamp(dataView) {
+    try {
+      // Check for RIFF header
+      if (dataView.byteLength < 12) return null;
+      
+      const riffHeader = String.fromCharCode(
+        dataView.getUint8(0),
+        dataView.getUint8(1),
+        dataView.getUint8(2),
+        dataView.getUint8(3)
+      );
+      
+      if (riffHeader !== 'RIFF') return null;
+
+      const waveHeader = String.fromCharCode(
+        dataView.getUint8(8),
+        dataView.getUint8(9),
+        dataView.getUint8(10),
+        dataView.getUint8(11)
+      );
+      
+      if (waveHeader !== 'WAVE') return null;
+
+      let offset = 12;
+      const fileSize = dataView.getUint32(4, true);
+
+      // Look for INFO or bext chunks
+      while (offset < fileSize && offset < dataView.byteLength - 8) {
+        const chunkId = String.fromCharCode(
+          dataView.getUint8(offset),
+          dataView.getUint8(offset + 1),
+          dataView.getUint8(offset + 2),
+          dataView.getUint8(offset + 3)
+        );
+        
+        const chunkSize = dataView.getUint32(offset + 4, true);
+        
+        // Broadcast Wave Format bext chunk (most reliable for timestamps)
+        if (chunkId === 'bext') {
+          // bext originationDate at offset 330 (YYYY-MM-DD, 10 bytes)
+          // bext originationTime at offset 340 (HH:MM:SS, 8 bytes)
+          if (offset + 348 <= dataView.byteLength) {
+            let dateStr = '';
+            for (let i = 0; i < 10; i++) {
+              const char = dataView.getUint8(offset + 8 + 330 + i);
+              if (char === 0) break;
+              dateStr += String.fromCharCode(char);
+            }
+            
+            let timeStr = '';
+            for (let i = 0; i < 8; i++) {
+              const char = dataView.getUint8(offset + 8 + 340 + i);
+              if (char === 0) break;
+              timeStr += String.fromCharCode(char);
+            }
+            
+            if (dateStr && timeStr) {
+              const parsed = parseDateString(`${dateStr} ${timeStr}`);
+              if (parsed) return parsed;
+            }
+          }
+        }
+        
+        // INFO chunk with ICRD (creation date) or IDIT (digitization time)
+        if (chunkId === 'LIST') {
+          const listType = String.fromCharCode(
+            dataView.getUint8(offset + 8),
+            dataView.getUint8(offset + 9),
+            dataView.getUint8(offset + 10),
+            dataView.getUint8(offset + 11)
+          );
+          
+          if (listType === 'INFO') {
+            let infoOffset = offset + 12;
+            const listEnd = offset + 8 + chunkSize;
+            
+            while (infoOffset < listEnd && infoOffset < dataView.byteLength - 8) {
+              const infoId = String.fromCharCode(
+                dataView.getUint8(infoOffset),
+                dataView.getUint8(infoOffset + 1),
+                dataView.getUint8(infoOffset + 2),
+                dataView.getUint8(infoOffset + 3)
+              );
+              
+              const infoSize = dataView.getUint32(infoOffset + 4, true);
+              
+              // ICRD = Creation date, IDIT = Digitization time
+              if (infoId === 'ICRD' || infoId === 'IDIT') {
+                let dateStr = '';
+                for (let i = 0; i < infoSize && infoOffset + 8 + i < dataView.byteLength; i++) {
+                  const char = dataView.getUint8(infoOffset + 8 + i);
+                  if (char === 0) break;
+                  dateStr += String.fromCharCode(char);
+                }
+                
+                const parsed = parseDateString(dateStr);
+                if (parsed) return parsed;
+              }
+              
+              infoOffset += 8 + infoSize + (infoSize % 2); // Chunks are word-aligned
+            }
+          }
+        }
+        
+        offset += 8 + chunkSize + (chunkSize % 2); // Chunks are word-aligned
+      }
+
+    } catch (error) {
+      console.warn('Error parsing WAV metadata:', error);
+    }
+
+    return null;
+  }
+
+  /**
+   * Parse AIFF/AIFC file metadata for timestamp
+   * Looks for NAME, AUTH, and ANNO chunks which may contain date information
+   * @param {DataView} dataView - DataView of AIFF/AIFC file
+   * @returns {Date|null} - Extracted timestamp or null
+   */
+  function parseAIFFTimestamp(dataView) {
+    try {
+      // Check for FORM header
+      if (dataView.byteLength < 12) return null;
+      
+      const formHeader = String.fromCharCode(
+        dataView.getUint8(0),
+        dataView.getUint8(1),
+        dataView.getUint8(2),
+        dataView.getUint8(3)
+      );
+      
+      if (formHeader !== 'FORM') return null;
+
+      const aiffType = String.fromCharCode(
+        dataView.getUint8(8),
+        dataView.getUint8(9),
+        dataView.getUint8(10),
+        dataView.getUint8(11)
+      );
+      
+      // AIFF or AIFC
+      if (aiffType !== 'AIFF' && aiffType !== 'AIFC') return null;
+
+      let offset = 12;
+      const fileSize = dataView.getUint32(4, false); // Big-endian
+
+      // Look for annotation chunks
+      while (offset < fileSize && offset < dataView.byteLength - 8) {
+        const chunkId = String.fromCharCode(
+          dataView.getUint8(offset),
+          dataView.getUint8(offset + 1),
+          dataView.getUint8(offset + 2),
+          dataView.getUint8(offset + 3)
+        );
+        
+        const chunkSize = dataView.getUint32(offset + 4, false); // Big-endian
+        
+        // NAME, AUTH, ANNO, or (c) chunks may contain date info
+        if (chunkId === 'NAME' || chunkId === 'AUTH' || chunkId === 'ANNO' || chunkId === '(c) ') {
+          let text = '';
+          for (let i = 0; i < chunkSize && offset + 8 + i < dataView.byteLength; i++) {
+            const char = dataView.getUint8(offset + 8 + i);
+            if (char === 0) break;
+            text += String.fromCharCode(char);
+          }
+          
+          // Try to extract date from text
+          const parsed = parseDateString(text);
+          if (parsed) return parsed;
+          
+          // Look for date patterns in the text
+          const dateMatch = text.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
+          if (dateMatch) {
+            const parsed = parseDateString(dateMatch[0]);
+            if (parsed) return parsed;
+          }
+        }
+        
+        offset += 8 + chunkSize + (chunkSize % 2); // Chunks are word-aligned
+      }
+
+    } catch (error) {
+      console.warn('Error parsing AIFF/AIFC metadata:', error);
+    }
+
+    return null;
+  }
+
+  /**
+   * Parse various date string formats commonly found in audio metadata
+   * @param {string} dateStr - Date string to parse
+   * @returns {Date|null} - Parsed date or null
+   */
+  function parseDateString(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') return null;
+
+    dateStr = dateStr.trim();
+
+    // Try ISO 8601 formats: YYYY-MM-DDTHH:MM:SS, YYYY-MM-DD HH:MM:SS
+    let match = dateStr.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+    if (match) {
+      const [, year, month, day, hours, minutes, seconds] = match.map(Number);
+      const date = new Date(year, month - 1, day, hours, minutes, seconds);
+      if (!isNaN(date.getTime())) return date;
+    }
+
+    // Try date only: YYYY-MM-DD
+    match = dateStr.match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
+    if (match) {
+      const [, year, month, day] = match.map(Number);
+      const date = new Date(year, month - 1, day, 0, 0, 0);
+      if (!isNaN(date.getTime())) return date;
+    }
+
+    // Try year only: YYYY
+    match = dateStr.match(/^(\d{4})$/);
+    if (match) {
+      const year = Number(match[1]);
+      if (year >= 1900 && year <= 2100) {
+        return new Date(year, 0, 1, 0, 0, 0);
+      }
+    }
+
+    return null;
+  }
+
   const api = {
     parseTimestampFromName,
     parseTimestampFromEXIF,
+    parseTimestampFromAudio,
     parseEXIFDateTime
   };
 
@@ -513,6 +1080,7 @@
     globalScope.DiapAudioUtils = globalScope.DiapAudioUtils || {};
     globalScope.DiapAudioUtils.parseTimestampFromName = parseTimestampFromName;
     globalScope.DiapAudioUtils.parseTimestampFromEXIF = parseTimestampFromEXIF;
+    globalScope.DiapAudioUtils.parseTimestampFromAudio = parseTimestampFromAudio;
     globalScope.DiapAudioUtils.parseEXIFDateTime = parseEXIFDateTime;
   }
 })(typeof window !== "undefined" ? window : globalThis);
