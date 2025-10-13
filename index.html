@@ -14,26 +14,47 @@
         <section class="viewer">
           <div class="dropzone" id="dropzone">
             <div class="dropzone__content">
-              <div class="dropzone__brand">
-                <div class="dropzone__heading">
-                  <h1 class="dropzone__title">diapodio</h1>
-                  <p class="dropzone__tagline">Synchronize photographs with recordings based on timestamps.</p>
-                </div>
+              <div class="dropzone__hero">
+                <h1 class="dropzone__title">diapodio</h1>
+                <p class="dropzone__lead">Line up your photos with the sounds of the day in just a few seconds.</p>
               </div>
+
+              <div class="dropzone__assist" aria-label="How to prepare your folder">
+                <ol class="dropzone__steps">
+                  <li class="dropzone__step">
+                    <span class="dropzone__step-icon" aria-hidden="true">①</span>
+                    <div>
+                      <h3 class="dropzone__step-title">Collect your files</h3>
+                      <p class="dropzone__step-text">Place the audio recording and the matching photos in <strong>one folder</strong>.</p>
+                    </div>
+                  </li>
+                  <li class="dropzone__step">
+                    <span class="dropzone__step-icon" aria-hidden="true">②</span>
+                    <div>
+                      <h3 class="dropzone__step-title">Use timestamps</h3>
+                      <p class="dropzone__step-text">Name each file with its capture time, for example <code>2025-01-01_08-00-00.jpg</code>.</p>
+                    </div>
+                  </li>
+                  <li class="dropzone__step">
+                    <span class="dropzone__step-icon" aria-hidden="true">③</span>
+                    <div>
+                      <h3 class="dropzone__step-title">Drop the folder</h3>
+                      <p class="dropzone__step-text">Drag it here or browse for it below to watch the timeline unfold.</p>
+                    </div>
+                  </li>
+                </ol>
+              </div>
+
+              <div class="dropzone__cta" role="group" aria-label="Start syncing">
+                <p class="dropzone__cta-text" id="dropzone-message">Drop your prepared folder anywhere in this area.</p>
+                <button type="button" class="dropzone__browse" id="browse-trigger">Choose a folder</button>
+              </div>
+
               <div class="dropzone__body">
-                <div class="dropzone__preflight">
-                  <h2 class="dropzone__subtitle">folder struture</h2>
-                  <ul class="dropzone__checklist">
-                    <li>Name each file with its capture time, e.g. <code>2025-01-01_08-00-00.jpg</code>.</li>
-                    <li>Keep the audio and images together inside a single folder.</li>
-                  </ul>
-                </div>
-                <div class="dropzone__cta">
-                  <p class="dropzone__cta-text" id="dropzone-message">Drag and drop the prepared folder anywhere in this zone.</p>
-                  <button type="button" class="dropzone__browse" id="browse-trigger">or browse</button>
-                </div>
-                <p class="dropzone__note">diapodio will match each image to the nearest audio moment using its timestamp.</p>
+                <p class="dropzone__note">Nothing leaves your computer — no uploads, no servers, just your session.</p>
+                <p class="dropzone__note">Tip: keeping your recorder, camera, and phone on the same time makes syncing effortless.</p>
               </div>
+
               <div class="dropzone__loader hidden" id="dropzone-loader">
                 <div class="loader-spinner"></div>
                 <p>Loading files...</p>
