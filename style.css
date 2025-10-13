@@ -295,6 +295,13 @@ body {
   gap: 1rem;
   position: relative;
   box-shadow: 0 18px 32px rgba(0, 0, 0, 0.45);
+  opacity: 1;
+  transition: opacity 0.5s ease-out;
+}
+
+.timeline--fading {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .timeline__scrubber {

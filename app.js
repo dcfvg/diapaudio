@@ -716,6 +716,88 @@
     showHud();
   }
 
+  // Timeline visibility state
+  let timelineHidden = false;
+  let timelineShowTimer = null;
+
+  function hideTimeline() {
+    if (!timelineRoot || timelineHidden) return;
+    timelineHidden = true;
+    timelineRoot.classList.add("timeline--fading");
+    // Clear any pending show timer
+    if (timelineShowTimer) {
+      clearTimeout(timelineShowTimer);
+      timelineShowTimer = null;
+    }
+  }
+
+  function showTimeline() {
+    if (!timelineRoot) return;
+    if (timelineShowTimer) {
+      clearTimeout(timelineShowTimer);
+    }
+    timelineRoot.classList.remove("timeline--fading");
+    timelineHidden = false;
+  }
+
+  // Show timeline on mouse movement (with debounce)
+  document.addEventListener("mousemove", () => {
+    if (timelineHidden && mediaData && !viewerContent.classList.contains("hidden")) {
+      showTimeline();
+      // Auto-hide again after 3 seconds of no mouse movement
+      if (timelineShowTimer) {
+        clearTimeout(timelineShowTimer);
+      }
+      timelineShowTimer = setTimeout(() => {
+        hideTimeline();
+      }, 3000);
+    }
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", (event) => {
+    // Ignore if typing in an input field
+    if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA") {
+      return;
+    }
+
+    // Ignore if no media loaded
+    if (!mediaData || viewerContent.classList.contains("hidden")) {
+      return;
+    }
+
+    switch (event.key) {
+      case " ": // Space - play/pause
+        event.preventDefault();
+        playback.toggle();
+        setPlayToggleState(playback.isPlaying() ? "pause" : "play");
+        break;
+
+      case "ArrowLeft": // Left arrow - seek backward 10 seconds
+        event.preventDefault();
+        const currentMsLeft = playback.getAbsoluteTime();
+        if (currentMsLeft !== null) {
+          const newMs = currentMsLeft - 10000; // 10 seconds
+          seekToAbsoluteMs(newMs, null, { forceDisplay: true });
+        }
+        break;
+
+      case "ArrowRight": // Right arrow - seek forward 10 seconds
+        event.preventDefault();
+        const currentMsRight = playback.getAbsoluteTime();
+        if (currentMsRight !== null) {
+          const newMs = currentMsRight + 10000; // 10 seconds
+          seekToAbsoluteMs(newMs, null, { forceDisplay: true });
+        }
+        break;
+
+      case "Escape": // Esc - hide timeline (shows back on mouse move)
+        event.preventDefault();
+        hideTimeline();
+        break;
+    }
+  });
+
   // Remember the freshest seek request while a track is still loading.
   function setPendingSeek(image, shouldPlay, trackIndex, timeMs = null) {
     pendingSeekToken += 1;
@@ -2544,10 +2626,14 @@
   function updateTimelineGradients() {
     if (!timelineState.initialized) return;
     if (timelineGradient) {
+      // Create gradient spanning the entire timeline range
       timelineGradient.style.backgroundImage = createDayNightGradient(
-        timelineState.viewStartMs,
-        timelineState.viewEndMs
+        timelineState.minMs,
+        timelineState.maxMs
       );
+      
+      // Update gradient position based on current view
+      updateTimelineGradientPosition();
     }
     if (timelineMinimapGradient) {
       timelineMinimapGradient.style.backgroundImage = createDayNightGradient(
@@ -2555,6 +2641,27 @@
         timelineState.maxMs
       );
     }
+  }
+
+  function updateTimelineGradientPosition() {
+    if (!timelineGradient || !timelineState.initialized) return;
+    
+    const totalRange = timelineState.maxMs - timelineState.minMs;
+    const viewRange = timelineState.viewEndMs - timelineState.viewStartMs;
+    
+    if (totalRange <= 0 || viewRange <= 0) return;
+    
+    // Calculate how much of the total timeline we're viewing
+    const viewRatio = viewRange / totalRange;
+    // Calculate where we are in the total timeline
+    const offsetRatio = (timelineState.viewStartMs - timelineState.minMs) / totalRange;
+    
+    // Scale the background to cover the full timeline, then position it
+    const backgroundSize = (100 / viewRatio);
+    const backgroundPosition = -(offsetRatio * backgroundSize);
+    
+    timelineGradient.style.backgroundSize = `${backgroundSize}% 100%`;
+    timelineGradient.style.backgroundPosition = `${backgroundPosition}% 0`;
   }
 
   function updateTimelineCursor(absoluteMs) {
@@ -2576,6 +2683,9 @@
     const position = ((absoluteMs - timelineState.viewStartMs) / range) * 100;
     timelineCursor.style.left = `${position}%`;
     timelineCursor.classList.add("timeline__cursor--visible");
+    
+    // Update gradient position to animate with playback
+    updateTimelineGradientPosition();
   }
 
   function updateTimelineSeeker(absoluteMs) {
