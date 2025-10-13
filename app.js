@@ -441,6 +441,9 @@
   const savedSpeed = loadFromStorage(STORAGE_KEYS.PLAYBACK_SPEED, 1);
   if (speedSelect) {
     speedSelect.value = String(savedSpeed);
+  }
+  // Always set playbackRate regardless of speedSelect availability
+  if (Number.isFinite(savedSpeed) && savedSpeed > 0) {
     audioElement.playbackRate = savedSpeed;
   }
 
@@ -1171,7 +1174,9 @@
 
     setPlayToggleState("loading");
 
-    audioElement.playbackRate = parseFloat(speedSelect.value) || 1;
+    // Preserve playback rate from settings
+    const currentSpeed = speedSelect ? parseFloat(speedSelect.value) : 1;
+    audioElement.playbackRate = Number.isFinite(currentSpeed) && currentSpeed > 0 ? currentSpeed : 1;
 
     const handleLoadedMetadata = () => {
       if (loadId !== audioLoadToken) return;
