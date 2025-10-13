@@ -123,6 +123,11 @@
   let timelineHoverReady = false;
   let currentHoverPreviewKey = null;
   let isAnalogClock = true; // Track clock mode
+  
+  // Independent time tracking for playback (not tied to audio)
+  let isPlaying = false;
+  let currentAbsoluteTimeMs = null;
+  let lastPlaybackTimestamp = null;
 
   browseTrigger.addEventListener("click", () => folderInput.click());
 
@@ -187,10 +192,42 @@
 
   playToggle.addEventListener("click", () => {
     if (!mediaData || !mediaData.audioTracks.length) return;
-    if (audioElement.paused) {
-      audioElement.play().catch(() => {});
-    } else {
+    
+    if (isPlaying) {
+      // Pause playback
+      isPlaying = false;
+      lastPlaybackTimestamp = null;
       audioElement.pause();
+      setPlayToggleState("play");
+    } else {
+      // Start playback
+      isPlaying = true;
+      lastPlaybackTimestamp = null;
+      
+      // Initialize time if not set
+      if (currentAbsoluteTimeMs === null && mediaData.audioTracks[0]?.adjustedStartTime) {
+        currentAbsoluteTimeMs = mediaData.audioTracks[0].adjustedStartTime.getTime();
+      }
+      
+      // Check if we're in an audio track range
+      const trackIndex = findAudioTrackForTimestamp(currentAbsoluteTimeMs);
+      if (trackIndex !== -1) {
+        // We're in an audio track - play it
+        if (trackIndex !== mediaData.activeTrackIndex) {
+          loadAudioTrack(trackIndex, true);
+          const track = mediaData.audioTracks[trackIndex];
+          const trackStartMs = track.adjustedStartTime.getTime();
+          const relativeSeconds = (currentAbsoluteTimeMs - trackStartMs) / 1000;
+          const delayAdjusted = Math.max(relativeSeconds - getDelaySeconds(), 0);
+          audioElement.currentTime = delayAdjusted;
+        } else {
+          audioElement.play().catch(() => {});
+        }
+      }
+      // If not in a track, the update loop will advance time and play when we reach a track
+      
+      startUpdateLoop();
+      setPlayToggleState("pause");
     }
   });
 
@@ -224,17 +261,30 @@
   setDelaySeconds(0);
 
   audioElement.addEventListener("play", () => {
+    // Only update UI state - isPlaying is controlled separately
     setPlayToggleState("pause");
   });
 
   audioElement.addEventListener("pause", () => {
-    const duration = Number.isFinite(audioElement.duration) ? audioElement.duration : 0;
-    const shouldReplay = duration && Math.abs(audioElement.currentTime - duration) < 0.05;
-    setPlayToggleState(shouldReplay ? "replay" : "play");
+    // Only update UI if we're actually stopping playback (not just paused in a gap)
+    if (!isPlaying) {
+      const duration = Number.isFinite(audioElement.duration) ? audioElement.duration : 0;
+      const shouldReplay = duration && Math.abs(audioElement.currentTime - duration) < 0.05;
+      setPlayToggleState(shouldReplay ? "replay" : "play");
+    }
   });
 
   audioElement.addEventListener("ended", () => {
-    setPlayToggleState("replay");
+    // When audio track ends, continue advancing time if we're playing
+    if (isPlaying && mediaData && mediaData.audioTracks[mediaData.activeTrackIndex]) {
+      const track = mediaData.audioTracks[mediaData.activeTrackIndex];
+      if (track.adjustedStartTime && track.duration) {
+        // Set time to end of this track, update loop will continue from here
+        currentAbsoluteTimeMs = track.adjustedStartTime.getTime() + (track.duration * 1000);
+      }
+    } else {
+      setPlayToggleState("replay");
+    }
   });
 
   audioElement.addEventListener("timeupdate", updateSlideForCurrentTime);
@@ -861,19 +911,10 @@
    */
   function findAudioTrackForTimestamp(imageTimestamp) {
     if (!mediaData || !mediaData.audioTracks || !imageTimestamp) {
-      console.warn('findAudioTrackForTimestamp: Missing data', {
-        hasMediaData: !!mediaData,
-        hasAudioTracks: !!(mediaData && mediaData.audioTracks),
-        trackCount: mediaData?.audioTracks?.length,
-        hasImageTimestamp: !!imageTimestamp
-      });
       return -1;
     }
 
     const imageTime = imageTimestamp instanceof Date ? imageTimestamp.getTime() : imageTimestamp;
-
-    console.log(`\n=== Finding track for image at ${new Date(imageTime).toLocaleString()} ===`);
-    console.log(`Total tracks: ${mediaData.audioTracks.length}`);
 
     let bestMatch = -1;
     let longestDuration = 0;
@@ -881,7 +922,6 @@
     for (let i = 0; i < mediaData.audioTracks.length; i++) {
       const track = mediaData.audioTracks[i];
       if (!track.fileTimestamp || !track.duration) {
-        console.log(`Track ${i}: ${track.label} - SKIPPED (no timestamp or duration)`);
         continue;
       }
 
@@ -890,31 +930,14 @@
       const audioStartTime = trackTime;
       const audioEndTime = audioStartTime + (track.duration * 1000);
 
-      // Debug logging
-      console.log(`Track ${i}: ${track.label}`);
-      console.log(`  Track time: ${new Date(trackTime).toLocaleString()}`);
-      console.log(`  Start: ${new Date(audioStartTime).toLocaleString()}, End: ${new Date(audioEndTime).toLocaleString()}`);
-      console.log(`  Duration: ${track.duration.toFixed(1)}s`);
-      console.log(`  Image time: ${new Date(imageTime).toLocaleString()}`);
-      console.log(`  Match: ${imageTime >= audioStartTime && imageTime <= audioEndTime}`);
-
       // Check if image timestamp falls within this track's time range
       if (imageTime >= audioStartTime && imageTime <= audioEndTime) {
         // If multiple tracks match, prefer the longest one (most complete recording)
         if (track.duration > longestDuration) {
           bestMatch = i;
           longestDuration = track.duration;
-          console.log(`  -> New best match! (longest so far)`);
-        } else {
-          console.log(`  -> Matches but shorter than current best (${longestDuration.toFixed(1)}s)`);
         }
       }
-    }
-
-    if (bestMatch >= 0) {
-      console.log(`✓ Selected Track ${bestMatch}: ${mediaData.audioTracks[bestMatch].label}`);
-    } else {
-      console.warn(`✗ No matching track found for image at ${new Date(imageTime).toLocaleString()}`);
     }
 
     return bestMatch;
@@ -945,46 +968,48 @@
     if (!mediaData || !mediaData.audioTracks) return;
     if (!Number.isFinite(absoluteMs)) return;
 
+    // Update our independent time tracking
+    currentAbsoluteTimeMs = absoluteMs;
+    
+    // Determine if we should be playing
+    if (shouldPlay !== null) {
+      isPlaying = shouldPlay;
+      if (shouldPlay) {
+        lastPlaybackTimestamp = null; // Will be set on next frame
+        startUpdateLoop();
+      }
+    }
+
     const targetTrackIndex = findAudioTrackForTimestamp(absoluteMs);
     
     if (targetTrackIndex === -1) {
-      console.warn(`No audio track covers ${new Date(absoluteMs).toISOString()}`);
+      // No audio track covers this time - we're in a gap
       
-      // Try to find the closest audio track (next available)
-      let closestTrackIndex = -1;
-      let closestDistance = Infinity;
+      // Pause audio - we're in a gap between tracks
+      audioElement.pause();
       
-      for (let i = 0; i < mediaData.audioTracks.length; i++) {
-        const track = mediaData.audioTracks[i];
-        if (!track || !track.adjustedStartTime) continue;
-        
-        const trackStartMs = track.adjustedStartTime.getTime();
-        const distance = Math.abs(absoluteMs - trackStartMs);
-        
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestTrackIndex = i;
-        }
-      }
+      // Show images for this time if they exist, otherwise show black screen
+      const images = getImagesForAbsoluteTime(absoluteMs);
+      showMainImages(images); // This handles both cases: images or black screen
       
-      if (closestTrackIndex !== -1) {
-        // Load the closest track and seek to beginning or end
-        const track = mediaData.audioTracks[closestTrackIndex];
-        const trackStartMs = track.adjustedStartTime.getTime();
-        const shouldResume = typeof shouldPlay === "boolean" ? shouldPlay : !audioElement.paused;
-        
-        if (absoluteMs < trackStartMs) {
-          // Before this track - seek to beginning
-          setPendingSeek(null, shouldResume, closestTrackIndex, trackStartMs);
-          loadAudioTrack(closestTrackIndex, shouldResume);
-        } else {
-          // After this track - load track and seek to the time (will be clamped)
-          setPendingSeek(null, shouldResume, closestTrackIndex, absoluteMs);
-          loadAudioTrack(closestTrackIndex, shouldResume);
-        }
+      // Update timeline to reflect the clicked time
+      timelineState.currentCursorMs = absoluteMs;
+      updateTimelineCursor(absoluteMs);
+      updateTimelineActiveStates(absoluteMs);
+      
+      // Update clock
+      updateAnalogClock(new Date(absoluteMs));
+      
+      // Update play button state
+      if (isPlaying) {
+        setPlayToggleState("pause");
       } else {
-        // No audio tracks at all - do nothing
+        setPlayToggleState("play");
       }
+      
+      // If playing, the update loop will continue advancing time
+      // If paused, we just stay at this position
+      
       return;
     }
 
@@ -1017,6 +1042,9 @@
 
   function destroyWaveform() {
     stopUpdateLoop();
+    isPlaying = false;
+    lastPlaybackTimestamp = null;
+    currentAbsoluteTimeMs = null;
     audioElement.pause();
     audioElement.currentTime = 0;
     playToggle.disabled = true;
@@ -1034,7 +1062,53 @@
       // Throttle to roughly 4 times per second (250ms)
       if (timestamp - lastUpdateTime >= 250) {
         lastUpdateTime = timestamp;
-        updateSlideForCurrentTime();
+        
+        if (isPlaying && mediaData) {
+          // Advance time independently
+          if (lastPlaybackTimestamp !== null) {
+            const deltaMs = timestamp - lastPlaybackTimestamp;
+            // Apply playback rate to time advancement
+            const playbackRate = Number.isFinite(audioElement.playbackRate) ? audioElement.playbackRate : 1;
+            currentAbsoluteTimeMs += deltaMs * playbackRate;
+            
+            // Check if we need to sync with or switch to an audio track
+            const trackIndex = findAudioTrackForTimestamp(currentAbsoluteTimeMs);
+            
+            if (trackIndex !== -1 && mediaData.audioTracks) {
+              // We're in an audio track range
+              const track = mediaData.audioTracks[trackIndex];
+              if (!track || !track.adjustedStartTime || !track.duration) {
+                return;
+              }
+              
+              if (trackIndex !== mediaData.activeTrackIndex) {
+                // Switch to this track
+                loadAudioTrack(trackIndex, true);
+                const trackStartMs = track.adjustedStartTime.getTime();
+                const relativeSeconds = (currentAbsoluteTimeMs - trackStartMs) / 1000;
+                const delayAdjusted = Math.max(relativeSeconds - getDelaySeconds(), 0);
+                audioElement.currentTime = delayAdjusted;
+              } else if (audioElement.paused) {
+                // Resume audio if paused (only if we're actually in this track's time range)
+                const trackStartMs = track.adjustedStartTime.getTime();
+                const trackEndMs = trackStartMs + (track.duration * 1000);
+                if (currentAbsoluteTimeMs >= trackStartMs && currentAbsoluteTimeMs <= trackEndMs) {
+                  audioElement.play().catch(() => {});
+                }
+              }
+            } else {
+              // We're in a gap - pause audio if playing
+              if (!audioElement.paused) {
+                audioElement.pause();
+              }
+            }
+          }
+          lastPlaybackTimestamp = timestamp;
+          
+          updateSlideForAbsoluteTime(currentAbsoluteTimeMs);
+        } else {
+          lastPlaybackTimestamp = null;
+        }
       }
       
       updateTimer = requestAnimationFrame(updateFrame);
@@ -1050,15 +1124,43 @@
     }
   }
 
+  function updateSlideForAbsoluteTime(absoluteMs) {
+    if (!mediaData || !Number.isFinite(absoluteMs)) return;
+    
+    // Update timeline state
+    timelineState.currentCursorMs = absoluteMs;
+    
+    // Get images for this absolute time
+    const images = getImagesForAbsoluteTime(absoluteMs);
+    showMainImages(images);
+    highlightTimelineImages(images);
+    
+    // Update timeline
+    updateTimelineCursor(absoluteMs);
+    updateTimelineActiveStates(absoluteMs);
+    
+    // Update analog clock
+    if (!isHoverScrubbing) {
+      updateAnalogClock(new Date(absoluteMs));
+    }
+  }
+
   function updateSlideForCurrentTime() {
     if (!mediaData || !mediaData.audioTracks || mediaData.activeTrackIndex == null) return;
     const activeTrack = mediaData.audioTracks[mediaData.activeTrackIndex];
     if (!activeTrack || !activeTrack.adjustedStartTime) return;
 
+    // Only update from audio when audio is playing
+    // When playing independently (gaps), updateSlideForAbsoluteTime handles everything
+    if (audioElement.paused) return;
+
     const time = getAudioCurrentTime();
     const delay = getDelaySeconds();
     const adjusted = time + delay;
     const absoluteMs = activeTrack.adjustedStartTime.getTime() + adjusted * 1000;
+    
+    // Sync our independent time tracking when audio is playing
+    currentAbsoluteTimeMs = absoluteMs;
 
     const images = findImagesForTime(adjusted);
     if (images && images.length > 0) {
@@ -1382,7 +1484,14 @@
     hideTimelineSeeker();
     if (isHoverScrubbing) {
       isHoverScrubbing = false;
-      updateSlideForCurrentTime();
+      // Update to current playback position
+      if (isPlaying && currentAbsoluteTimeMs !== null) {
+        // We're playing independently, use absolute time
+        updateSlideForAbsoluteTime(currentAbsoluteTimeMs);
+      } else {
+        // We're following audio, use audio time
+        updateSlideForCurrentTime();
+      }
     }
     scheduleHudHide();
   }
