@@ -31,6 +31,7 @@
   const slideshowPreview = document.getElementById("slideshow-preview");
   const clockHourHand = document.getElementById("clock-hour-hand");
   const clockMinuteHand = document.getElementById("clock-minute-hand");
+  const clockSecondHand = document.getElementById("clock-second-hand");
   const clockDate = document.getElementById("clock-date");
 
   const utils = typeof window !== "undefined" ? window.DiapAudioUtils : null;
@@ -989,6 +990,10 @@
     }
     if (Number.isFinite(absoluteMs)) {
       updateTimelineCursor(absoluteMs);
+      // Update analog clock while playing
+      if (!isHoverScrubbing) {
+        updateAnalogClock(new Date(absoluteMs));
+      }
     }
   }
 
@@ -1202,10 +1207,15 @@
     // Calculate angles (12 o'clock is 0 degrees, clockwise)
     const hourAngle = (hours * 30) + (minutes * 0.5) + (seconds * 0.00833); // 30° per hour + minute adjustment
     const minuteAngle = (minutes * 6) + (seconds * 0.1); // 6° per minute + second adjustment
+    const secondAngle = seconds * 6; // 6° per second
     
     // Apply rotation to clock hands
     clockHourHand.setAttribute('transform', `rotate(${hourAngle} 50 50)`);
     clockMinuteHand.setAttribute('transform', `rotate(${minuteAngle} 50 50)`);
+    
+    if (clockSecondHand) {
+      clockSecondHand.setAttribute('transform', `rotate(${secondAngle} 50 50)`);
+    }
     
     // Update date display
     const day = String(date.getDate()).padStart(2, '0');
@@ -1276,9 +1286,13 @@
     if (timelineHoverPreviewTime) {
       timelineHoverPreviewTime.textContent = formatClock(new Date(absoluteMs));
     }
+    
+    // Update analog clock during hover
+    updateAnalogClock(new Date(absoluteMs));
 
     highlightTimelineImages(images);
-    updateTimelineActiveStates(absoluteMs);
+    // Don't update track highlight during hover - only during playback
+    // updateTimelineActiveStates(absoluteMs);
     updateTimelineCursor(absoluteMs);
   }
 
@@ -1305,7 +1319,8 @@
     const absoluteMs = timelineState.viewStartMs + viewSpan * ratio;
     if (!Number.isFinite(absoluteMs)) return;
 
-    const wasPlaying = !audioElement.paused;
+    // Always start playing when clicking on timeline
+    const shouldPlay = true;
     const images = getImagesForAbsoluteTime(absoluteMs);
 
     hidePreviewImages();
@@ -1313,9 +1328,27 @@
     isHoverScrubbing = false;
 
     if (images.length) {
-      jumpToImage(images[0]);
+      // Jump to the image and start playing
+      const correctTrackIndex = findAudioTrackForTimestamp(images[0].originalTimestamp);
+      
+      if (correctTrackIndex === -1) {
+        console.warn(`Image "${images[0].name}" timestamp doesn't match any audio track`);
+        showMainImages([images[0]]);
+        highlightTimelineImages([images[0]]);
+        return;
+      }
+
+      if (correctTrackIndex !== mediaData.activeTrackIndex) {
+        setPendingSeek(images[0], shouldPlay, correctTrackIndex);
+        loadAudioTrack(correctTrackIndex, shouldPlay);
+      } else {
+        seekToImageInCurrentTrack(images[0], shouldPlay);
+      }
+
+      showMainImages([images[0]]);
+      highlightTimelineImages([images[0]]);
     } else {
-      seekToAbsoluteMs(absoluteMs, wasPlaying);
+      seekToAbsoluteMs(absoluteMs, shouldPlay);
     }
     updateSlideForCurrentTime();
     showHud();
@@ -1658,13 +1691,8 @@
       }
       mainEl.title = title;
 
-      mainEl.addEventListener("click", () => {
-        if (!mediaData) return;
-        const wasPlaying = !audioElement.paused;
-        if (range.index !== mediaData.activeTrackIndex) {
-          loadAudioTrack(range.index, wasPlaying);
-        }
-      });
+      // Remove click handler - clicking timeline background will handle seeking
+      // mainEl.addEventListener("click", () => { ... });
 
       mainFragment.appendChild(mainEl);
       range.track.timelineMainEl = mainEl;
