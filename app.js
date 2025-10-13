@@ -2815,7 +2815,7 @@
 <!DOCTYPE xmeml>
 <xmeml version="5">
   <sequence id="sequence-1">
-    <name>Diapodio Slideshow</name>
+    <name>Diapaudio Slideshow</name>
     <duration>${timelineDurationFrames}</duration>
     <rate>
       <timebase>${timebase}</timebase>
@@ -2962,7 +2962,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "diapodio-timeline.xml";
+    a.download = "diapaudio-timeline.xml";
     a.click();
     URL.revokeObjectURL(url);
   }

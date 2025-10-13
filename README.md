@@ -1,4 +1,4 @@
-# diapodio
+# diapaudio
 
 Playback photos synced with recordings of that day.
 
@@ -8,7 +8,7 @@ Playback photos synced with recordings of that day.
 
 ## What is it?
 
-diapodio is a web-based tool that synchronizes your photos with audio recordings based on timestamps. Simply drop a folder containing your images and an audio file, and the app will automatically align them chronologically.
+diapaudio is a web-based tool that synchronizes your photos with audio recordings based on timestamps. Simply drop a folder containing your images and an audio file, and the app will automatically align them chronologically.
 
 ## How to use
 
@@ -20,7 +20,7 @@ The app will generate a synchronized slideshow you can play, navigate, and expor
 
 ### Timestamp Detection
 
-diapodio extracts timestamps from your media files using multiple methods:
+diapaudio extracts timestamps from your media files using multiple methods:
 
 #### Images
 
@@ -69,7 +69,7 @@ It should contain a single timestamp in the format `HH:MM:SS` (e.g., `14:23:45`)
 14:23:45
 ```
 
-This tells diapodio to account for the 23 minutes and 45 seconds offset between the two devices' clocks when syncing.
+This tells diapaudio to account for the 23 minutes and 45 seconds offset between the two devices' clocks when syncing.
 
 ## Supported Formats
 
@@ -100,7 +100,7 @@ This tells diapodio to account for the 23 minutes and 45 seconds offset between 
 
 ## Export to Video Editing Software
 
-diapodio can export your synchronized slideshow as an XML file that can be imported into professional video editing software like:
+diapaudio can export your synchronized slideshow as an XML file that can be imported into professional video editing software like:
 
 - **Final Cut Pro** (FCPXML format)
 - **Adobe Premiere Pro**
