@@ -37,5 +37,22 @@ This tells diapodio to account for the 23 minutes and 45 seconds offset between 
 - Audio playback with visual timeline
 - Keyboard shortcuts for navigation
 - Real-time preview
+- XML export for video editing software
 - No server required - runs entirely in your browser
+
+## Export to Video Editing Software
+
+diapodio can export your synchronized slideshow as an XML file that can be imported into professional video editing software like:
+
+- **Final Cut Pro** (FCPXML format)
+- **Adobe Premiere Pro**
+- **DaVinci Resolve**
+- Other NLE software that supports XML timelines
+
+The exported XML file includes:
+- All your images with precise timing
+- The audio track
+- Proper synchronization based on timestamps
+
+Simply click the **Export** button after loading your files, and import the generated XML file into your video editor to continue working on your project.
 
