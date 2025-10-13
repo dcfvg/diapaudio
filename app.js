@@ -960,8 +960,7 @@
           loadAudioTrack(closestTrackIndex, shouldResume);
         }
       } else {
-        // No audio tracks at all - just update display
-        updateSlideForCurrentTime();
+        // No audio tracks at all - do nothing
       }
       return;
     }
@@ -987,8 +986,6 @@
     } else {
       audioElement.currentTime = Math.max(delayAdjusted, 0);
     }
-
-    updateSlideForCurrentTime();
 
     if (shouldResume) {
       audioElement.play().catch(() => {});
@@ -1076,43 +1073,38 @@
     
     const currentImage = mediaData.images[currentImageIndex];
     
-    // Calculate how long this image has been displayed
-    const timeIntoImage = targetSeconds - currentImage.relative;
-    
-    // Determine if we should allow composition changes
-    const timeSinceLastChange = targetSeconds - lastCompositionChangeTime;
-    const canChangeComposition = timeSinceLastChange >= MAX_COMPOSITION_CHANGE_INTERVAL;
-    
-    // If we're still within the minimum display duration of the current image
-    // AND we can change composition, look for overlapping images
-    if (timeIntoImage < MIN_IMAGE_DISPLAY_DURATION && canChangeComposition) {
-      const images = [currentImage];
-      const endTime = currentImage.relative + MIN_IMAGE_DISPLAY_DURATION;
+    // STABLE COMPOSITION LOGIC:
+    // If we're already displaying a composition, keep it stable until ALL images are no longer current
+    if (currentDisplayedImages.length > 0) {
+      // Find the last (most recent) image in the current composition
+      const lastDisplayedImage = currentDisplayedImages[currentDisplayedImages.length - 1];
       
-      // Find all images that fall within the minimum display duration window
-      for (let i = currentImageIndex + 1; i < mediaData.images.length; i++) {
-        const nextImage = mediaData.images[i];
-        if (nextImage.relative < endTime) {
-          images.push(nextImage);
-        } else {
-          break;
-        }
-      }
-      
-      return images;
-    }
-    
-    // If we can't change composition yet, return the currently displayed images
-    if (!canChangeComposition && currentDisplayedImages.length > 0) {
-      // Check if the current image is still in the displayed set
-      const currentStillDisplayed = currentDisplayedImages.some(img => img === currentImage);
-      if (currentStillDisplayed) {
+      // Check if we're still within the time range of the last displayed image
+      // We stay in the current composition as long as the current time is before the last image in the composition
+      if (currentImage === lastDisplayedImage || 
+          mediaData.images.indexOf(lastDisplayedImage) >= currentImageIndex) {
+        // Keep showing the same composition - don't change it
         return currentDisplayedImages;
       }
     }
     
-    // Otherwise, just show the current image
-    return [currentImage];
+    // Need to create a NEW composition
+    // Look ahead to find all images that start within the minimum display duration window
+    const images = [currentImage];
+    const endTime = currentImage.relative + MIN_IMAGE_DISPLAY_DURATION;
+    
+    // Find all images that fall within the time window (up to 6 images max for grid)
+    for (let i = currentImageIndex + 1; i < mediaData.images.length; i++) {
+      const nextImage = mediaData.images[i];
+      if (nextImage.relative < endTime && images.length < 6) {
+        images.push(nextImage);
+      } else {
+        break;
+      }
+    }
+    
+    // Return the new composition
+    return images;
   }
 
   function getImagesForAbsoluteTime(absoluteMs) {
@@ -1322,7 +1314,6 @@
     const viewSpan = timelineState.viewEndMs - timelineState.viewStartMs;
     if (viewSpan <= 0) {
       hideTimelineHoverPreview();
-      hidePreviewImages();
       isHoverScrubbing = false;
       return;
     }
@@ -1330,7 +1321,6 @@
     const absoluteMs = timelineState.viewStartMs + viewSpan * ratio;
     if (!Number.isFinite(absoluteMs)) {
       hideTimelineHoverPreview();
-      hidePreviewImages();
       isHoverScrubbing = false;
       return;
     }
@@ -1348,14 +1338,10 @@
     }
 
     renderTimelineHoverImages(images);
-    renderPreviewImages(images);
 
     if (timelineHoverPreviewTime) {
       timelineHoverPreviewTime.textContent = formatClock(new Date(absoluteMs));
     }
-    
-    // Update analog clock during hover
-    updateAnalogClock(new Date(absoluteMs));
 
     highlightTimelineImages(images);
     // Don't update track highlight during hover - only during playback
@@ -1365,7 +1351,6 @@
 
   function handleTimelineHoverLeave() {
     hideTimelineHoverPreview();
-    hidePreviewImages();
     hideTimelineSeeker();
     if (isHoverScrubbing) {
       isHoverScrubbing = false;
@@ -1390,24 +1375,12 @@
     // Always start playing when clicking on timeline
     const shouldPlay = true;
 
-    hidePreviewImages();
     hideTimelineHoverPreview();
     isHoverScrubbing = false;
 
     // Always seek to the clicked time, regardless of images
     seekToAbsoluteMs(absoluteMs, shouldPlay);
     
-    // Update display with images at this time (or show black screen if none)
-    const images = getImagesForAbsoluteTime(absoluteMs);
-    if (images.length > 0) {
-      showMainImages(images);
-      highlightTimelineImages(images);
-    } else {
-      showMainImages([]);
-      highlightTimelineImages([]);
-    }
-    
-    updateSlideForCurrentTime();
     showHud();
   }
 
@@ -1418,11 +1391,11 @@
       currentHoverPreviewKey = key;
       timelineHoverPreviewImages.innerHTML = "";
       timelineHoverPreviewImages.className = "timeline__hover-preview-images";
-      const count = Math.min(images.length, 4);
+      const count = Math.min(images.length, 6);
       if (count > 1) {
-        timelineHoverPreviewImages.classList.add(`split-${Math.min(count, 4)}`);
+        timelineHoverPreviewImages.classList.add(`split-${count}`);
       }
-      images.slice(0, 4).forEach((image, index) => {
+      images.slice(0, 6).forEach((image, index) => {
         const img = document.createElement("img");
         img.src = image.url;
         img.alt = image.name || `Preview ${index + 1}`;
@@ -1431,40 +1404,41 @@
     }
   }
 
-  function renderPreviewImages(images) {
-    if (!slideshowPreview) return;
-    if (!Array.isArray(images) || images.length === 0) {
-      hidePreviewImages();
-      return;
-    }
+  // REMOVED: Large preview images no longer shown on timeline hover
+  // function renderPreviewImages(images) {
+  //   if (!slideshowPreview) return;
+  //   if (!Array.isArray(images) || images.length === 0) {
+  //     hidePreviewImages();
+  //     return;
+  //   }
+  //
+  //   slideshowPreview.className = "slideshow__preview";
+  //   slideshowPreview.innerHTML = "";
+  //   const count = Math.min(images.length, 4);
+  //   if (count > 1) {
+  //     slideshowPreview.classList.add(`split-${Math.min(count, 4)}`);
+  //   }
+  //
+  //   images.slice(0, 4).forEach((image, index) => {
+  //     const img = document.createElement("img");
+  //     img.src = image.url;
+  //     img.alt = image.name || `Preview ${index + 1}`;
+  //     slideshowPreview.appendChild(img);
+  //   });
+  //
+  //   slideshowPreview.classList.remove("hidden");
+  //   slideshowPreview.classList.add("active");
+  // }
 
-    slideshowPreview.className = "slideshow__preview";
-    slideshowPreview.innerHTML = "";
-    const count = Math.min(images.length, 4);
-    if (count > 1) {
-      slideshowPreview.classList.add(`split-${Math.min(count, 4)}`);
-    }
-
-    images.slice(0, 4).forEach((image, index) => {
-      const img = document.createElement("img");
-      img.src = image.url;
-      img.alt = image.name || `Preview ${index + 1}`;
-      slideshowPreview.appendChild(img);
-    });
-
-    slideshowPreview.classList.remove("hidden");
-    slideshowPreview.classList.add("active");
-  }
-
-  function hidePreviewImages() {
-    if (!slideshowPreview) return;
-    slideshowPreview.classList.remove("active");
-    slideshowPreview.className = "slideshow__preview";
-    slideshowPreview.innerHTML = "";
-    if (!slideshowPreview.classList.contains("hidden")) {
-      slideshowPreview.classList.add("hidden");
-    }
-  }
+  // function hidePreviewImages() {
+  //   if (!slideshowPreview) return;
+  //   slideshowPreview.classList.remove("active");
+  //   slideshowPreview.className = "slideshow__preview";
+  //   slideshowPreview.innerHTML = "";
+  //   if (!slideshowPreview.classList.contains("hidden")) {
+  //     slideshowPreview.classList.add("hidden");
+  //   }
+  // }
 
   function hideTimelineHoverPreview() {
     currentHoverPreviewKey = null;
