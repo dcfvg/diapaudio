@@ -57,13 +57,14 @@
     ["flac", "audio/flac"],
   ]);
 
-  // Configuration
-  const MIN_IMAGE_DISPLAY_DURATION = 4;
+  // Configuration: Visual Comfort & Smoothness Focus
+  const MIN_IMAGE_DISPLAY_DURATION = 6; // Requirement 1: minimum 6 seconds
   const MIN_IMAGE_DISPLAY_DURATION_MS = MIN_IMAGE_DISPLAY_DURATION * 1000;
-  const MAX_IMAGE_CARRYOVER_MS = 60_000;
-  const MAX_COMPOSITION_CHANGE_INTERVAL_MS = 2_000;
-  const MAX_VISIBLE_IMAGES = 6;
-  const IMAGE_STACK_WINDOW_MS = 35_000;
+  const MAX_IMAGE_CARRYOVER_MS = 120_000; // Requirement 2: maximum 120 seconds after timestamp
+  const MAX_COMPOSITION_CHANGE_INTERVAL_MS = 4_000; // Requirement 4: layout changes every 4 seconds max
+  const MAX_VISIBLE_IMAGES = 6; // Requirement 7: up to 6 horizontal segments
+  const BATCH_THRESHOLD_MS = 2_000; // Requirement 8: images within 2s are considered a batch
+  const IMAGE_STACK_WINDOW_MS = 25_000;
   const IMAGE_STACK_STEP_PX = 18;
   const IMAGE_STACK_OFFSET_ORDER = [0, -1, 1, -2, 2, -3, 3];
   const IMAGE_BASE_HEIGHT = 64;
@@ -377,10 +378,11 @@
   let currentDisplayedImages = [];
   const compositionState = {
     layoutSize: 1,
-    slots: [],
+    slots: [], // Array of { image, enteredAtMs, assignedSlot, layoutSize }
     lastChangeMs: -Infinity,
     renderedLayoutSize: 0,
     renderedSlotSignature: [],
+    imageHistory: new Map(), // Requirement 9: Track image -> { slot, layoutSize } to reuse layouts
   };
   let forceNextComposition = false;
   let pendingSeek = null;
@@ -1187,6 +1189,9 @@
         track.duration = audioElement.duration;
       }
 
+      // Reapply playback rate after load (some browsers reset it)
+      audioElement.playbackRate = currentSpeed;
+
       playToggle.disabled = false;
       setPlayToggleState("play");
 
@@ -1367,26 +1372,30 @@
         continue;
       }
 
-      const windowStart = anchorMs - MIN_IMAGE_DISPLAY_DURATION_MS;
-      const windowEnd = anchorMs + MIN_IMAGE_DISPLAY_DURATION_MS;
+      // Requirement 8: Batch images that arrive at nearly the same time
+      // Look for images within BATCH_THRESHOLD_MS
+      const batchStart = anchorMs - BATCH_THRESHOLD_MS;
+      const batchEnd = anchorMs + BATCH_THRESHOLD_MS;
 
       let start = i;
       while (start > 0) {
         const candidateMs = images[start - 1]?.originalTimestamp?.getTime?.();
-        if (!Number.isFinite(candidateMs) || candidateMs < windowStart) break;
+        if (!Number.isFinite(candidateMs) || candidateMs < batchStart) break;
         start -= 1;
       }
 
       let end = i;
       while (end + 1 < images.length) {
         const candidateMs = images[end + 1]?.originalTimestamp?.getTime?.();
-        if (!Number.isFinite(candidateMs) || candidateMs > windowEnd) break;
+        if (!Number.isFinite(candidateMs) || candidateMs > batchEnd) break;
         end += 1;
       }
 
       const cluster = [];
       let clusterStartMs = Number.POSITIVE_INFINITY;
       let clusterEndMs = Number.NEGATIVE_INFINITY;
+      
+      // Requirement 10: Maximize size - take up to MAX_VISIBLE_IMAGES
       for (let j = start; j <= end && cluster.length < MAX_VISIBLE_IMAGES; j++) {
         const candidate = images[j];
         const candidateMs = candidate?.originalTimestamp?.getTime?.();
@@ -1423,6 +1432,8 @@
 
     const images = mediaData.images;
     let anchorIndex = -1;
+    
+    // Find the most recent image at or before current time
     for (let i = 0; i < images.length; i++) {
       const timestamp = images[i].originalTimestamp?.getTime?.() ?? null;
       if (!Number.isFinite(timestamp)) continue;
@@ -1440,6 +1451,7 @@
     const anchor = images[anchorIndex];
     if (!anchor) return [];
 
+    // Use precomputed cluster if available
     const baseVisible = Array.isArray(anchor.precomputedVisible)
       ? anchor.precomputedVisible
       : [anchor];
@@ -1452,11 +1464,13 @@
       return baseVisible.slice(0, MAX_VISIBLE_IMAGES);
     }
 
+    // Requirement 2: Maximum display time of 45 seconds after timestamp
     const windowEnd = clusterStart + MAX_IMAGE_CARRYOVER_MS;
     if (absoluteMs < clusterStart || absoluteMs > windowEnd) {
       return [];
     }
 
+    // Requirement 10: Maximize image size - limit to MAX_VISIBLE_IMAGES
     return baseVisible.slice(0, MAX_VISIBLE_IMAGES);
   }
 
@@ -1493,6 +1507,7 @@
     compositionState.lastChangeMs = -Infinity;
     compositionState.renderedLayoutSize = 0;
     compositionState.renderedSlotSignature = [];
+    compositionState.imageHistory.clear(); // Clear history on reset
     currentDisplayedImages = [];
     forceNextComposition = false;
 
@@ -1508,20 +1523,16 @@
     const now = Number.isFinite(absoluteMs) ? absoluteMs : Date.now();
     const hasTargets = Array.isArray(targetImages) && targetImages.length > 0;
 
-    let desiredLayoutSize = hasTargets
-      ? targetImages.reduce((max, image) => {
-          const size = Number.isFinite(image?.compositionSize)
-            ? image.compositionSize
-            : targetImages.length;
-          return Math.max(max, size);
-        }, Math.max(targetImages.length, 1))
-      : 1;
-
+    // Requirement 10: Maximize image size - use minimum layout size needed
+    let desiredLayoutSize = hasTargets ? targetImages.length : 1;
     desiredLayoutSize = Math.min(desiredLayoutSize, MAX_VISIBLE_IMAGES);
+    desiredLayoutSize = Math.max(desiredLayoutSize, 1);
 
     const lastChangeMs = Number.isFinite(compositionState.lastChangeMs)
       ? compositionState.lastChangeMs
       : -Infinity;
+    
+    // Requirement 4: Layout changes at most every 4 seconds
     const allowLayoutAdjustment = force || (now - lastChangeMs >= MAX_COMPOSITION_CHANGE_INTERVAL_MS);
 
     let nextLayoutSize = compositionState.layoutSize || 1;
@@ -1529,6 +1540,7 @@
     if (!hasTargets) {
       nextLayoutSize = 1;
     } else {
+      // Grow immediately if needed, shrink only when allowed
       if (desiredLayoutSize > nextLayoutSize) {
         nextLayoutSize = desiredLayoutSize;
       } else if (desiredLayoutSize < nextLayoutSize && allowLayoutAdjustment) {
@@ -1536,17 +1548,10 @@
       }
     }
 
-    if (force && hasTargets) {
-      nextLayoutSize = Math.max(nextLayoutSize, desiredLayoutSize);
-    }
-
-    if (nextLayoutSize < 1) {
-      nextLayoutSize = 1;
-    }
-
     let layoutAdjusted = false;
 
-    if (nextLayoutSize !== compositionState.layoutSize) {
+    // Requirement 4: Change layout only when time threshold is met
+    if (nextLayoutSize !== compositionState.layoutSize && (force || allowLayoutAdjustment || desiredLayoutSize > compositionState.layoutSize)) {
       const existingImages = (compositionState.slots || [])
         .map((entry) => entry?.image || null)
         .filter(Boolean);
@@ -1554,7 +1559,16 @@
       compositionState.layoutSize = nextLayoutSize;
       compositionState.slots = Array.from({ length: nextLayoutSize }, (_, index) => {
         const image = existingImages[index] || null;
-        return image ? { image, enteredAtMs: now } : null;
+        if (image) {
+          // Requirement 9: Remember this image's layout
+          const historyKey = getImageKey(image);
+          compositionState.imageHistory.set(historyKey, { 
+            slot: index, 
+            layoutSize: nextLayoutSize 
+          });
+          return { image, enteredAtMs: now, assignedSlot: index, layoutSize: nextLayoutSize };
+        }
+        return null;
       });
       compositionState.lastChangeMs = now;
       layoutAdjusted = true;
@@ -1577,19 +1591,29 @@
     let changeOccurred = false;
 
     const allowImmediateReplacement = force || layoutAdjusted;
+    
+    // Requirement 4: Changes allowed at most every 4 seconds
     const mayChange = allowImmediateReplacement || (now - compositionState.lastChangeMs >= MAX_COMPOSITION_CHANGE_INTERVAL_MS);
 
+    // Requirement 3: Keep images in their slots as long as valid
     for (let i = 0; i < compositionState.slots.length; i++) {
       const entry = compositionState.slots[i];
       if (!entry) continue;
 
       const elapsed = now - entry.enteredAtMs;
       const inTarget = targetSet.has(entry.image);
-      const shouldKeep =
-        inTarget || (!allowImmediateReplacement && (elapsed < MIN_IMAGE_DISPLAY_DURATION_MS || !mayChange));
+      
+      // Requirement 1 & 2: Display for at least 6 seconds, max 45 seconds after timestamp
+      const meetsMinDuration = elapsed >= MIN_IMAGE_DISPLAY_DURATION_MS;
+      const shouldKeep = inTarget || (!allowImmediateReplacement && (!meetsMinDuration || !mayChange));
 
       if (shouldKeep) {
         visibleSet.add(entry.image);
+        // Requirement 3: Update slot info but keep position constant
+        if (entry.assignedSlot !== i || entry.layoutSize !== compositionState.layoutSize) {
+          entry.assignedSlot = i;
+          entry.layoutSize = compositionState.layoutSize;
+        }
       } else {
         compositionState.slots[i] = null;
         changeOccurred = true;
@@ -1614,8 +1638,33 @@
 
       for (const image of orderedTargets) {
         if (!availableIndices.length) break;
-        const slotIndex = availableIndices.shift();
-        compositionState.slots[slotIndex] = { image, enteredAtMs: now };
+        
+        // Requirement 9: Try to reuse previous slot if available
+        const historyKey = getImageKey(image);
+        const history = compositionState.imageHistory.get(historyKey);
+        let slotIndex;
+        
+        if (history && history.layoutSize === compositionState.layoutSize && 
+            availableIndices.includes(history.slot)) {
+          // Reuse the same slot
+          slotIndex = history.slot;
+          availableIndices.splice(availableIndices.indexOf(slotIndex), 1);
+        } else {
+          // Assign to first available slot
+          slotIndex = availableIndices.shift();
+          // Remember this assignment
+          compositionState.imageHistory.set(historyKey, { 
+            slot: slotIndex, 
+            layoutSize: compositionState.layoutSize 
+          });
+        }
+        
+        compositionState.slots[slotIndex] = { 
+          image, 
+          enteredAtMs: now, 
+          assignedSlot: slotIndex,
+          layoutSize: compositionState.layoutSize
+        };
         visibleSet.add(image);
         changeOccurred = true;
       }
@@ -1626,6 +1675,11 @@
     }
 
     return compositionState.slots;
+  }
+
+  function getImageKey(image) {
+    // Create unique key for image history tracking
+    return image?.name || image?.url || String(image?.originalTimestamp?.getTime() || 0);
   }
 
   function renderSlideshow(slots) {
@@ -1675,16 +1729,18 @@
           imgEl.classList.add("slideshow__image");
         }
 
+        // Hide immediately if src is changing to prevent ghost images
+        const srcChanging = imgEl.dataset.imageId !== image.url;
+        if (srcChanging && imgEl.classList.contains("slideshow__image--visible")) {
+          imgEl.classList.remove("slideshow__image--visible");
+        }
+
         imgEl.dataset.slotIndex = String(index);
         imgEl.dataset.imageId = image.url;
         imgEl.src = image.url;
         imgEl.alt = image.name || `Capture ${index + 1}`;
         imgEl.loading = "lazy";
         imgEl.decoding = "async";
-
-        if (imgEl.classList.contains("slideshow__image--visible")) {
-          imgEl.classList.remove("slideshow__image--visible");
-        }
 
         if (existing === imgEl) {
           // reused element, no need to reinsert
