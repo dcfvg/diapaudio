@@ -5,6 +5,8 @@
   const folderInput = document.getElementById("folder-input");
   const browseTrigger = document.getElementById("browse-trigger");
   const playToggle = document.getElementById("play-toggle");
+  const playToggleIcon = playToggle ? playToggle.querySelector(".control-button__icon") : null;
+  const playToggleLabel = playToggle ? playToggle.querySelector(".control-button__sr-label") : null;
   const speedSelect = document.getElementById("speed-select");
   const viewerContent = document.getElementById("viewer-content");
   const slideshowContainer = document.getElementById("slideshow-container");
@@ -27,7 +29,6 @@
   const imageTimecode = document.getElementById("image-timecode");
   const imageTimeOfDay = document.getElementById("image-timeofday");
   const delayField = document.getElementById("delay-field");
-  const delayDisplay = document.getElementById("delay-display");
   const viewerHud = document.getElementById("viewer-hud");
   const slideshowPreview = document.getElementById("slideshow-preview");
   const clockHourHand = document.getElementById("clock-hour-hand");
@@ -71,6 +72,23 @@
 
   const audioElement = new Audio();
   audioElement.preload = "metadata";
+
+  const PLAY_TOGGLE_ICONS = {
+    play: { icon: "▶", label: "Play" },
+    pause: { icon: "⏸", label: "Pause" },
+    replay: { icon: "↺", label: "Replay" },
+    loading: { icon: "⏳", label: "Loading" },
+  };
+
+  function setPlayToggleState(state) {
+    if (!playToggle) return;
+    const config = PLAY_TOGGLE_ICONS[state] || PLAY_TOGGLE_ICONS.play;
+    if (playToggleIcon) playToggleIcon.textContent = config.icon;
+    if (playToggleLabel) playToggleLabel.textContent = config.label;
+    playToggle.setAttribute("aria-label", config.label);
+    playToggle.dataset.state = state;
+  }
+
   let mediaData = null;
   let updateTimer = null;
   let lastUpdateTime = 0;
@@ -106,6 +124,8 @@
   let isAnalogClock = true; // Track clock mode
 
   browseTrigger.addEventListener("click", () => folderInput.click());
+
+  setPlayToggleState("play");
 
   // Toggle between analog and digital clock on click
   if (viewerClock) {
@@ -183,7 +203,6 @@
       const parsed = parseDelayField(delayField.value);
       if (parsed === null) {
         updateDelayField();
-        updateDelayDisplay(delaySeconds);
         return;
       }
       setDelaySeconds(parsed);
@@ -204,17 +223,17 @@
   setDelaySeconds(0);
 
   audioElement.addEventListener("play", () => {
-    playToggle.textContent = "Pause";
+    setPlayToggleState("pause");
   });
 
   audioElement.addEventListener("pause", () => {
     const duration = Number.isFinite(audioElement.duration) ? audioElement.duration : 0;
     const shouldReplay = duration && Math.abs(audioElement.currentTime - duration) < 0.05;
-    playToggle.textContent = shouldReplay ? "Replay" : "Play";
+    setPlayToggleState(shouldReplay ? "replay" : "play");
   });
 
   audioElement.addEventListener("ended", () => {
-    playToggle.textContent = "Replay";
+    setPlayToggleState("replay");
   });
 
   audioElement.addEventListener("timeupdate", updateSlideForCurrentTime);
@@ -227,7 +246,6 @@
     if (!Number.isFinite(value)) return;
     delaySeconds = value;
     updateDelayField();
-    updateDelayDisplay(delaySeconds);
     
     // Update timeline positions and cursor when delay changes
     if (timelineState.initialized) {
@@ -285,16 +303,6 @@
       secondsDisplay = String(Math.round(seconds)).padStart(2, "0");
     }
     return `${sign}${minutes}:${secondsDisplay}`;
-  }
-
-  function updateDelayDisplay(value = delaySeconds) {
-    if (!delayDisplay) return;
-    const formatted = formatDelay(value);
-    const sign = value < 0 ? "-" : "";
-    const unsigned = value < 0 ? formatted.slice(1) : formatted;
-    const [minutesPart, secondsPart] = unsigned.split(":");
-    const minutes = Number(minutesPart || 0);
-    delayDisplay.textContent = `${sign}${minutes}m ${secondsPart || "00"}s`;
   }
 
   function showHud() {
@@ -768,7 +776,7 @@
     const loadId = audioLoadToken;
 
     playToggle.disabled = true;
-    playToggle.textContent = "Loading";
+    setPlayToggleState("loading");
 
     audioElement.pause();
     audioElement.currentTime = 0;
@@ -784,7 +792,7 @@
       }
 
       playToggle.disabled = false;
-      playToggle.textContent = "Play";
+      setPlayToggleState("play");
 
       recalculateImageTimestamps();
       startUpdateLoop();
@@ -814,7 +822,7 @@
       audioElement.removeEventListener("loadedmetadata", handleLoadedMetadata);
       audioElement.removeEventListener("error", handleAudioError);
       playToggle.disabled = true;
-      playToggle.textContent = "Play";
+      setPlayToggleState("play");
     };
 
     audioElement.addEventListener("loadedmetadata", handleLoadedMetadata);
@@ -992,7 +1000,7 @@
     audioElement.pause();
     audioElement.currentTime = 0;
     playToggle.disabled = true;
-    playToggle.textContent = "Play";
+    setPlayToggleState("play");
   }
 
   function getAudioCurrentTime() {
