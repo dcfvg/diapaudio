@@ -6,7 +6,6 @@
   const browseTrigger = document.getElementById("browse-trigger");
   const playToggle = document.getElementById("play-toggle");
   const speedSelect = document.getElementById("speed-select");
-  const waveformContainer = document.getElementById("waveform");
   const viewerContent = document.getElementById("viewer-content");
   const slideshowContainer = document.getElementById("slideshow-container");
   const timelineRoot = document.getElementById("timeline");
@@ -20,13 +19,16 @@
   const timelineMinimapGradient = document.getElementById("timeline-minimap-gradient");
   const timelineMinimapTracks = document.getElementById("timeline-minimap-tracks");
   const timelineMinimapImages = document.getElementById("timeline-minimap-images");
-  const timelineBrush = document.getElementById("timeline-brush");
-  const timelineBrushRegion = document.getElementById("timeline-brush-region");
   const timelineNotices = document.getElementById("timeline-notices");
+  const timelineHoverPreview = document.getElementById("timeline-hover-preview");
+  const timelineHoverPreviewImages = document.getElementById("timeline-hover-preview-images");
+  const timelineHoverPreviewTime = document.getElementById("timeline-hover-preview-time");
   const imageTimecode = document.getElementById("image-timecode");
   const imageTimeOfDay = document.getElementById("image-timeofday");
-  const delayRange = document.getElementById("delay-range");
-  const delayNumber = document.getElementById("delay-number");
+  const delayField = document.getElementById("delay-field");
+  const delayDisplay = document.getElementById("delay-display");
+  const viewerHud = document.getElementById("viewer-hud");
+  const slideshowPreview = document.getElementById("slideshow-preview");
 
   const utils = typeof window !== "undefined" ? window.DiapAudioUtils : null;
   const parseTimestampFromName = utils ? utils.parseTimestampFromName : null;
@@ -52,12 +54,14 @@
   const IMAGE_STACK_STEP_PX = 18;
   const IMAGE_STACK_OFFSET_ORDER = [0, -1, 1, -2, 2, -3, 3];
   const IMAGE_BASE_HEIGHT = 64;
-  const TRACK_LANE_HEIGHT = 36;
-  const MIN_BRUSH_SPAN = 0.02;
+  const TRACK_LANE_HEIGHT = 18;
   const TIMELINE_PADDING_RATIO = 0.08;
   const OVERLAP_REPORT_THRESHOLD_MS = 5_000;
+  const AUDIO_MARKER_MIN_WIDTH_PCT = 0.2;
+  const HUD_INACTIVITY_TIMEOUT_MS = 3500;
 
-  let wave = null;
+  const audioElement = new Audio();
+  audioElement.preload = "metadata";
   let mediaData = null;
   let updateTimer = null;
   let lastUpdateTime = 0;
@@ -65,6 +69,7 @@
   let lastCompositionChangeTime = -Infinity;
   let pendingSeek = null;
   let pendingSeekToken = 0;
+  let audioLoadToken = 0;
   const timelineState = {
     initialized: false,
     trackRanges: [],
@@ -75,16 +80,20 @@
     totalMs: 0,
     viewStartMs: 0,
     viewEndMs: 0,
-    brushStart: 0,
-    brushEnd: 1,
     currentCursorMs: null,
     highlightTimeMs: null,
     imageStackMagnitude: 0,
     anomalyMessages: [],
   };
-  let timelineBrushDrag = null;
   let timelineInteractionsReady = false;
-  let brushDragRafId = null;
+  let isHoverScrubbing = false;
+  let hoverOriginalImages = null;
+  let hoverOriginalCursorMs = null;
+  let hudHideTimer = null;
+  let delaySeconds = 0;
+  const alwaysShowHud = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(hover: none)").matches;
+  let timelineHoverReady = false;
+  let currentHoverPreviewKey = null;
 
   browseTrigger.addEventListener("click", () => folderInput.click());
 
@@ -130,38 +139,185 @@
   });
 
   playToggle.addEventListener("click", () => {
-    if (!wave) return;
-    wave.playPause();
+    if (!mediaData || !mediaData.audioTracks.length) return;
+    if (audioElement.paused) {
+      audioElement.play().catch(() => {});
+    } else {
+      audioElement.pause();
+    }
   });
 
   speedSelect.addEventListener("change", () => {
-    if (!wave) return;
     const speed = parseFloat(speedSelect.value);
-    wave.setPlaybackRate(speed);
+    audioElement.playbackRate = Number.isFinite(speed) ? speed : 1;
   });
 
-  delayRange.addEventListener("input", () => syncDelayInputs(delayRange.value));
-  delayNumber.addEventListener("input", () => syncDelayInputs(delayNumber.value));
-
-  setupTimelineInteractions();
-
-  function syncDelayInputs(value) {
-    delayRange.value = value;
-    delayNumber.value = value;
+  if (delayField) {
+    const commitDelay = () => {
+      const parsed = parseDelayField(delayField.value);
+      if (parsed === null) {
+        updateDelayField();
+        updateDelayDisplay(delaySeconds);
+        return;
+      }
+      setDelaySeconds(parsed);
+    };
+    delayField.addEventListener("blur", commitDelay);
+    delayField.addEventListener("change", commitDelay);
+    delayField.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commitDelay();
+        delayField.blur();
+      }
+    });
   }
 
+  setupTimelineInteractions();
+  setupTimelineHover();
+  setDelaySeconds(0);
+
+  audioElement.addEventListener("play", () => {
+    playToggle.textContent = "Pause";
+  });
+
+  audioElement.addEventListener("pause", () => {
+    const duration = Number.isFinite(audioElement.duration) ? audioElement.duration : 0;
+    const shouldReplay = duration && Math.abs(audioElement.currentTime - duration) < 0.05;
+    playToggle.textContent = shouldReplay ? "Replay" : "Play";
+  });
+
+  audioElement.addEventListener("ended", () => {
+    playToggle.textContent = "Replay";
+  });
+
+  audioElement.addEventListener("timeupdate", updateSlideForCurrentTime);
+
   function getDelaySeconds() {
-    return parseFloat(delayNumber.value) || 0;
+    return delaySeconds;
+  }
+
+  function setDelaySeconds(value) {
+    if (!Number.isFinite(value)) return;
+    delaySeconds = value;
+    updateDelayField();
+    updateDelayDisplay(delaySeconds);
+  }
+
+  function updateDelayField() {
+    if (!delayField) return;
+    delayField.value = formatDelay(delaySeconds);
+  }
+
+  function parseDelayField(raw) {
+    if (typeof raw !== "string") return null;
+    let value = raw.trim();
+    if (!value) return 0;
+    let sign = 1;
+    if (value.startsWith("-")) {
+      sign = -1;
+      value = value.slice(1);
+    } else if (value.startsWith("+")) {
+      value = value.slice(1);
+    }
+    if (!value) return 0;
+    const parts = value.split(":");
+    if (parts.length === 1) {
+      const secondsOnly = Number(parts[0]);
+      if (!Number.isFinite(secondsOnly)) return null;
+      return sign * secondsOnly;
+    }
+    if (parts.length !== 2) return null;
+    const minutesPart = Number(parts[0]);
+    const secondsPart = Number(parts[1]);
+    if (!Number.isFinite(minutesPart) || !Number.isFinite(secondsPart)) {
+      return null;
+    }
+    const totalSeconds = Math.abs(minutesPart) * 60 + Math.abs(secondsPart);
+    return sign * totalSeconds;
+  }
+
+  function formatDelay(value) {
+    if (!Number.isFinite(value)) return "0:00";
+    const sign = value < 0 ? "-" : "";
+    const absValue = Math.abs(value);
+    const minutes = Math.floor(absValue / 60);
+    const seconds = absValue - minutes * 60;
+    const hasFraction = Math.abs(seconds - Math.round(seconds)) > 0.001;
+    let secondsDisplay;
+    if (hasFraction) {
+      const fixed = seconds.toFixed(1);
+      const [intPart, decimalPart] = fixed.split(".");
+      const paddedInt = intPart.padStart(2, "0");
+      secondsDisplay = `${paddedInt}.${decimalPart}`;
+    } else {
+      secondsDisplay = String(Math.round(seconds)).padStart(2, "0");
+    }
+    return `${sign}${minutes}:${secondsDisplay}`;
+  }
+
+  function updateDelayDisplay(value = delaySeconds) {
+    if (!delayDisplay) return;
+    const formatted = formatDelay(value);
+    const sign = value < 0 ? "-" : "";
+    const unsigned = value < 0 ? formatted.slice(1) : formatted;
+    const [minutesPart, secondsPart] = unsigned.split(":");
+    const minutes = Number(minutesPart || 0);
+    delayDisplay.textContent = `${sign}${minutes}m ${secondsPart || "00"}s`;
+  }
+
+  function showHud() {
+    if (!viewerHud || alwaysShowHud) return;
+    viewerHud.classList.add("viewer__hud--visible");
+    scheduleHudHide();
+  }
+
+  function scheduleHudHide() {
+    if (!viewerHud || alwaysShowHud) return;
+    clearTimeout(hudHideTimer);
+    hudHideTimer = window.setTimeout(() => {
+      viewerHud.classList.remove("viewer__hud--visible");
+    }, HUD_INACTIVITY_TIMEOUT_MS);
+  }
+
+  function hideHudImmediate() {
+    if (!viewerHud || alwaysShowHud) return;
+    clearTimeout(hudHideTimer);
+    hudHideTimer = null;
+    viewerHud.classList.remove("viewer__hud--visible");
+  }
+
+  if (typeof document !== "undefined" && !alwaysShowHud) {
+    ["mousemove", "touchstart", "keydown"].forEach((eventName) => {
+      document.addEventListener(
+        eventName,
+        (event) => handleGlobalActivity(event),
+        { passive: true }
+      );
+    });
+  }
+
+  function handleGlobalActivity(event) {
+    if (alwaysShowHud || !viewerHud) return;
+    if (viewerContent && viewerContent.classList.contains("hidden")) return;
+    if (event.type === "keydown") {
+      const target = event.target;
+      if (target && target.tagName === "INPUT") {
+        return;
+      }
+    }
+    showHud();
   }
 
   // Remember the freshest seek request while a track is still loading.
-  function setPendingSeek(image, shouldPlay, trackIndex) {
+  function setPendingSeek(image, shouldPlay, trackIndex, timeMs = null) {
     pendingSeekToken += 1;
     pendingSeek = {
       id: pendingSeekToken,
-      image,
+      image: image || null,
       shouldPlay,
       trackIndex,
+      timeMs,
     };
     return pendingSeek;
   }
@@ -482,66 +638,71 @@
 
     mediaData.activeTrackIndex = index;
     timelineSetActiveTrack(index);
-    setupWaveformForTrack(mediaData.audioTracks[index], autoPlay);
+    setupAudioForTrack(mediaData.audioTracks[index], autoPlay);
   }
 
-  function setupWaveformForTrack(track, autoPlay = false) {
+  function setupAudioForTrack(track, autoPlay = false) {
     if (!track) return;
 
     destroyWaveform();
 
-    wave = WaveSurfer.create({
-      container: waveformContainer,
-      waveColor: "rgba(79, 140, 255, 0.35)",
-      progressColor: "#4f8cff",
-      cursorColor: "#f4f4f8",
-      height: 180,
-      barWidth: 2,
-      barRadius: 2,
-      barGap: 1,
-      responsive: true,
-      normalize: true,
-      mediaControls: false,
-    });
+    audioLoadToken += 1;
+    const loadId = audioLoadToken;
 
-    wave.on("ready", () => {
+    playToggle.disabled = true;
+    playToggle.textContent = "Loading";
+
+    audioElement.pause();
+    audioElement.currentTime = 0;
+    audioElement.playbackRate = parseFloat(speedSelect.value) || 1;
+
+    const handleLoadedMetadata = () => {
+      if (loadId !== audioLoadToken) return;
+      audioElement.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audioElement.removeEventListener("error", handleAudioError);
+
+      if (Number.isFinite(audioElement.duration)) {
+        track.duration = audioElement.duration;
+      }
+
       playToggle.disabled = false;
       playToggle.textContent = "Play";
-      sidebarEmpty.classList.add("hidden");
-      track.duration = wave.getDuration();
-      
-      // Always recalculate image timestamps based on audio timestamp
+
       recalculateImageTimestamps();
-      
       startUpdateLoop();
 
       let handledPlayback = false;
       const pendingRequest = consumePendingSeek(mediaData.activeTrackIndex);
       if (pendingRequest) {
-        seekToImageInCurrentTrack(pendingRequest.image, pendingRequest.shouldPlay);
-        handledPlayback = Boolean(pendingRequest.shouldPlay);
+        if (pendingRequest.image) {
+          seekToImageInCurrentTrack(pendingRequest.image, pendingRequest.shouldPlay);
+          handledPlayback = Boolean(pendingRequest.shouldPlay);
+        } else if (typeof pendingRequest.timeMs === "number") {
+          seekToAbsoluteMs(pendingRequest.timeMs, pendingRequest.shouldPlay);
+          handledPlayback = Boolean(pendingRequest.shouldPlay);
+        }
+      } else {
+        updateSlideForCurrentTime();
       }
 
       if (autoPlay && !handledPlayback) {
-        wave.play();
+        audioElement.play().catch(() => {});
       }
-    });
+    };
 
-    wave.on("play", () => {
-      playToggle.textContent = "Pause";
-    });
-
-    wave.on("pause", () => {
+    const handleAudioError = (event) => {
+      if (loadId !== audioLoadToken) return;
+      console.error("Failed to load audio track", event);
+      audioElement.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audioElement.removeEventListener("error", handleAudioError);
+      playToggle.disabled = true;
       playToggle.textContent = "Play";
-    });
+    };
 
-    wave.on("finish", () => {
-      playToggle.textContent = "Replay";
-    });
-
-    wave.on("timeupdate", updateSlideForCurrentTime);
-
-    wave.load(track.url);
+    audioElement.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audioElement.addEventListener("error", handleAudioError);
+    audioElement.src = track.url;
+    audioElement.load();
   }
 
   /**
@@ -614,28 +775,72 @@
    * Seek to the position of the given image in the currently loaded audio track.
    */
   function seekToImageInCurrentTrack(image, shouldPlay) {
-    if (!wave || !image) return;
-    
-    const duration = wave.getDuration();
-    if (duration > 0) {
-      const target = Math.max(image.relative - getDelaySeconds(), 0);
-      const seek = duration ? Math.min(target / duration, 1) : 0;
-      wave.seekTo(seek);
-      
-      if (shouldPlay && !wave.isPlaying()) {
-        wave.play();
-      }
+    if (!image) return;
+
+    const delayAdjusted = Math.max(image.relative - getDelaySeconds(), 0);
+    const duration = Number.isFinite(audioElement.duration) ? audioElement.duration : null;
+    if (duration && duration > 0) {
+      audioElement.currentTime = Math.min(delayAdjusted, duration);
+    } else {
+      audioElement.currentTime = Math.max(delayAdjusted, 0);
+    }
+
+    updateSlideForCurrentTime();
+
+    if (shouldPlay) {
+      audioElement.play().catch(() => {});
+    }
+  }
+
+  function seekToAbsoluteMs(absoluteMs, shouldPlay = null) {
+    if (!mediaData || !mediaData.audioTracks) return;
+    if (!Number.isFinite(absoluteMs)) return;
+
+    const targetTrackIndex = findAudioTrackForTimestamp(absoluteMs);
+    if (targetTrackIndex === -1) {
+      console.warn(`No audio track covers ${new Date(absoluteMs).toISOString()}`);
+      return;
+    }
+
+    const shouldResume = typeof shouldPlay === "boolean" ? shouldPlay : !audioElement.paused;
+
+    if (targetTrackIndex !== mediaData.activeTrackIndex) {
+      setPendingSeek(null, shouldResume, targetTrackIndex, absoluteMs);
+      loadAudioTrack(targetTrackIndex, shouldResume);
+      return;
+    }
+
+    const activeTrack = mediaData.audioTracks[mediaData.activeTrackIndex];
+    if (!activeTrack || !activeTrack.adjustedStartTime) return;
+
+    const baseMs = activeTrack.adjustedStartTime.getTime();
+    const relativeSeconds = (absoluteMs - baseMs) / 1000;
+    const delayAdjusted = Math.max(relativeSeconds - getDelaySeconds(), 0);
+    const duration = Number.isFinite(audioElement.duration) ? audioElement.duration : null;
+
+    if (duration && duration > 0) {
+      audioElement.currentTime = clamp(delayAdjusted, 0, duration);
+    } else {
+      audioElement.currentTime = Math.max(delayAdjusted, 0);
+    }
+
+    updateSlideForCurrentTime();
+
+    if (shouldResume) {
+      audioElement.play().catch(() => {});
     }
   }
 
   function destroyWaveform() {
     stopUpdateLoop();
-    if (wave) {
-      wave.destroy();
-      wave = null;
-    }
+    audioElement.pause();
+    audioElement.currentTime = 0;
     playToggle.disabled = true;
     playToggle.textContent = "Play";
+  }
+
+  function getAudioCurrentTime() {
+    return Number.isFinite(audioElement.currentTime) ? audioElement.currentTime : 0;
   }
 
   function startUpdateLoop() {
@@ -662,26 +867,26 @@
   }
 
   function updateSlideForCurrentTime() {
-    if (!wave || !mediaData) return;
-    const time = wave.getCurrentTime();
+    if (!mediaData || !mediaData.audioTracks || mediaData.activeTrackIndex == null) return;
+    const activeTrack = mediaData.audioTracks[mediaData.activeTrackIndex];
+    if (!activeTrack || !activeTrack.adjustedStartTime) return;
+
+    const time = getAudioCurrentTime();
     const delay = getDelaySeconds();
     const adjusted = time + delay;
-    let absoluteMs = null;
-    const activeTrack = mediaData.audioTracks[mediaData.activeTrackIndex];
-    if (activeTrack && activeTrack.adjustedStartTime) {
-      absoluteMs = activeTrack.adjustedStartTime.getTime() + adjusted * 1000;
-    }
+    const absoluteMs = activeTrack.adjustedStartTime.getTime() + adjusted * 1000;
+
     const images = findImagesForTime(adjusted);
     if (images && images.length > 0) {
       showMainImages(images);
       highlightTimelineImages(images);
     } else {
       highlightTimelineImages([]);
-      if (absoluteMs !== null) {
+      if (Number.isFinite(absoluteMs)) {
         updateTimelineActiveStates(absoluteMs);
       }
     }
-    if (absoluteMs !== null) {
+    if (Number.isFinite(absoluteMs)) {
       updateTimelineCursor(absoluteMs);
     }
   }
@@ -740,6 +945,47 @@
     return [currentImage];
   }
 
+  function getImagesForAbsoluteTime(absoluteMs) {
+    if (!mediaData || !Array.isArray(mediaData.images) || !mediaData.images.length) {
+      return [];
+    }
+    if (!Number.isFinite(absoluteMs)) {
+      return [];
+    }
+
+    const images = mediaData.images;
+    let anchorIndex = 0;
+    for (let i = 0; i < images.length; i++) {
+      const timestamp = images[i].originalTimestamp?.getTime?.() ?? null;
+      if (!Number.isFinite(timestamp)) continue;
+      if (timestamp <= absoluteMs) {
+        anchorIndex = i;
+      } else {
+        break;
+      }
+    }
+
+    const anchor = images[anchorIndex];
+    if (!anchor) return [];
+
+    const anchorMs = anchor.originalTimestamp.getTime();
+    const windowEnd = anchorMs + MIN_IMAGE_DISPLAY_DURATION * 1000;
+    const result = [anchor];
+
+    for (let i = anchorIndex + 1; i < images.length; i++) {
+      const next = images[i];
+      const nextMs = next.originalTimestamp?.getTime?.();
+      if (!Number.isFinite(nextMs)) continue;
+      if (nextMs <= windowEnd) {
+        result.push(next);
+      } else {
+        break;
+      }
+    }
+
+    return result;
+  }
+
   function showMainImages(images) {
     if (!images || images.length === 0) return;
     
@@ -750,9 +996,7 @@
     if (isSame) return;
     
     // Update the last composition change time
-    if (wave) {
-      lastCompositionChangeTime = wave.getCurrentTime() + getDelaySeconds();
-    }
+    lastCompositionChangeTime = getAudioCurrentTime() + getDelaySeconds();
     
     currentDisplayedImages = images;
     
@@ -807,13 +1051,14 @@
       return;
     }
 
-    const wasPlaying = wave ? wave.isPlaying() : false;
-    const waveReady = wave && wave.getDuration() > 0;
+    const wasPlaying = !audioElement.paused;
+    const duration = Number.isFinite(audioElement.duration) ? audioElement.duration : null;
+    const audioReady = duration && duration > 0;
 
     if (correctTrackIndex !== mediaData.activeTrackIndex) {
       setPendingSeek(image, wasPlaying, correctTrackIndex);
       loadAudioTrack(correctTrackIndex, wasPlaying);
-    } else if (waveReady) {
+    } else if (audioReady) {
       seekToImageInCurrentTrack(image, wasPlaying);
     } else {
       setPendingSeek(image, wasPlaying, correctTrackIndex);
@@ -848,23 +1093,170 @@
 
   function setupTimelineInteractions() {
     if (timelineInteractionsReady) return;
-    if (!timelineBrush || !timelineMinimap) return;
-
     timelineInteractionsReady = true;
+  }
 
-    const leftHandle = timelineBrush.querySelector(".timeline__brush-handle--left");
-    const rightHandle = timelineBrush.querySelector(".timeline__brush-handle--right");
+  function setupTimelineHover() {
+    if (timelineHoverReady) return;
+    if (!timelineMain) return;
 
-    if (leftHandle) {
-      leftHandle.addEventListener("pointerdown", (event) => startBrushDrag(event, "left"));
+    timelineHoverReady = true;
+    timelineMain.addEventListener("mousemove", handleTimelineHoverMove);
+    timelineMain.addEventListener("mouseleave", handleTimelineHoverLeave);
+    timelineMain.addEventListener("click", handleTimelineClick);
+  }
+
+  function handleTimelineHoverMove(event) {
+    if (!timelineState.initialized || !timelineMain) return;
+    showHud();
+
+    const rect = timelineMain.getBoundingClientRect();
+    if (!rect.width) return;
+
+    const ratio = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+    const viewSpan = timelineState.viewEndMs - timelineState.viewStartMs;
+    if (viewSpan <= 0) {
+      hideTimelineHoverPreview();
+      hidePreviewImages();
+      isHoverScrubbing = false;
+      return;
     }
-    if (rightHandle) {
-      rightHandle.addEventListener("pointerdown", (event) => startBrushDrag(event, "right"));
+
+    const absoluteMs = timelineState.viewStartMs + viewSpan * ratio;
+    if (!Number.isFinite(absoluteMs)) {
+      hideTimelineHoverPreview();
+      hidePreviewImages();
+      isHoverScrubbing = false;
+      return;
     }
-    if (timelineBrushRegion) {
-      timelineBrushRegion.addEventListener("pointerdown", (event) => startBrushDrag(event, "move"));
+
+    if (!isHoverScrubbing) {
+      isHoverScrubbing = true;
+      hoverOriginalCursorMs = timelineState.currentCursorMs;
     }
-    timelineMinimap.addEventListener("pointerdown", handleMinimapPointerDown);
+
+    const images = getImagesForAbsoluteTime(absoluteMs);
+
+    if (timelineHoverPreview) {
+      timelineHoverPreview.classList.remove("hidden");
+      timelineHoverPreview.style.left = `${ratio * 100}%`;
+    }
+
+    renderTimelineHoverImages(images);
+    renderPreviewImages(images);
+
+    if (timelineHoverPreviewTime) {
+      timelineHoverPreviewTime.textContent = formatClock(new Date(absoluteMs));
+    }
+
+    highlightTimelineImages(images);
+    updateTimelineActiveStates(absoluteMs);
+    updateTimelineCursor(absoluteMs);
+  }
+
+  function handleTimelineHoverLeave() {
+    hideTimelineHoverPreview();
+    hidePreviewImages();
+    if (isHoverScrubbing) {
+      isHoverScrubbing = false;
+      updateSlideForCurrentTime();
+    }
+    scheduleHudHide();
+  }
+
+  function handleTimelineClick(event) {
+    if (!timelineState.initialized || !timelineMain) return;
+
+    const rect = timelineMain.getBoundingClientRect();
+    if (!rect.width) return;
+
+    const ratio = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+    const viewSpan = timelineState.viewEndMs - timelineState.viewStartMs;
+    if (viewSpan <= 0) return;
+
+    const absoluteMs = timelineState.viewStartMs + viewSpan * ratio;
+    if (!Number.isFinite(absoluteMs)) return;
+
+    const wasPlaying = !audioElement.paused;
+    const images = getImagesForAbsoluteTime(absoluteMs);
+
+    hidePreviewImages();
+    hideTimelineHoverPreview();
+    isHoverScrubbing = false;
+
+    if (images.length) {
+      jumpToImage(images[0]);
+    } else {
+      seekToAbsoluteMs(absoluteMs, wasPlaying);
+    }
+    updateSlideForCurrentTime();
+    showHud();
+  }
+
+  function renderTimelineHoverImages(images) {
+    if (!timelineHoverPreviewImages) return;
+    const key = images.map((img) => img.url || img.name || "").join("|");
+    if (currentHoverPreviewKey !== key) {
+      currentHoverPreviewKey = key;
+      timelineHoverPreviewImages.innerHTML = "";
+      timelineHoverPreviewImages.className = "timeline__hover-preview-images";
+      const count = Math.min(images.length, 4);
+      if (count > 1) {
+        timelineHoverPreviewImages.classList.add(`split-${Math.min(count, 4)}`);
+      }
+      images.slice(0, 4).forEach((image, index) => {
+        const img = document.createElement("img");
+        img.src = image.url;
+        img.alt = image.name || `Preview ${index + 1}`;
+        timelineHoverPreviewImages.appendChild(img);
+      });
+    }
+  }
+
+  function renderPreviewImages(images) {
+    if (!slideshowPreview) return;
+    if (!Array.isArray(images) || images.length === 0) {
+      hidePreviewImages();
+      return;
+    }
+
+    slideshowPreview.className = "slideshow__preview";
+    slideshowPreview.innerHTML = "";
+    const count = Math.min(images.length, 4);
+    if (count > 1) {
+      slideshowPreview.classList.add(`split-${Math.min(count, 4)}`);
+    }
+
+    images.slice(0, 4).forEach((image, index) => {
+      const img = document.createElement("img");
+      img.src = image.url;
+      img.alt = image.name || `Preview ${index + 1}`;
+      slideshowPreview.appendChild(img);
+    });
+
+    slideshowPreview.classList.remove("hidden");
+    slideshowPreview.classList.add("active");
+  }
+
+  function hidePreviewImages() {
+    if (!slideshowPreview) return;
+    slideshowPreview.classList.remove("active");
+    slideshowPreview.className = "slideshow__preview";
+    slideshowPreview.innerHTML = "";
+    if (!slideshowPreview.classList.contains("hidden")) {
+      slideshowPreview.classList.add("hidden");
+    }
+  }
+
+  function hideTimelineHoverPreview() {
+    currentHoverPreviewKey = null;
+    if (timelineHoverPreview) {
+      timelineHoverPreview.classList.add("hidden");
+    }
+    if (timelineHoverPreviewImages) {
+      timelineHoverPreviewImages.className = "timeline__hover-preview-images";
+      timelineHoverPreviewImages.innerHTML = "";
+    }
   }
 
   function initializeTimeline(options = {}) {
@@ -877,11 +1269,6 @@
       return;
     }
 
-    const preserve = options.preserveView && timelineState.initialized;
-    const previousBrush = preserve
-      ? { start: timelineState.brushStart, end: timelineState.brushEnd }
-      : null;
-
     destroyTimeline();
 
     timelineState.initialized = true;
@@ -893,18 +1280,12 @@
     timelineState.minMs = data.minMs;
     timelineState.maxMs = data.maxMs;
     timelineState.totalMs = Math.max(data.maxMs - data.minMs, 1);
-
-    const brushStart = previousBrush ? clamp(previousBrush.start, 0, 1 - MIN_BRUSH_SPAN) : 0;
-    const brushEnd = previousBrush ? clamp(previousBrush.end, brushStart + MIN_BRUSH_SPAN, 1) : 1;
-    timelineState.brushStart = brushStart;
-    timelineState.brushEnd = brushEnd;
-    timelineState.viewStartMs = timelineState.minMs + timelineState.totalMs * timelineState.brushStart;
-    timelineState.viewEndMs = timelineState.minMs + timelineState.totalMs * timelineState.brushEnd;
+    timelineState.viewStartMs = timelineState.minMs;
+    timelineState.viewEndMs = timelineState.maxMs;
 
     createTimelineTrackElements();
     createTimelineImageElements();
     updateTimelineGeometry();
-    updateTimelineBrushUI();
     updateTimelineGradients();
     updateTimelineAxis();
     positionTimelineElements();
@@ -926,8 +1307,6 @@
     timelineState.totalMs = 0;
     timelineState.viewStartMs = 0;
     timelineState.viewEndMs = 0;
-    timelineState.brushStart = 0;
-    timelineState.brushEnd = 1;
     timelineState.currentCursorMs = null;
     timelineState.highlightTimeMs = null;
     timelineState.imageStackMagnitude = 0;
@@ -964,10 +1343,6 @@
       timelineCursor.classList.remove("timeline__cursor--visible");
       timelineCursor.style.removeProperty("left");
     }
-    if (timelineBrush) {
-      timelineBrush.style.left = "0%";
-      timelineBrush.style.width = "100%";
-    }
     if (timelineMain) {
       timelineMain.style.removeProperty("height");
     }
@@ -988,6 +1363,8 @@
         }
       });
     }
+
+    hideTimelineHoverPreview();
   }
 
   function buildTimelineData() {
@@ -1155,13 +1532,9 @@
       }
       mainEl.title = title;
 
-      const waveEl = document.createElement("div");
-      waveEl.className = "timeline-track__wave";
-      mainEl.appendChild(waveEl);
-
       mainEl.addEventListener("click", () => {
         if (!mediaData) return;
-        const wasPlaying = wave && wave.isPlaying();
+        const wasPlaying = !audioElement.paused;
         if (range.index !== mediaData.activeTrackIndex) {
           loadAudioTrack(range.index, wasPlaying);
         }
@@ -1174,9 +1547,6 @@
       miniEl.className = "timeline-track";
       miniEl.style.setProperty("--lane", range.lane);
       miniEl.title = title;
-      const miniWave = document.createElement("div");
-      miniWave.className = "timeline-track__wave";
-      miniEl.appendChild(miniWave);
 
       miniFragment.appendChild(miniEl);
       range.track.timelineMiniEl = miniEl;
@@ -1261,19 +1631,21 @@
         const inViewStart = clamp(range.startMs, timelineState.viewStartMs, timelineState.viewEndMs);
         const inViewEnd = clamp(range.endMs, timelineState.viewStartMs, timelineState.viewEndMs);
         const isVisible = !(inViewEnd <= timelineState.viewStartMs || inViewStart >= timelineState.viewEndMs);
+        const spanPct = ((inViewEnd - inViewStart) / viewRange) * 100;
         
         trackUpdates.push({
           mainEl,
           isVisible,
           leftPct: isVisible ? ((inViewStart - timelineState.viewStartMs) / viewRange) * 100 : 0,
-          widthPct: isVisible ? Math.max(((inViewEnd - inViewStart) / viewRange) * 100, 0.4) : 0,
+          widthPct: isVisible ? clamp(spanPct, AUDIO_MARKER_MIN_WIDTH_PCT, 1.2) : 0,
           lane: range.lane
         });
       }
       
       if (miniEl) {
         const leftPct = ((range.startMs - timelineState.minMs) / totalRange) * 100;
-        const widthPct = Math.max(((range.endMs - range.startMs) / totalRange) * 100, 0.25);
+        const spanPct = ((range.endMs - range.startMs) / totalRange) * 100;
+        const widthPct = clamp(spanPct, AUDIO_MARKER_MIN_WIDTH_PCT, 1);
         
         trackUpdates.push({
           miniEl,
@@ -1484,156 +1856,6 @@
     if (!timelineState.initialized) return;
     if (typeof index !== "number" || Number.isNaN(index)) return;
     updateTimelineActiveStates(timelineState.highlightTimeMs);
-  }
-
-  function updateTimelineBrushUI() {
-    if (!timelineBrush || !timelineState.initialized) return;
-    const width = timelineState.brushEnd - timelineState.brushStart;
-    timelineBrush.style.left = `${timelineState.brushStart * 100}%`;
-    timelineBrush.style.width = `${width * 100}%`;
-  }
-
-  function setBrushRange(start, end, { emit = true, updateUIOnly = false } = {}) {
-    if (!timelineState.initialized) return;
-
-    const span = clamp(end - start, MIN_BRUSH_SPAN, 1);
-    let clampedStart = clamp(start, 0, 1 - span);
-    let clampedEnd = clampedStart + span;
-
-    timelineState.brushStart = clampedStart;
-    timelineState.brushEnd = clampedEnd;
-    updateTimelineBrushUI();
-    
-    // During drag, only update UI. Full update happens on drag end.
-    if (!updateUIOnly && emit) {
-      updateTimelineViewFromBrush();
-    }
-  }
-
-  function updateTimelineViewFromBrush() {
-    if (!timelineState.initialized) return;
-    timelineState.viewStartMs = timelineState.minMs + timelineState.totalMs * timelineState.brushStart;
-    timelineState.viewEndMs = timelineState.minMs + timelineState.totalMs * timelineState.brushEnd;
-    updateTimelineGradients();
-    updateTimelineAxis();
-    positionTimelineElements();
-    updateTimelineCursor(timelineState.currentCursorMs);
-    updateTimelineActiveStates(timelineState.highlightTimeMs);
-  }
-
-  function handleMinimapPointerDown(event) {
-    if (!timelineState.initialized || !timelineMinimap) return;
-    if (timelineBrush && timelineBrush.contains(event.target)) return;
-
-    const rect = timelineMinimap.getBoundingClientRect();
-    if (!rect.width) return;
-    const ratio = (event.clientX - rect.left) / rect.width;
-    const span = timelineState.brushEnd - timelineState.brushStart;
-    const start = clamp(ratio - span / 2, 0, 1 - span);
-    const end = start + span;
-    setBrushRange(start, end, { emit: true });
-    event.preventDefault();
-  }
-
-  function startBrushDrag(event, mode) {
-    if (!timelineState.initialized || !timelineMinimap) return;
-    const rect = timelineMinimap.getBoundingClientRect();
-    if (!rect.width) return;
-
-    event.preventDefault();
-    const pointerRatio = (event.clientX - rect.left) / rect.width;
-    timelineBrushDrag = {
-      type: mode,
-      pointerId: event.pointerId,
-      rect,
-      startStart: timelineState.brushStart,
-      startEnd: timelineState.brushEnd,
-      startPointerRatio: pointerRatio,
-      captureTarget: event.target,
-    };
-
-    if (event.target.setPointerCapture) {
-      try {
-        event.target.setPointerCapture(event.pointerId);
-      } catch (err) {
-        // ignore if pointer capture fails
-      }
-    }
-
-    window.addEventListener("pointermove", handleBrushPointerMove);
-    window.addEventListener("pointerup", stopBrushDrag);
-    window.addEventListener("pointercancel", stopBrushDrag);
-  }
-
-  function handleBrushPointerMove(event) {
-    if (!timelineBrushDrag) return;
-    
-    event.preventDefault();
-    
-    // Cancel any pending RAF update
-    if (brushDragRafId !== null) {
-      cancelAnimationFrame(brushDragRafId);
-    }
-    
-    // Schedule update on next animation frame
-    brushDragRafId = requestAnimationFrame(() => {
-      brushDragRafId = null;
-      performBrushUpdate(event);
-    });
-  }
-
-  function performBrushUpdate(event) {
-    if (!timelineBrushDrag) return;
-    const { rect, type, startStart, startEnd, startPointerRatio } = timelineBrushDrag;
-    if (!rect.width) return;
-
-    const ratio = (event.clientX - rect.left) / rect.width;
-    const span = startEnd - startStart;
-    let newStart = startStart;
-    let newEnd = startEnd;
-
-    if (type === "left") {
-      newStart = clamp(ratio, 0, startEnd - MIN_BRUSH_SPAN);
-      newEnd = startEnd;
-    } else if (type === "right") {
-      newStart = startStart;
-      newEnd = clamp(ratio, startStart + MIN_BRUSH_SPAN, 1);
-    } else {
-      const delta = ratio - startPointerRatio;
-      newStart = clamp(startStart + delta, 0, 1 - span);
-      newEnd = newStart + span;
-    }
-
-    // Only update brush UI immediately, defer expensive operations
-    setBrushRange(newStart, newEnd, { emit: false, updateUIOnly: true });
-  }
-
-  function stopBrushDrag(event) {
-    if (!timelineBrushDrag) return;
-    if (event.pointerId !== timelineBrushDrag.pointerId) return;
-
-    // Cancel any pending RAF update
-    if (brushDragRafId !== null) {
-      cancelAnimationFrame(brushDragRafId);
-      brushDragRafId = null;
-    }
-
-    if (timelineBrushDrag.captureTarget?.releasePointerCapture) {
-      try {
-        timelineBrushDrag.captureTarget.releasePointerCapture(event.pointerId);
-      } catch (err) {
-        // ignore capture release errors
-      }
-    }
-
-    window.removeEventListener("pointermove", handleBrushPointerMove);
-    window.removeEventListener("pointerup", stopBrushDrag);
-    window.removeEventListener("pointercancel", stopBrushDrag);
-
-    // Perform final full update after drag completes
-    updateTimelineViewFromBrush();
-
-    timelineBrushDrag = null;
   }
 
   function createDayNightGradient(startMs, endMs) {
