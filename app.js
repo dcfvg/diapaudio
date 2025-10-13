@@ -15,6 +15,7 @@
   const timelineTracks = document.getElementById("timeline-tracks");
   const timelineImages = document.getElementById("timeline-images");
   const timelineCursor = document.getElementById("timeline-cursor");
+  const timelineSeeker = document.getElementById("timeline-seeker");
   const timelineMinimap = document.getElementById("timeline-minimap");
   const timelineMinimapGradient = document.getElementById("timeline-minimap-gradient");
   const timelineMinimapTracks = document.getElementById("timeline-minimap-tracks");
@@ -1351,12 +1352,13 @@
     highlightTimelineImages(images);
     // Don't update track highlight during hover - only during playback
     // updateTimelineActiveStates(absoluteMs);
-    updateTimelineCursor(absoluteMs);
+    updateTimelineSeeker(absoluteMs);
   }
 
   function handleTimelineHoverLeave() {
     hideTimelineHoverPreview();
     hidePreviewImages();
+    hideTimelineSeeker();
     if (isHoverScrubbing) {
       isHoverScrubbing = false;
       updateSlideForCurrentTime();
@@ -1932,6 +1934,31 @@
     const position = ((absoluteMs - timelineState.viewStartMs) / range) * 100;
     timelineCursor.style.left = `${position}%`;
     timelineCursor.classList.add("timeline__cursor--visible");
+  }
+
+  function updateTimelineSeeker(absoluteMs) {
+    if (!timelineSeeker || !timelineState.initialized) return;
+
+    const range = timelineState.viewEndMs - timelineState.viewStartMs;
+    if (
+      typeof absoluteMs !== "number" ||
+      !Number.isFinite(absoluteMs) ||
+      range <= 0 ||
+      absoluteMs < timelineState.viewStartMs ||
+      absoluteMs > timelineState.viewEndMs
+    ) {
+      timelineSeeker.classList.remove("timeline__seeker--visible");
+      return;
+    }
+
+    const position = ((absoluteMs - timelineState.viewStartMs) / range) * 100;
+    timelineSeeker.style.left = `${position}%`;
+    timelineSeeker.classList.add("timeline__seeker--visible");
+  }
+
+  function hideTimelineSeeker() {
+    if (!timelineSeeker) return;
+    timelineSeeker.classList.remove("timeline__seeker--visible");
   }
 
   function updateTimelineActiveStates(highlightTimeMs) {

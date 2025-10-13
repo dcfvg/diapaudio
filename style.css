@@ -357,6 +357,35 @@ body {
   opacity: 1;
 }
 
+.timeline__seeker {
+  position: absolute;
+  top: 26px;
+  bottom: 0;
+  width: 2px;
+  background: #66d9ff;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  will-change: left, opacity;
+  z-index: 10;
+}
+
+.timeline__seeker::after {
+  content: "";
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #66d9ff;
+}
+
+.timeline__seeker--visible {
+  opacity: 1;
+}
+
 .timeline__minimap {
   display: none; /* Minimap removed */
   position: relative;
