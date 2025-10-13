@@ -8,15 +8,54 @@
     const clean = basename.replace(/\.[^.]+$/, "");
 
     const regexes = [
-      /(\d{4})[-_]?(\d{2})[-_]?(\d{2})[ _-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
+      // With milliseconds: YYYY-MM-DD HH:MM:SS.mmm (check first for longest match)
+      /(\d{4})[-_](\d{2})[-_](\d{2})[ T_-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})[.,](\d{1,3})/,
+      
+      // ISO 8601-like formats: YYYY-MM-DD HH:MM:SS or YYYY-MM-DDTHH:MM:SS
+      /(\d{4})[-_](\d{2})[-_](\d{2})[ T_-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
+      
+      // Compact: YYYYMMDD_HHMMSS or YYYYMMDDHHMMSS
       /(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/,
-      /(\d{2})[-_]?(\d{2})[-_]?(\d{4})[ _-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
-      /^(\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
+      
+      // European format: DD-MM-YYYY HH:MM:SS
+      /(\d{2})[-_](\d{2})[-_](\d{4})[ _-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
+      
+      // US format: MM-DD-YYYY HH:MM:SS (including slashes)
+      /(\d{2})[-_/](\d{2})[-_/](\d{4})[ _-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
+      
+      // Date with slashes: YYYY/MM/DD HH:MM:SS
+      /(\d{4})[/](\d{2})[/](\d{2})[ _-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
+      
+      // Camera-style: IMG_YYYYMMDD_HHMMSS (anywhere in filename)
+      /IMG[_-]?(\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})/i,
+      
+      // Screenshot style: Screenshot_YYYY-MM-DD-HH-MM-SS (anywhere in filename)
+      /Screenshot[_-](\d{4})[-_](\d{2})[-_](\d{2})[-_](\d{2})[-_](\d{2})[-_](\d{2})/i,
+      
+      // WhatsApp style: IMG-YYYYMMDD-WA#### (anywhere in filename)
+      /IMG[-_](\d{4})(\d{2})(\d{2})[-_]WA/i,
+      
+      // Unix timestamp in filename (10 digits) - surrounded by word boundaries
+      /\b(\d{10})\b/,
+      
+      // Time only: HH:MM:SS or HH-MM-SS (uses today's date) - must be more isolated
+      /(?:^|[^\d])(\d{2})[.\-_:](\d{2})[.\-_:](\d{2})(?:[^\d]|$)/,
     ];
 
     for (const regex of regexes) {
       const match = clean.match(regex);
       if (match) {
+        // Unix timestamp (10 digits)
+        if (match.length === 2 && match[1].length === 10) {
+          const timestamp = Number(match[1]) * 1000; // Convert to milliseconds
+          const date = new Date(timestamp);
+          if (!Number.isNaN(date.getTime()) && date.getFullYear() >= 2000 && date.getFullYear() <= 2100) {
+            return date;
+          }
+          continue;
+        }
+        
+        // Time only: HH:MM:SS (uses today's date)
         if (match.length === 4) {
           const [, hoursStr, minutesStr, secondsStr] = match;
           const hours = Number(hoursStr);
@@ -46,7 +85,35 @@
               return ts;
             }
           }
-        } else if (match.length === 7) {
+        } 
+        
+        // WhatsApp style: IMG-YYYYMMDD-WA#### (date only, no time)
+        else if (match.length === 4 && /IMG/i.test(match[0])) {
+          const [, yearStr, monthStr, dayStr] = match;
+          const year = Number(yearStr);
+          const month = Number(monthStr);
+          const day = Number(dayStr);
+          
+          if (
+            Number.isInteger(year) &&
+            Number.isInteger(month) &&
+            Number.isInteger(day) &&
+            year >= 1900 &&
+            year <= 2100 &&
+            month >= 1 &&
+            month <= 12 &&
+            day >= 1 &&
+            day <= 31
+          ) {
+            const ts = new Date(year, month - 1, day, 0, 0, 0);
+            if (!Number.isNaN(ts.getTime())) {
+              return ts;
+            }
+          }
+        }
+        
+        // Full date + time: YYYY-MM-DD HH:MM:SS (and variations)
+        else if (match.length === 7) {
           let [, p1Str, p2Str, p3Str, hoursStr, minutesStr, secondsStr] = match;
           const p1 = Number(p1Str);
           const p2 = Number(p2Str);
@@ -59,14 +126,33 @@
           let month;
           let day;
 
+          // Determine date format by examining the values
           if (p1 > 1000) {
+            // YYYY-MM-DD format
             year = p1;
             month = p2;
             day = p3;
-          } else {
-            day = p1;
-            month = p2;
+          } else if (p3 > 1000) {
+            // DD-MM-YYYY or MM-DD-YYYY format
+            // Disambiguate: if p1 > 12, it must be day
+            if (p1 > 12) {
+              day = p1;
+              month = p2;
+            } else if (p2 > 12) {
+              // p2 must be day
+              month = p1;
+              day = p2;
+            } else {
+              // Ambiguous - assume DD-MM-YYYY (European)
+              day = p1;
+              month = p2;
+            }
             year = p3;
+          } else {
+            // Default fallback
+            year = p1;
+            month = p2;
+            day = p3;
           }
 
           if (
@@ -96,6 +182,86 @@
               hours,
               minutes,
               seconds
+            );
+            if (!Number.isNaN(ts.getTime())) {
+              return ts;
+            }
+          }
+        }
+        
+        // Full date + time with milliseconds: YYYY-MM-DD HH:MM:SS.mmm
+        else if (match.length === 8) {
+          let [, p1Str, p2Str, p3Str, hoursStr, minutesStr, secondsStr, msStr] = match;
+          const p1 = Number(p1Str);
+          const p2 = Number(p2Str);
+          const p3 = Number(p3Str);
+          const hours = Number(hoursStr);
+          const minutes = Number(minutesStr);
+          const seconds = Number(secondsStr);
+          const milliseconds = Number(msStr);
+
+          let year;
+          let month;
+          let day;
+
+          // Determine date format by examining the values
+          if (p1 > 1000) {
+            // YYYY-MM-DD format
+            year = p1;
+            month = p2;
+            day = p3;
+          } else if (p3 > 1000) {
+            // DD-MM-YYYY or MM-DD-YYYY format
+            if (p1 > 12) {
+              day = p1;
+              month = p2;
+            } else if (p2 > 12) {
+              month = p1;
+              day = p2;
+            } else {
+              // Ambiguous - assume DD-MM-YYYY (European)
+              day = p1;
+              month = p2;
+            }
+            year = p3;
+          } else {
+            // Default fallback
+            year = p1;
+            month = p2;
+            day = p3;
+          }
+
+          if (
+            Number.isInteger(year) &&
+            Number.isInteger(month) &&
+            Number.isInteger(day) &&
+            Number.isInteger(hours) &&
+            Number.isInteger(minutes) &&
+            Number.isInteger(seconds) &&
+            Number.isInteger(milliseconds) &&
+            year >= 1900 &&
+            year <= 2100 &&
+            month >= 1 &&
+            month <= 12 &&
+            day >= 1 &&
+            day <= 31 &&
+            hours >= 0 &&
+            hours < 24 &&
+            minutes >= 0 &&
+            minutes < 60 &&
+            seconds >= 0 &&
+            seconds < 60 &&
+            milliseconds >= 0 &&
+            milliseconds < 1000
+          ) {
+            const ts = new Date(
+              year,
+              month - 1,
+              day,
+              hours,
+              minutes,
+              seconds,
+              milliseconds
             );
             if (!Number.isNaN(ts.getTime())) {
               return ts;
