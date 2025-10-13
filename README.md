@@ -1,6 +1,6 @@
 # diapodio
 
-Line up your photos with the sounds of the day in just a few seconds.
+Playback photos synced with recordings of that day.
 
 ## Live Demo
 

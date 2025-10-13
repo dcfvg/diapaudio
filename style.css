@@ -275,7 +275,7 @@ body {
   font-size: 1.55rem;
   font-weight: 600;
   color: white;
-  background: linear-gradient(135deg, #6fe3b1, #1e6648);
+  /* background: linear-gradient(135deg, #6fe3b1, #1e6648); */
   flex-shrink: 0;
 }
 
