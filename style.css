@@ -563,10 +563,11 @@ body {
 
 .timeline__images {
   top: 0;
-  height: 16px; /* Images at the top */
+  height: 20px; /* Images at the top */
   overflow: visible;
   z-index: 3;
-  margin-top: 6px;
+  margin-top: 3px;
+  opacity: .5;
 }
 
 .timeline__tracks {
