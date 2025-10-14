@@ -2,6 +2,9 @@
   const dropzone = document.getElementById("dropzone");
   const dropzoneMessage = document.getElementById("dropzone-message");
   const dropzoneLoader = document.getElementById("dropzone-loader");
+  const loaderStatus = document.getElementById("loader-status");
+  const loaderProgressBar = document.getElementById("loader-progress-bar");
+  const loaderDetails = document.getElementById("loader-details");
   const folderInput = document.getElementById("folder-input");
   const zipInput = document.getElementById("zip-input");
   const browseFolderButton = document.getElementById("browse-folder");
@@ -99,6 +102,45 @@
     replay: { icon: "↺", labelKey: "play" },
     loading: { icon: "⏳", labelKey: "loadingFiles" },
   };
+
+  // Progress tracking helpers
+  function updateLoaderProgress(percent, statusKey, details = '') {
+    if (loaderProgressBar) {
+      loaderProgressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+    }
+    if (loaderStatus && statusKey) {
+      loaderStatus.textContent = t(statusKey);
+    }
+    if (loaderDetails) {
+      loaderDetails.textContent = details;
+    }
+  }
+
+  function showLoader(statusKey = 'loadingFiles') {
+    if (dropzone) {
+      dropzone.setAttribute('data-loading', 'true');
+    }
+    if (dropzoneMessage && dropzoneMessage.parentElement) {
+      dropzoneMessage.parentElement.classList.add('hidden');
+    }
+    if (dropzoneLoader) {
+      dropzoneLoader.classList.remove('hidden');
+      updateLoaderProgress(0, statusKey, '');
+    }
+  }
+
+  function hideLoader() {
+    if (dropzone) {
+      dropzone.removeAttribute('data-loading');
+    }
+    if (dropzoneMessage && dropzoneMessage.parentElement) {
+      dropzoneMessage.parentElement.classList.remove('hidden');
+    }
+    if (dropzoneLoader) {
+      dropzoneLoader.classList.add('hidden');
+      updateLoaderProgress(0, '', '');
+    }
+  }
 
   function createPlaybackController({
     audioElement,
@@ -998,7 +1040,7 @@
       console.error(error);
       showError(error.message);
     } finally {
-      showLoadingState(false);
+      hideLoader();
     }
   }
 
@@ -1022,7 +1064,7 @@
   }
 
   async function handleZipFile(zipFile) {
-    showLoadingState(true);
+    showLoader('extractingZip');
 
     try {
       console.log('Extracting ZIP file:', zipFile.name);
@@ -1032,7 +1074,7 @@
     } catch (error) {
       console.error('Error processing ZIP file:', error);
       showError(error.message);
-      showLoadingState(false);
+      hideLoader();
     }
   }
 
@@ -1051,6 +1093,7 @@
     const files = [];
     let systemFileCount = 0;
     let totalEntries = 0;
+    let processedEntries = 0;
 
     try {
       // Create a BlobReader for the ZIP file
@@ -1061,11 +1104,16 @@
       totalEntries = entries.length;
       
       console.log(`Found ${totalEntries} entries in ZIP`);
+      updateLoaderProgress(10, 'extractingZip', `0 / ${totalEntries}`);
 
       // Process each entry
       for (const entry of entries) {
         const fileName = entry.filename;
         console.log(`Processing: ${fileName}, compressed: ${entry.compressedSize}, uncompressed: ${entry.uncompressedSize}`);
+
+        processedEntries++;
+        const progress = 10 + (processedEntries / totalEntries) * 80; // 10% to 90%
+        updateLoaderProgress(progress, 'extractingZip', `${processedEntries} / ${totalEntries}`);
 
         // Skip directories and system files
         if (entry.directory || isSystemFile(fileName)) {
@@ -1095,6 +1143,7 @@
 
       // Close the reader
       await zipReader.close();
+      updateLoaderProgress(95, 'processingFiles', `${files.length} ${t('filesProcessed')}`);
 
     } catch (error) {
       console.error('ZIP extraction error:', error);
@@ -1147,19 +1196,20 @@
   }
 
   async function handleDirectoryEntry(dirEntry) {
-    showLoadingState(true);
+    showLoader('readingFolder');
 
     try {
       const files = await readDirectoryRecursive(dirEntry);
+      updateLoaderProgress(95, 'processingFiles', `${files.length} ${t('filesProcessed')}`);
       await handleFolder(files);
     } catch (error) {
       console.error(error);
       showError(error.message);
-      showLoadingState(false);
+      hideLoader();
     }
   }
 
-  async function readDirectoryRecursive(dirEntry) {
+  async function readDirectoryRecursive(dirEntry, currentCount = {value: 0}) {
     const files = [];
     const reader = dirEntry.createReader();
 
@@ -1177,13 +1227,20 @@
           continue;
         }
         
+        currentCount.value++;
+        updateLoaderProgress(
+          Math.min(90, 10 + (currentCount.value * 2)), // Progress up to 90%
+          'readingFolder',
+          `${currentCount.value} ${t('filesProcessed')}`
+        );
+        
         if (entry.isFile) {
           const file = await new Promise((resolve, reject) => {
             entry.file(resolve, reject);
           });
           files.push(file);
         } else if (entry.isDirectory) {
-          const subFiles = await readDirectoryRecursive(entry);
+          const subFiles = await readDirectoryRecursive(entry, currentCount);
           files.push(...subFiles);
         }
       }

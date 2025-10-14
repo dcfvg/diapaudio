@@ -27,6 +27,10 @@
       
       // Loader
       loadingFiles: "Loading files...",
+      extractingZip: "Extracting ZIP file...",
+      processingFiles: "Processing files...",
+      readingFolder: "Reading folder...",
+      filesProcessed: "files processed",
       
       // Controls
       play: "Play",
@@ -69,6 +73,10 @@
       
       // Loader
       loadingFiles: "Chargement des fichiers...",
+      extractingZip: "Extraction du fichier ZIP...",
+      processingFiles: "Traitement des fichiers...",
+      readingFolder: "Lecture du dossier...",
+      filesProcessed: "fichiers traités",
       
       // Controls
       play: "Lecture",
@@ -111,6 +119,10 @@
       
       // Loader
       loadingFiles: "Cargando archivos...",
+      extractingZip: "Extrayendo archivo ZIP...",
+      processingFiles: "Procesando archivos...",
+      readingFolder: "Leyendo carpeta...",
+      filesProcessed: "archivos procesados",
       
       // Controls
       play: "Reproducir",

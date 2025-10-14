@@ -75,7 +75,11 @@
 
               <div class="dropzone__loader hidden" id="dropzone-loader">
                 <div class="loader-spinner"></div>
-                <p data-i18n="loadingFiles">Loading files...</p>
+                <p id="loader-status" data-i18n="loadingFiles">Loading files...</p>
+                <div class="loader-progress">
+                  <div class="loader-progress-bar" id="loader-progress-bar"></div>
+                </div>
+                <p class="loader-details" id="loader-details"></p>
               </div>
             </div>
             <input type="file" webkitdirectory directory multiple id="folder-input" hidden />
