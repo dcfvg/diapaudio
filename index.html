@@ -64,6 +64,7 @@
                 <div class="dropzone__buttons">
                   <button type="button" class="dropzone__browse" id="browse-folder" data-i18n="buttonFolder">📂 Choose a folder</button>
                   <button type="button" class="dropzone__browse" id="browse-zip" data-i18n="buttonZip">📦 Choose a ZIP file</button>
+                  <button type="button" class="dropzone__browse" id="browse-files" data-i18n="buttonFiles">🎬 Choose files</button>
                 </div>
               </div>
 
@@ -84,6 +85,7 @@
             </div>
             <input type="file" webkitdirectory directory multiple id="folder-input" hidden />
             <input type="file" accept=".zip,application/zip,application/x-zip-compressed" id="zip-input" hidden />
+            <input type="file" accept="audio/*,image/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.jpg,.jpeg,.png,.gif" multiple id="files-input" hidden />
           </div>
           <div class="viewer__content hidden" id="viewer-content">
             <div class="viewer__slideshow">
@@ -175,6 +177,18 @@
           </div>
         </section>
       </main>
+      
+      <!-- Global loader overlay -->
+      <div class="global-loader hidden" id="global-loader">
+        <div class="global-loader__content">
+          <div class="loader-spinner"></div>
+          <p id="global-loader-status" data-i18n="loadingFiles">Loading files...</p>
+          <div class="loader-progress">
+            <div class="loader-progress-bar" id="global-loader-progress-bar"></div>
+          </div>
+          <p class="loader-details" id="global-loader-details"></p>
+        </div>
+      </div>
     </div>
   </body>
 </html>

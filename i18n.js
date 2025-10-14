@@ -19,6 +19,7 @@
       dropMessage: "Drop your prepared folder or ZIP file anywhere in this area.",
       buttonFolder: "📂 Choose a folder",
       buttonZip: "📦 Choose a ZIP file",
+      buttonFiles: "🎙️🖼️ Choose files",
       
       // Notes
       notePrivacy: "🔒 Nothing leaves your computer — no uploads, no servers, just your session.",
@@ -65,6 +66,7 @@
       dropMessage: "Déposez votre dossier ou fichier ZIP préparé n'importe où dans cette zone.",
       buttonFolder: "📂 Choisir un dossier",
       buttonZip: "📦 Choisir un fichier ZIP",
+      buttonFiles: "🎙️🖼️ Choisir des fichiers",
       
       // Notes
       notePrivacy: "🔒 Rien ne quitte votre ordinateur — pas de téléversement, pas de serveur, juste votre session.",
@@ -111,6 +113,7 @@
       dropMessage: "Arrastra tu carpeta o archivo ZIP preparado en cualquier lugar de esta área.",
       buttonFolder: "📂 Elegir una carpeta",
       buttonZip: "📦 Elegir un archivo ZIP",
+      buttonFiles: "🎙️🖼️ Elegir archivos",
       
       // Notes
       notePrivacy: "🔒 Nada sale de tu computadora — sin cargas, sin servidores, solo tu sesión.",

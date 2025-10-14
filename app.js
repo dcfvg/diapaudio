@@ -2,13 +2,19 @@
   const dropzone = document.getElementById("dropzone");
   const dropzoneMessage = document.getElementById("dropzone-message");
   const dropzoneLoader = document.getElementById("dropzone-loader");
+  const globalLoader = document.getElementById("global-loader");
+  const globalLoaderStatus = document.getElementById("global-loader-status");
+  const globalLoaderProgressBar = document.getElementById("global-loader-progress-bar");
+  const globalLoaderDetails = document.getElementById("global-loader-details");
   const loaderStatus = document.getElementById("loader-status");
   const loaderProgressBar = document.getElementById("loader-progress-bar");
   const loaderDetails = document.getElementById("loader-details");
   const folderInput = document.getElementById("folder-input");
   const zipInput = document.getElementById("zip-input");
+  const filesInput = document.getElementById("files-input");
   const browseFolderButton = document.getElementById("browse-folder");
   const browseZipButton = document.getElementById("browse-zip");
+  const browseFilesButton = document.getElementById("browse-files");
   const playToggle = document.getElementById("play-toggle");
   const playToggleIcon = playToggle ? playToggle.querySelector(".control-button__icon") : null;
   const playToggleLabel = playToggle ? playToggle.querySelector(".control-button__sr-label") : null;
@@ -118,6 +124,7 @@
 
   // Progress tracking helpers
   function updateLoaderProgress(percent, statusKey, details = '') {
+    // Update dropzone loader
     if (loaderProgressBar) {
       loaderProgressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
     }
@@ -127,22 +134,41 @@
     if (loaderDetails) {
       loaderDetails.textContent = details;
     }
+    
+    // Update global loader
+    if (globalLoaderProgressBar) {
+      globalLoaderProgressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+    }
+    if (globalLoaderStatus && statusKey) {
+      globalLoaderStatus.textContent = t(statusKey);
+    }
+    if (globalLoaderDetails) {
+      globalLoaderDetails.textContent = details;
+    }
   }
 
   function showLoader(statusKey = 'loadingFiles') {
-    if (dropzone) {
+    // Show dropzone loader if dropzone is visible
+    if (dropzone && !dropzone.classList.contains('hidden')) {
       dropzone.setAttribute('data-loading', 'true');
+      if (dropzoneMessage && dropzoneMessage.parentElement) {
+        dropzoneMessage.parentElement.classList.add('hidden');
+      }
+      if (dropzoneLoader) {
+        dropzoneLoader.classList.remove('hidden');
+        updateLoaderProgress(0, statusKey, '');
+      }
     }
-    if (dropzoneMessage && dropzoneMessage.parentElement) {
-      dropzoneMessage.parentElement.classList.add('hidden');
-    }
-    if (dropzoneLoader) {
-      dropzoneLoader.classList.remove('hidden');
+    
+    // Always show global loader (visible on top of everything)
+    if (globalLoader) {
+      globalLoader.classList.remove('hidden');
       updateLoaderProgress(0, statusKey, '');
     }
   }
 
   function hideLoader() {
+    // Hide dropzone loader
     if (dropzone) {
       dropzone.removeAttribute('data-loading');
     }
@@ -151,8 +177,14 @@
     }
     if (dropzoneLoader) {
       dropzoneLoader.classList.add('hidden');
-      updateLoaderProgress(0, '', '');
     }
+    
+    // Hide global loader
+    if (globalLoader) {
+      globalLoader.classList.add('hidden');
+    }
+    
+    updateLoaderProgress(0, '', '');
   }
 
   function createPlaybackController({
@@ -555,6 +587,10 @@
     zipInput.click();
   });
 
+  browseFilesButton.addEventListener("click", () => {
+    filesInput.click();
+  });
+
   // Also add handler for ZIP input
   if (zipInput) {
     zipInput.addEventListener("change", async (event) => {
@@ -567,6 +603,22 @@
           showError(`Failed to process ZIP file: ${error.message}`);
         }
         zipInput.value = "";
+      }
+    });
+  }
+
+  // Add handler for files input
+  if (filesInput) {
+    filesInput.addEventListener("change", async (event) => {
+      const files = Array.from(event.target.files);
+      if (files.length > 0) {
+        try {
+          await handleIndividualFiles(files);
+        } catch (error) {
+          console.error('Error handling individual files:', error);
+          showError(`Failed to process files: ${error.message}`);
+        }
+        filesInput.value = "";
       }
     });
   }
@@ -1223,7 +1275,33 @@
       throw new Error('No valid files found in ZIP archive. Make sure the ZIP contains images and audio files.');
     }
 
-    return files;
+    // Deduplicate files within ZIP (same name, size, and timestamp)
+    const uniqueFiles = [];
+    const fileKeys = new Set();
+    let zipDuplicateCount = 0;
+    
+    for (const file of files) {
+      const fileName = file.name;
+      const fileSize = file.size;
+      const fileTimestamp = parseTimestampFromName(fileName);
+      const timestampKey = fileTimestamp ? fileTimestamp.getTime() : 'no_timestamp';
+      const fileKey = `${fileName}_${fileSize}_${timestampKey}`;
+      
+      if (fileKeys.has(fileKey)) {
+        zipDuplicateCount++;
+        console.log(`Skipping duplicate within ZIP: ${fileName} (size: ${fileSize})`);
+        continue;
+      }
+      
+      fileKeys.add(fileKey);
+      uniqueFiles.push(file);
+    }
+    
+    if (zipDuplicateCount > 0) {
+      console.warn(`Removed ${zipDuplicateCount} duplicate files from within ZIP`);
+    }
+
+    return uniqueFiles;
   }
 
   async function handleIndividualFiles(fileList) {
