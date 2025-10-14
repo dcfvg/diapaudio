@@ -117,3 +117,6 @@ The exported XML file includes:
 
 Simply click the **Export** button after loading your files, and import the generated XML file into your video editor to continue working on your project.
 
+## License
+
+This project is licensed under the GNU General Public License v3.0. See `LICENSE` for the full terms.
