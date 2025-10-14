@@ -110,6 +110,7 @@
   const OVERLAP_REPORT_THRESHOLD_MS = 5_000;
   const AUDIO_MARKER_MIN_WIDTH_PCT = 0.2;
   const HUD_INACTIVITY_TIMEOUT_MS = 3500;
+  const SEEK_SNAP_THRESHOLD_PX = 10; // Snap to media starts within 30 pixels
 
   const audioElement = new Audio();
   audioElement.preload = "metadata";
@@ -216,7 +217,10 @@
         .filter(track => {
           if (!(track.adjustedStartTime instanceof Date)) return false;
           const start = track.adjustedStartTime.getTime();
-          const end = Number.isFinite(track.duration) ? start + track.duration * 1000 : Infinity;
+          // Use adjustedEndTime if available (includes delay), otherwise calculate from duration
+          const end = track.adjustedEndTime instanceof Date 
+            ? track.adjustedEndTime.getTime()
+            : (Number.isFinite(track.duration) ? start + track.duration * 1000 : Infinity);
           return absoluteMs >= start && absoluteMs < end;
         })
         .sort((a, b) => a.adjustedStartTime - b.adjustedStartTime);
@@ -443,13 +447,12 @@
 
       // Skip silence feature: if enabled, check if we're in a gap with no media
       if (window.isSkipSilenceEnabled && window.isSkipSilenceEnabled()) {
-        // Check if there's any media at current time
-        const hasImages = window.mediaDataRef?.images?.some(img => {
-          const imgMs = img.originalTimestamp?.getTime?.();
-          if (!Number.isFinite(imgMs)) return false;
-          // Image is visible if it's recent enough
-          return imgMs <= absolute && (absolute - imgMs) <= 120000; // MAX_IMAGE_CARRYOVER_MS
-        });
+        // Use getImagesForAbsoluteTime to determine if there are visible images
+        // This ensures consistency with the visibility logic
+        const visibleImages = window.getImagesForAbsoluteTimeRef 
+          ? window.getImagesForAbsoluteTimeRef(absolute)
+          : [];
+        const hasImages = visibleImages && visibleImages.length > 0;
         
         const hasAudio = getOverlappingTracks(absolute).length > 0;
         
@@ -819,6 +822,15 @@
   if (skipSilenceCheckbox) {
     skipSilenceCheckbox.addEventListener("change", () => {
       saveToStorage(STORAGE_KEYS.SKIP_SILENCE, skipSilenceCheckbox.checked);
+      // Refresh display to apply the new setting
+      if (playback && !playback.isPlaying()) {
+        // If paused, force refresh to show/hide images based on new setting
+        const currentMs = playback.getAbsoluteTime();
+        if (Number.isFinite(currentMs)) {
+          forceNextComposition = true;
+          updateSlideForAbsoluteTime(currentMs);
+        }
+      }
     });
   }
 
@@ -900,6 +912,9 @@
 
   // Expose to window so playback controller can access it
   window.isSkipSilenceEnabled = isSkipSilenceEnabled;
+  
+  // Expose getImagesForAbsoluteTime so playback controller can use the same visibility logic
+  window.getImagesForAbsoluteTimeRef = null; // Will be set after initialization
 
   function setDelaySeconds(value) {
     if (!Number.isFinite(value)) return;
@@ -1621,6 +1636,9 @@
 
     // Expose to window for playback controller
     window.mediaDataRef = mediaData;
+    
+    // Expose getImagesForAbsoluteTime for playback controller
+    window.getImagesForAbsoluteTimeRef = getImagesForAbsoluteTime;
 
     precomputeImageCompositions(mediaData.images);
 
@@ -2017,14 +2035,70 @@
     seekToAbsoluteMs(targetMs, shouldPlay, { forceDisplay: true });
   }
 
+  /**
+   * Find the nearest media start point (image or audio) within snap threshold.
+   * Returns the snapped time in ms, or the original time if no snap point is nearby.
+   * Uses pixel distance in the timeline view for snapping.
+   */
+  function findSnapPoint(absoluteMs, timelineViewSpanMs) {
+    if (!mediaData || !Number.isFinite(absoluteMs)) return absoluteMs;
+    if (!Number.isFinite(timelineViewSpanMs) || timelineViewSpanMs <= 0) return absoluteMs;
+
+    // Calculate the time threshold based on pixel distance
+    // Assuming timeline width is proportional to timelineViewSpanMs
+    // SEEK_SNAP_THRESHOLD_PX pixels should map to a time threshold
+    const timelineWidthPx = timelineMain ? timelineMain.getBoundingClientRect().width : 1000;
+    const msPerPixel = timelineViewSpanMs / timelineWidthPx;
+    const snapThresholdMs = SEEK_SNAP_THRESHOLD_PX * msPerPixel;
+
+    let nearestSnapMs = null;
+    let nearestDistance = Infinity;
+
+    // Check images
+    if (mediaData.images && mediaData.images.length) {
+      for (const image of mediaData.images) {
+        const imageMs = image.originalTimestamp?.getTime?.();
+        if (!Number.isFinite(imageMs)) continue;
+        
+        const distance = Math.abs(imageMs - absoluteMs);
+        if (distance < snapThresholdMs && distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestSnapMs = imageMs;
+        }
+      }
+    }
+
+    // Check audio track starts
+    if (mediaData.audioTracks && mediaData.audioTracks.length) {
+      for (const track of mediaData.audioTracks) {
+        const trackStartMs = track.adjustedStartTime?.getTime?.();
+        if (!Number.isFinite(trackStartMs)) continue;
+        
+        const distance = Math.abs(trackStartMs - absoluteMs);
+        if (distance < snapThresholdMs && distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestSnapMs = trackStartMs;
+        }
+      }
+    }
+
+    // Return snapped time if found, otherwise original time
+    return nearestSnapMs !== null ? nearestSnapMs : absoluteMs;
+  }
+
   function seekToAbsoluteMs(absoluteMs, shouldPlay = null, options = {}) {
     if (!Number.isFinite(absoluteMs)) return;
+
+    // Apply gentle snap to nearby media starts unless explicitly disabled
+    const shouldSnap = options.snap !== false;
+    const viewSpan = timelineState.viewEndMs - timelineState.viewStartMs;
+    const targetMs = shouldSnap ? findSnapPoint(absoluteMs, viewSpan) : absoluteMs;
 
     if (options.forceDisplay) {
       forceNextComposition = true;
     }
 
-    playback.setAbsoluteTime(absoluteMs, {
+    playback.setAbsoluteTime(targetMs, {
       autoplay: typeof shouldPlay === "boolean" ? shouldPlay : null,
     });
 
@@ -2055,8 +2129,11 @@
     timelineState.currentCursorMs = absoluteMs;
     
     // Get images for this absolute time
-    const images = getImagesForAbsoluteTime(absoluteMs);
-    const visibleImages = showMainImages(images, { absoluteMs });
+    // Pass force=true when: user explicitly seeks OR playback is paused
+    // When paused, we always want to show images at the current position
+    const shouldForce = forceNextComposition || !playback.isPlaying();
+    const images = getImagesForAbsoluteTime(absoluteMs, { force: shouldForce });
+    const visibleImages = showMainImages(images, { absoluteMs, force: shouldForce });
     const orderedImages = sortImagesByTimestamp(visibleImages);
     highlightTimelineImages(orderedImages);
     
@@ -2143,7 +2220,7 @@
     }
   }
 
-  function getImagesForAbsoluteTime(absoluteMs) {
+  function getImagesForAbsoluteTime(absoluteMs, options = {}) {
     if (!mediaData || !Array.isArray(mediaData.images) || !mediaData.images.length) {
       return [];
     }
@@ -2151,6 +2228,7 @@
       return [];
     }
 
+    const force = Boolean(options.force);
     const images = mediaData.images;
     let anchorIndex = -1;
     
@@ -2186,8 +2264,9 @@
     }
 
     // Check if skip silence is enabled and if this is the last image before a gap
+    // Skip this check if force=true (user explicitly seeking to an image)
     let effectiveCarryover = MAX_IMAGE_CARRYOVER_MS;
-    if (isSkipSilenceEnabled()) {
+    if (!force && isSkipSilenceEnabled()) {
       // Check if there's a next image
       const nextImage = images[anchorIndex + 1];
       if (nextImage && nextImage.originalTimestamp) {
@@ -3133,22 +3212,27 @@
       return;
     }
 
-    const absoluteMs = timelineState.viewStartMs + viewSpan * ratio;
-    if (!Number.isFinite(absoluteMs)) {
+    const rawAbsoluteMs = timelineState.viewStartMs + viewSpan * ratio;
+    if (!Number.isFinite(rawAbsoluteMs)) {
       hideTimelineHoverPreview();
       isHoverScrubbing = false;
       return;
     }
+
+    // Apply snapping to show where we'll actually land when clicking
+    const absoluteMs = findSnapPoint(rawAbsoluteMs, viewSpan);
 
     if (!isHoverScrubbing) {
       isHoverScrubbing = true;
       hoverOriginalCursorMs = timelineState.currentCursorMs;
     }
 
-    // Update seeker and preview position immediately (no flicker)
+    // Update seeker and preview position to snapped location
     if (timelineHoverPreview) {
       timelineHoverPreview.classList.remove("hidden");
-      timelineHoverPreview.style.left = `${ratio * 100}%`;
+      // Recalculate ratio based on snapped position
+      const snappedRatio = clamp((absoluteMs - timelineState.viewStartMs) / viewSpan, 0, 1);
+      timelineHoverPreview.style.left = `${snappedRatio * 100}%`;
     }
 
     if (timelineHoverPreviewTime) {
