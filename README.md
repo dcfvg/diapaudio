@@ -8,15 +8,17 @@ Playback photos synced with recordings of that day.
 
 ## What is it?
 
-diapaudio is a web-based tool that synchronizes your photos with audio recordings based on timestamps. Simply drop a folder containing your images and an audio file, and the app will automatically align them chronologically.
+diapaudio is a web-based tool that synchronizes your photos with audio recordings based on timestamps. Simply drop a folder or ZIP file containing your images and an audio file, and the app will automatically align them chronologically.
 
 ## How to use
 
 1. **Collect your files** - Place your audio recording and matching photos in one folder
 2. **Add a timing reference** - Include a text file (e.g., `_delay.txt`) with the time offset between your audio start and first photo
-3. **Drop the folder** - Drag and drop the entire folder into the browser window
+3. **Drop the folder or ZIP** - Drag and drop the entire folder or a ZIP archive into the browser window
 
 The app will generate a synchronized slideshow you can play, navigate, and export.
+
+**Note:** ZIP files with any compression method are fully supported thanks to [zip.js](https://gildas-lormeau.github.io/zip.js/).
 
 ### Timestamp Detection
 
@@ -92,6 +94,7 @@ This tells diapaudio to account for the 23 minutes and 45 seconds offset between
 
 - Automatic timestamp-based synchronization
 - Intelligent timestamp extraction from filenames and EXIF/audio metadata
+- **ZIP file support** - Drop ZIP archives instead of folders for easier sharing
 - Audio playback with visual timeline
 - Keyboard shortcuts for navigation
 - Real-time preview

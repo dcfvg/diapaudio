@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>diapaudio</title>
     <link rel="stylesheet" href="style.css" />
+    <!-- zip.js for ZIP file extraction -->
+    <script src="https://cdn.jsdelivr.net/npm/@zip.js/zip.js@2.7.34/dist/zip.min.js"></script>
     <script src="timestamp-utils.js" defer></script>
     <script src="app.js" defer></script>
   </head>
@@ -38,7 +40,7 @@
                   <li class="dropzone__step">
                     <span class="dropzone__step-icon" aria-hidden="true">🚀</span>
                     <div>
-                      <h3 class="dropzone__step-title">Drop the folder</h3>
+                      <h3 class="dropzone__step-title">Drop the folder or ZIP</h3>
                       <p class="dropzone__step-text">Drag it here or browse for it below to replay the day.</p>
                     </div>
                   </li>
@@ -46,8 +48,8 @@
               </div>
 
               <div class="dropzone__cta" role="group" aria-label="Start syncing">
-                <p class="dropzone__cta-text" id="dropzone-message">Drop your prepared folder anywhere in this area.</p>
-                <button type="button" class="dropzone__browse" id="browse-trigger">📂 Choose a folder</button>
+                <p class="dropzone__cta-text" id="dropzone-message">Drop your prepared folder or ZIP file anywhere in this area.</p>
+                <button type="button" class="dropzone__browse" id="browse-trigger">📂 Choose a folder or ZIP</button>
               </div>
 
               <div class="dropzone__body">
@@ -62,6 +64,7 @@
               </div>
             </div>
             <input type="file" webkitdirectory directory multiple id="folder-input" hidden />
+            <input type="file" accept=".zip,application/zip,application/x-zip-compressed" id="zip-input" hidden />
           </div>
           <div class="viewer__content hidden" id="viewer-content">
             <div class="viewer__slideshow">

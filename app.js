@@ -3,6 +3,7 @@
   const dropzoneMessage = document.getElementById("dropzone-message");
   const dropzoneLoader = document.getElementById("dropzone-loader");
   const folderInput = document.getElementById("folder-input");
+  const zipInput = document.getElementById("zip-input");
   const browseTrigger = document.getElementById("browse-trigger");
   const playToggle = document.getElementById("play-toggle");
   const playToggleIcon = playToggle ? playToggle.querySelector(".control-button__icon") : null;
@@ -481,7 +482,27 @@
     }
   }
 
-  browseTrigger.addEventListener("click", () => folderInput.click());
+  browseTrigger.addEventListener("click", () => {
+    // Try folder selection first (more common use case)
+    // Modern browsers will show a folder picker
+    folderInput.click();
+  });
+
+  // Also add handler for ZIP input
+  if (zipInput) {
+    zipInput.addEventListener("change", async (event) => {
+      const files = Array.from(event.target.files);
+      if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
+        try {
+          await handleZipFile(files[0]);
+        } catch (error) {
+          console.error('Error handling ZIP file:', error);
+          showError(`Failed to process ZIP file: ${error.message}`);
+        }
+        zipInput.value = "";
+      }
+    });
+  }
 
   setPlayToggleState("play");
 
@@ -502,9 +523,19 @@
     });
   }
 
-  folderInput.addEventListener("change", (event) => {
+  folderInput.addEventListener("change", async (event) => {
     const files = Array.from(event.target.files);
-    if (files.length > 0) {
+    if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
+      // Handle ZIP file
+      try {
+        await handleZipFile(files[0]);
+      } catch (error) {
+        console.error('Error handling ZIP file:', error);
+        showError(`Failed to process ZIP file: ${error.message}`);
+      }
+      folderInput.value = "";
+    } else if (files.length > 0) {
+      // Handle regular folder
       handleFolder(files);
       folderInput.value = "";
     }
@@ -525,8 +556,21 @@
     dropzone.addEventListener(eventName, () => dropzone.classList.remove("dragover"));
   });
 
-  dropzone.addEventListener("drop", (event) => {
+  dropzone.addEventListener("drop", async (event) => {
     const items = event.dataTransfer.items;
+    const files = event.dataTransfer.files;
+    
+    // Check if a single ZIP file was dropped
+    if (files && files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
+      try {
+        await handleZipFile(files[0]);
+        return;
+      } catch (error) {
+        console.error('Error handling ZIP file:', error);
+        showError(`Failed to process ZIP file: ${error.message}`);
+        return;
+      }
+    }
     
     // Only handle folders
     if (items && items.length > 0) {
@@ -540,7 +584,7 @@
       }
     }
     
-    showError("Please drop a folder containing audio files and images.");
+    showError("Please drop a folder or ZIP file containing audio files and images.");
   });
 
   playToggle.addEventListener("click", () => {
@@ -950,6 +994,150 @@
     }
   }
 
+  /**
+   * Check if a file should be skipped (system files, metadata, etc.)
+   * @param {string} fileName - Full file path or name
+   * @returns {boolean} - True if file should be skipped
+   */
+  function isSystemFile(fileName) {
+    const baseName = fileName.split('/').pop();
+    
+    return (
+      !baseName || // Empty name
+      baseName.startsWith('.') || // Hidden files (.DS_Store, .git, etc.)
+      baseName.startsWith('._') || // macOS AppleDouble files
+      baseName.toLowerCase() === 'thumbs.db' || // Windows thumbnail cache
+      baseName.toLowerCase() === 'desktop.ini' || // Windows folder settings
+      fileName.includes('__MACOSX/') || // macOS resource fork folder path
+      baseName === '__MACOSX' // macOS resource fork folder name
+    );
+  }
+
+  async function handleZipFile(zipFile) {
+    showLoadingState(true);
+
+    try {
+      console.log('Extracting ZIP file:', zipFile.name);
+      const files = await unzipFile(zipFile);
+      console.log(`Extracted ${files.length} files from ZIP`);
+      await handleFolder(files);
+    } catch (error) {
+      console.error('Error processing ZIP file:', error);
+      showError(error.message);
+      showLoadingState(false);
+    }
+  }
+
+  /**
+   * Extract files from a ZIP archive using zip.js library
+   * @param {File} zipFile - The ZIP file to extract
+   * @returns {Promise<File[]>} - Array of extracted files
+   */
+  async function unzipFile(zipFile) {
+    console.log(`Extracting ZIP file: ${zipFile.name}, size: ${zipFile.size} bytes`);
+
+    if (!window.zip) {
+      throw new Error('zip.js library not loaded');
+    }
+
+    const files = [];
+    let systemFileCount = 0;
+    let totalEntries = 0;
+
+    try {
+      // Create a BlobReader for the ZIP file
+      const zipReader = new zip.ZipReader(new zip.BlobReader(zipFile));
+      
+      // Get all entries
+      const entries = await zipReader.getEntries();
+      totalEntries = entries.length;
+      
+      console.log(`Found ${totalEntries} entries in ZIP`);
+
+      // Process each entry
+      for (const entry of entries) {
+        const fileName = entry.filename;
+        console.log(`Processing: ${fileName}, compressed: ${entry.compressedSize}, uncompressed: ${entry.uncompressedSize}`);
+
+        // Skip directories and system files
+        if (entry.directory || isSystemFile(fileName)) {
+          if (isSystemFile(fileName)) {
+            systemFileCount++;
+            console.log(`Skipping system file: ${fileName}`);
+          } else {
+            console.log(`Skipping directory: ${fileName}`);
+          }
+          continue;
+        }
+
+        try {
+          // Extract file data as a Blob
+          const blob = await entry.getData(new zip.BlobWriter(getMimeType(fileName)));
+          
+          // Create File object with just the basename
+          const baseName = fileName.split('/').pop();
+          const file = new File([blob], baseName, { type: getMimeType(fileName) });
+          
+          files.push(file);
+          console.log(`✓ Extracted: ${baseName} (${file.size} bytes)`);
+        } catch (error) {
+          console.warn(`Failed to extract ${fileName}:`, error);
+        }
+      }
+
+      // Close the reader
+      await zipReader.close();
+
+    } catch (error) {
+      console.error('ZIP extraction error:', error);
+      throw new Error(`Failed to extract ZIP: ${error.message}`);
+    }
+
+    console.log(`ZIP extraction complete. Extracted ${files.length} files`);
+    console.log(`Skipped ${systemFileCount} system files`);
+
+    if (files.length === 0) {
+      if (systemFileCount > 0 && totalEntries === systemFileCount) {
+        throw new Error('ZIP archive only contains system files (__MACOSX, .DS_Store, etc). Please recreate the ZIP without these files.');
+      }
+      throw new Error('No valid files found in ZIP archive. Make sure the ZIP contains images and audio files.');
+    }
+
+    return files;
+  }
+
+  /**
+   * Get MIME type from file extension
+   */
+  function getMimeType(fileName) {
+    const ext = fileName.split('.').pop().toLowerCase();
+    
+    // Audio types
+    if (audioMimeByExtension.has(ext)) {
+      return audioMimeByExtension.get(ext);
+    }
+    
+    // Image types
+    const imageMimes = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'bmp': 'image/bmp',
+      'svg': 'image/svg+xml'
+    };
+    
+    if (imageMimes[ext]) {
+      return imageMimes[ext];
+    }
+    
+    // Text files
+    if (ext === 'txt') return 'text/plain';
+    
+    return 'application/octet-stream';
+  }
+
   async function handleDirectoryEntry(dirEntry) {
     showLoadingState(true);
 
@@ -976,6 +1164,11 @@
     let entries = await readEntries();
     while (entries.length > 0) {
       for (const entry of entries) {
+        // Skip system files and folders
+        if (isSystemFile(entry.name)) {
+          continue;
+        }
+        
         if (entry.isFile) {
           const file = await new Promise((resolve, reject) => {
             entry.file(resolve, reject);
