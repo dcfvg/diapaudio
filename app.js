@@ -997,7 +997,7 @@
     pendingSeek = null;
   }
 
-  async function handleFolder(files) {
+  async function handleFolder(files, autoPlay = false) {
     showLoader('readingFolder');
     updateLoaderProgress(0, 'readingFolder', 'Starting...');
 
@@ -1175,7 +1175,7 @@
       }
 
       updateLoaderProgress(95, 'processingFiles', 'Finalizing...');
-      await processMediaData(audioTracks, validImages, files);
+      await processMediaData(audioTracks, validImages, files, autoPlay);
     } catch (error) {
       console.error(error);
       showError(error.message);
@@ -1203,14 +1203,14 @@
     );
   }
 
-  async function handleZipFile(zipFile) {
+  async function handleZipFile(zipFile, autoPlay = false) {
     showLoader('extractingZip');
 
     try {
       console.log('Extracting ZIP file:', zipFile.name);
       const files = await unzipFile(zipFile);
       console.log(`Extracted ${files.length} files from ZIP`);
-      await handleFolder(files);
+      await handleFolder(files, autoPlay);
     } catch (error) {
       console.error('Error processing ZIP file:', error);
       showError(error.message);
@@ -1329,7 +1329,7 @@
     return uniqueFiles;
   }
 
-  async function handleIndividualFiles(fileList) {
+  async function handleIndividualFiles(fileList, autoPlay = false) {
     showLoader('processingFiles');
 
     try {
@@ -1368,7 +1368,7 @@
       }
       
       // Process the files using the existing handleFolder logic
-      await handleFolder(files);
+      await handleFolder(files, autoPlay);
       
     } catch (error) {
       console.error('Error processing individual files:', error);
@@ -1410,13 +1410,13 @@
     return 'application/octet-stream';
   }
 
-  async function handleDirectoryEntry(dirEntry) {
+  async function handleDirectoryEntry(dirEntry, autoPlay = false) {
     showLoader('readingFolder');
 
     try {
       const files = await readDirectoryRecursive(dirEntry);
       updateLoaderProgress(95, 'processingFiles', `${files.length} ${t('filesProcessed')}`);
-      await handleFolder(files);
+      await handleFolder(files, autoPlay);
     } catch (error) {
       console.error(error);
       showError(error.message);
@@ -1465,7 +1465,7 @@
     return files;
   }
 
-  async function processMediaData(audioTracks, validImages, allFiles = []) {
+  async function processMediaData(audioTracks, validImages, allFiles = [], autoPlay = false) {
     // Sort images by timestamp but keep absolute timestamps
     const sortedImages = [...validImages].sort((a, b) => a.timestamp - b.timestamp);
 
@@ -1503,7 +1503,7 @@
     
     // Only load audio track if we have audio files
     if (audioTracks && audioTracks.length > 0) {
-      loadAudioTrack(0);
+      loadAudioTrack(0, autoPlay);
     } else if (mediaData.images && mediaData.images.length > 0) {
       // No audio, show first image(s)
       const firstImage = mediaData.images[0];
@@ -1514,6 +1514,14 @@
           force: true,
         });
         updateAnalogClock(firstImage.originalTimestamp);
+        // Auto-play for image-only timelines
+        if (autoPlay && playback && typeof playback.play === 'function' && !playback.isPlaying()) {
+          setTimeout(() => {
+            if (!playback.isPlaying()) {
+              playback.play();
+            }
+          }, 100);
+        }
       }
     }
     
@@ -1738,7 +1746,7 @@
         playback.refresh();
       }
 
-      if (autoPlay && !handledPlayback) {
+      if (autoPlay && !handledPlayback && !playback.isPlaying()) {
         playback.play();
         setPlayToggleState("pause");
       }
@@ -2488,7 +2496,7 @@
         await handleZipFileAddition(files[0]);
       } else {
         // Replace current content with ZIP (or create initial content)
-        await handleZipFile(files[0]);
+        await handleZipFile(files[0], true); // autoPlay enabled
       }
       return;
     }
@@ -2505,7 +2513,7 @@
         await handleFolderAddition(folderEntries[0]);
       } else {
         // Replace current content with folder (or create initial content)
-        await handleDirectoryEntry(folderEntries[0]);
+        await handleDirectoryEntry(folderEntries[0], true); // autoPlay enabled
       }
       return;
     }
@@ -2518,11 +2526,11 @@
           await addFilesToTimeline(files);
         } else {
           // No timeline yet, create initial content
-          await handleIndividualFiles(files);
+          await handleIndividualFiles(files, true); // autoPlay enabled
         }
       } else {
         // Replace current content with files
-        await handleIndividualFiles(files);
+        await handleIndividualFiles(files, true); // autoPlay enabled
       }
       return;
     }
