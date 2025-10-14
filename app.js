@@ -73,13 +73,25 @@
     ["aiff", "audio/aiff"],
   ]);
 
+  const imageMimeByExtension = new Map([
+    ["jpg", "image/jpeg"],
+    ["jpeg", "image/jpeg"],
+    ["png", "image/png"],
+    ["gif", "image/gif"],
+    ["bmp", "image/bmp"],
+    ["webp", "image/webp"],
+    ["svg", "image/svg+xml"],
+    ["tiff", "image/tiff"],
+    ["tif", "image/tiff"],
+  ]);
+
   // Configuration: Visual Comfort & Smoothness Focus
   const MIN_IMAGE_DISPLAY_DURATION = 6; // Requirement 1: minimum 6 seconds
   const MIN_IMAGE_DISPLAY_DURATION_MS = MIN_IMAGE_DISPLAY_DURATION * 1000;
   const MAX_IMAGE_CARRYOVER_MS = 120_000; // Requirement 2: maximum 120 seconds after timestamp
   const MAX_COMPOSITION_CHANGE_INTERVAL_MS = 4_000; // Requirement 4: layout changes every 4 seconds max
   const MAX_VISIBLE_IMAGES = 6; // Requirement 7: up to 6 horizontal segments
-  const BATCH_THRESHOLD_MS = 2_000; // Requirement 8: images within 2s are considered a batch
+  const BATCH_THRESHOLD_MS = 4_000; // Requirement 8: images within 2s are considered a batch
   const IMAGE_STACK_WINDOW_MS = 25_000;
   const IMAGE_STACK_STEP_PX = 18;
   const IMAGE_STACK_OFFSET_ORDER = [0, -1, 1, -2, 2, -3, 3];
@@ -622,34 +634,12 @@
   });
 
   dropzone.addEventListener("drop", async (event) => {
-    const items = event.dataTransfer.items;
-    const files = event.dataTransfer.files;
-    
-    // Check if a single ZIP file was dropped
-    if (files && files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
-      try {
-        await handleZipFile(files[0]);
-        return;
-      } catch (error) {
-        console.error('Error handling ZIP file:', error);
-        showError(`Failed to process ZIP file: ${error.message}`);
-        return;
-      }
+    try {
+      await handleDrop(event.dataTransfer, 'replace');
+    } catch (error) {
+      console.error('Error handling main dropzone drop:', error);
+      showError(error.message || "Failed to process dropped files");
     }
-    
-    // Only handle folders
-    if (items && items.length > 0) {
-      const item = items[0];
-      if (item.kind === 'file') {
-        const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
-        if (entry && entry.isDirectory) {
-          handleDirectoryEntry(entry);
-          return;
-        }
-      }
-    }
-    
-    showError("Please drop a folder or ZIP file containing audio files and images.");
   });
 
   playToggle.addEventListener("click", () => {
@@ -698,6 +688,7 @@
   setupTimelineInteractions();
   setupTimelineHover();
   setDelaySeconds(0);
+  setupSlideshowDragDrop();
 
   audioElement.addEventListener("play", () => {
     // Only update UI state - isPlaying is controlled separately
@@ -980,8 +971,30 @@
         })
         .sort((a, b) => getFilePath(a).localeCompare(getFilePath(b), undefined, { numeric: true, sensitivity: "base" }));
 
-      if (!audioFiles.length) {
-        throw new Error("No audio file detected in the folder.");
+      // Remove duplicate audio files (same name, size, and timestamp from filename)
+      const uniqueAudioFiles = [];
+      const audioFileKeys = new Set();
+      const skippedAudioDuplicates = [];
+      
+      for (const file of audioFiles) {
+        const fileName = getFilePath(file);
+        const fileSize = file.size || 0;
+        const fileTimestamp = parseTimestampFromName(fileName);
+        const timestampKey = fileTimestamp ? fileTimestamp.getTime() : 'no_timestamp';
+        const fileKey = `${fileName}_${fileSize}_${timestampKey}`;
+        
+        if (audioFileKeys.has(fileKey)) {
+          skippedAudioDuplicates.push(fileName);
+          console.log(`Skipping duplicate audio file: ${fileName} (size: ${fileSize}, timestamp: ${fileTimestamp})`);
+          continue;
+        }
+        
+        audioFileKeys.add(fileKey);
+        uniqueAudioFiles.push(file);
+      }
+      
+      if (skippedAudioDuplicates.length > 0) {
+        console.warn(`Removed ${skippedAudioDuplicates.length} duplicate audio files`);
       }
 
       const imageFiles = files.filter(
@@ -991,12 +1004,43 @@
         }
       );
 
-      if (!imageFiles.length) {
-        throw new Error("No images with timestamps found in the folder.");
+      // Remove duplicate image files (same name, size, and timestamp)
+      const uniqueImageFiles = [];
+      const imageFileKeys = new Set();
+      const skippedImageDuplicates = [];
+      
+      for (const file of imageFiles) {
+        const fileName = getFilePath(file);
+        const fileSize = file.size || 0;
+        const fileTimestamp = parseTimestampFromName(fileName);
+        const timestampKey = fileTimestamp ? fileTimestamp.getTime() : 'no_timestamp';
+        const fileKey = `${fileName}_${fileSize}_${timestampKey}`;
+        
+        if (imageFileKeys.has(fileKey)) {
+          skippedImageDuplicates.push(fileName);
+          console.log(`Skipping duplicate image file: ${fileName} (size: ${fileSize}, timestamp: ${fileTimestamp})`);
+          continue;
+        }
+        
+        imageFileKeys.add(fileKey);
+        uniqueImageFiles.push(file);
+      }
+      
+      if (skippedImageDuplicates.length > 0) {
+        console.warn(`Removed ${skippedImageDuplicates.length} duplicate image files`);
       }
 
-      const audioTracks = await Promise.all(
-        audioFiles.map(async (file, index) => {
+      // Check if we have at least some media files
+      if (!uniqueAudioFiles.length && !uniqueImageFiles.length) {
+        if (skippedAudioDuplicates.length > 0 || skippedImageDuplicates.length > 0) {
+          throw new Error("Only duplicate files detected. All files were already processed.");
+        }
+        throw new Error("No audio or image files detected. Please add media files with timestamps.");
+      }
+
+      // Process audio files if any
+      const audioTracks = uniqueAudioFiles.length > 0 ? await Promise.all(
+        uniqueAudioFiles.map(async (file, index) => {
           const filePath = getFilePath(file);
           let fileTimestamp = parseTimestampFromName(filePath);
           
@@ -1015,15 +1059,17 @@
             fileTimestamp,
           });
         })
-      );
+      ) : [];
 
       // Load durations for all audio tracks
-      console.log('Loading durations for all audio tracks...');
-      await loadAllAudioDurations(audioTracks);
-      console.log('All audio durations loaded:', audioTracks.map(t => ({ label: t.label, duration: t.duration })));
+      if (audioTracks.length > 0) {
+        console.log('Loading durations for all audio tracks...');
+        await loadAllAudioDurations(audioTracks);
+        console.log('All audio durations loaded:', audioTracks.map(t => ({ label: t.label, duration: t.duration })));
+      }
 
-      const images = await Promise.all(
-        imageFiles.map(async (file) => {
+      const images = uniqueImageFiles.length > 0 ? await Promise.all(
+        uniqueImageFiles.map(async (file) => {
           const url = URL.createObjectURL(file);
           const timestamp = parseTimestampFromName(getFilePath(file));
           
@@ -1043,14 +1089,16 @@
             timestamp: finalTimestamp,
           };
         })
-      );
+      ) : [];
 
       const validImages = images.filter(Boolean);
-      if (!validImages.length) {
-        throw new Error("Images are missing recognizable timestamps.");
+      
+      // At least one type of media must have valid content
+      if (audioTracks.length === 0 && validImages.length === 0) {
+        throw new Error("No valid media files with timestamps found. Please ensure files have timestamps in their names or metadata.");
       }
 
-      await processMediaData(audioTracks, validImages);
+      await processMediaData(audioTracks, validImages, files);
     } catch (error) {
       console.error(error);
       showError(error.message);
@@ -1178,6 +1226,55 @@
     return files;
   }
 
+  async function handleIndividualFiles(fileList) {
+    showLoader('processingFiles');
+
+    try {
+      console.log('Processing individual files:', fileList.map(f => f.name));
+      
+      // Filter out system files
+      const files = [];
+      let systemFileCount = 0;
+      
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        
+        updateLoaderProgress(10 + (i / fileList.length) * 80, 'processingFiles', `${i + 1} / ${fileList.length}`);
+        
+        if (isSystemFile(file.name)) {
+          systemFileCount++;
+          console.log(`Skipping system file: ${file.name}`);
+          continue;
+        }
+        
+        // Pass the File object directly since handleFolder expects it
+        files.push(file);
+        console.log(`Added file: ${file.name}`);
+      }
+      
+      updateLoaderProgress(95, 'processingFiles', `${files.length} ${t('filesProcessed')}`);
+      
+      console.log(`Individual files processing complete. Processed ${files.length} files`);
+      console.log(`Skipped ${systemFileCount} system files`);
+      
+      if (files.length === 0) {
+        if (systemFileCount > 0) {
+          throw new Error('Only system files detected. Please select valid audio and image files.');
+        }
+        throw new Error('No valid files found. Please select audio and image files.');
+      }
+      
+      // Process the files using the existing handleFolder logic
+      await handleFolder(files);
+      
+    } catch (error) {
+      console.error('Error processing individual files:', error);
+      throw error;
+    } finally {
+      hideLoader();
+    }
+  }
+
   /**
    * Get MIME type from file extension
    */
@@ -1265,7 +1362,7 @@
     return files;
   }
 
-  async function processMediaData(audioTracks, validImages) {
+  async function processMediaData(audioTracks, validImages, allFiles = []) {
     // Sort images by timestamp but keep absolute timestamps
     const sortedImages = [...validImages].sort((a, b) => a.timestamp - b.timestamp);
 
@@ -1274,7 +1371,7 @@
     destroyTimeline();
 
     mediaData = {
-      audioTracks,
+      audioTracks: audioTracks || [],
       activeTrackIndex: 0,
       images: sortedImages.map(img => ({
         ...img,
@@ -1283,6 +1380,16 @@
         timecode: "00:00",
         timeOfDay: formatClock(img.timestamp),
       })),
+      allFiles: allFiles.map(file => {
+        const fileName = file.name || getFilePath(file);
+        const fileTimestamp = parseTimestampFromName(fileName);
+        return {
+          name: fileName,
+          size: file.size || 0,
+          lastModified: file.lastModified || 0,
+          timestamp: fileTimestamp ? fileTimestamp.getTime() : null
+        };
+      })
     };
 
     precomputeImageCompositions(mediaData.images);
@@ -1290,7 +1397,23 @@
     clearPendingSeek();
 
     initializeTimeline();
-    loadAudioTrack(0);
+    
+    // Only load audio track if we have audio files
+    if (audioTracks && audioTracks.length > 0) {
+      loadAudioTrack(0);
+    } else if (mediaData.images && mediaData.images.length > 0) {
+      // No audio, show first image(s)
+      const firstImage = mediaData.images[0];
+      if (firstImage && firstImage.originalTimestamp) {
+        const firstMs = firstImage.originalTimestamp.getTime();
+        showMainImages([firstImage], {
+          absoluteMs: firstMs,
+          force: true,
+        });
+        updateAnalogClock(firstImage.originalTimestamp);
+      }
+    }
+    
     viewerContent.classList.remove("hidden");
     dropzone.classList.add("hidden");
   }
@@ -1423,6 +1546,10 @@
     const audioStartMs = activeTrack.adjustedStartTime.getTime();
 
     mediaData.images.forEach((image) => {
+      if (!image.originalTimestamp) {
+        console.warn('Image missing originalTimestamp:', image);
+        return;
+      }
       const imageMs = image.originalTimestamp.getTime();
       const relative = (imageMs - audioStartMs) / 1000;
       image.relative = relative;
@@ -2247,6 +2374,330 @@
     timelineMain.addEventListener("click", handleTimelineClick);
   }
 
+  async function handleDrop(dataTransfer, mode = 'replace') {
+    const items = Array.from(dataTransfer.items);
+    const files = Array.from(dataTransfer.files);
+    
+    // Check if a single ZIP file was dropped
+    if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
+      if (mode === 'additive' && mediaData) {
+        // Extract ZIP and add files to existing timeline
+        await handleZipFileAddition(files[0]);
+      } else {
+        // Replace current content with ZIP (or create initial content)
+        await handleZipFile(files[0]);
+      }
+      return;
+    }
+    
+    // Check if it's a folder
+    const folderEntries = items
+      .filter(item => item.kind === 'file')
+      .map(item => item.webkitGetAsEntry && item.webkitGetAsEntry())
+      .filter(entry => entry && entry.isDirectory);
+
+    if (folderEntries.length > 0) {
+      if (mode === 'additive' && mediaData) {
+        // Add folder files to existing timeline
+        await handleFolderAddition(folderEntries[0]);
+      } else {
+        // Replace current content with folder (or create initial content)
+        await handleDirectoryEntry(folderEntries[0]);
+      }
+      return;
+    }
+    
+    // Handle individual files
+    if (files.length > 0) {
+      if (mode === 'additive') {
+        if (mediaData) {
+          // Add files to existing timeline
+          await addFilesToTimeline(files);
+        } else {
+          // No timeline yet, create initial content
+          await handleIndividualFiles(files);
+        }
+      } else {
+        // Replace current content with files
+        await handleIndividualFiles(files);
+      }
+      return;
+    }
+    
+    throw new Error("Please drop a folder, ZIP file, or individual audio/image files.");
+  }
+
+  async function handleFolderAddition(dirEntry) {
+    if (!mediaData) {
+      // No existing timeline, treat as new timeline
+      await handleDirectoryEntry(dirEntry);
+      return;
+    }
+
+    try {
+      const newFiles = await readDirectoryRecursive(dirEntry);
+      const validFiles = newFiles.filter(file => !isSystemFile(getFilePath(file)));
+      
+      if (validFiles.length === 0) {
+        console.log('No valid files found in folder');
+        return;
+      }
+
+      await addFilesToTimeline(validFiles);
+    } catch (error) {
+      console.error('Error adding folder to timeline:', error);
+      throw error;
+    }
+  }
+
+  async function handleZipFileAddition(zipFile) {
+    if (!mediaData) {
+      // No existing timeline, treat as new timeline
+      await handleZipFile(zipFile);
+      return;
+    }
+
+    try {
+      showLoader('extractingZip');
+      console.log('Extracting ZIP file to add to timeline:', zipFile.name);
+      
+      // Extract ZIP files using the existing unzipFile function
+      const extractedFiles = await unzipFile(zipFile);
+      
+      if (extractedFiles.length === 0) {
+        console.log('No valid files found in ZIP');
+        hideLoader();
+        return;
+      }
+
+      // Add to timeline
+      await addFilesToTimeline(extractedFiles);
+      hideLoader();
+    } catch (error) {
+      console.error('Error adding ZIP to timeline:', error);
+      hideLoader();
+      throw error;
+    }
+  }
+
+  async function addFilesToTimeline(newFiles) {
+    // Check for _delay.txt file first
+    const delayFile = newFiles.find(file => {
+      const fileName = file.name || getFilePath(file);
+      const name = fileName.split('/').pop();
+      return name === '_delay.txt';
+    });
+
+    if (delayFile) {
+      try {
+        const text = await delayFile.text();
+        const parsed = parseDelayField(text.trim());
+        if (parsed !== null) {
+          setDelaySeconds(parsed);
+          console.log(`Updated delay setting from _delay.txt: ${formatDelay(parsed)}`);
+        } else {
+          console.warn(`Invalid delay format in _delay.txt: "${text.trim()}"`);
+        }
+      } catch (err) {
+        console.error('Error reading _delay.txt:', err);
+      }
+    }
+
+    // Filter out duplicates and system files
+    const validFiles = [];
+    let duplicateCount = 0;
+
+    for (const file of newFiles) {
+      const fileName = file.name || getFilePath(file);
+      
+      if (isSystemFile(fileName)) {
+        continue;
+      }
+
+      // Skip _delay.txt as we've already processed it
+      if (fileName.split('/').pop() === '_delay.txt') {
+        continue;
+      }
+
+      // Check for duplicates (same name, size, timestamp, and last modified)
+      const fileSize = file.size || 0;
+      const fileLastModified = file.lastModified || 0;
+      const fileTimestamp = parseTimestampFromName(fileName);
+      const timestampKey = fileTimestamp ? fileTimestamp.getTime() : null;
+      
+      const isDuplicate = mediaData.allFiles.some(existingFile => 
+        existingFile.name === fileName && 
+        existingFile.size === fileSize && 
+        existingFile.lastModified === fileLastModified &&
+        (timestampKey === null || existingFile.timestamp === timestampKey)
+      );
+
+      if (isDuplicate) {
+        duplicateCount++;
+        console.log(`Skipping duplicate file: ${fileName}`);
+        continue;
+      }
+
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) {
+      console.log(`No new files to add. Skipped ${duplicateCount} duplicates.`);
+      return;
+    }
+
+    console.log(`Adding ${validFiles.length} new files to timeline. Skipped ${duplicateCount} duplicates.`);
+
+    // Separate audio and image files
+    const newAudioFiles = validFiles.filter(file => {
+      const fileName = file.name || getFilePath(file);
+      return isAudio(fileName);
+    });
+    
+    const newImageFiles = validFiles.filter(file => {
+      const fileName = file.name || getFilePath(file);
+      return isImage(fileName);
+    });
+
+    // Process new audio tracks
+    if (newAudioFiles.length > 0) {
+      const newAudioTracks = await Promise.all(
+        newAudioFiles.map(async (file, index) => {
+          const fileName = file.name || getFilePath(file);
+          const fileTimestamp = parseTimestampFromName(fileName);
+          
+          // Create URL for the file object
+          let fileUrl;
+          if (file instanceof File) {
+            fileUrl = URL.createObjectURL(file);
+          } else if (file.file) {
+            fileUrl = URL.createObjectURL(file.file);
+          } else {
+            throw new Error(`Invalid file object for ${fileName}`);
+          }
+          
+          return createAudioTrack({
+            url: fileUrl,
+            originalName: fileName,
+            index: mediaData.audioTracks.length + index,
+            fileTimestamp,
+          });
+        })
+      );
+
+      await loadAllAudioDurations(newAudioTracks);
+      mediaData.audioTracks.push(...newAudioTracks);
+    }
+
+    // Process new images
+    if (newImageFiles.length > 0) {
+      const newImages = await Promise.all(
+        newImageFiles.map(async (file) => {
+          const fileName = file.name || getFilePath(file);
+          const timestamp = parseTimestampFromName(fileName);
+          
+          // Create URL for the file object
+          let fileUrl;
+          if (file instanceof File) {
+            fileUrl = URL.createObjectURL(file);
+          } else if (file.file) {
+            fileUrl = URL.createObjectURL(file.file);
+          } else {
+            throw new Error(`Invalid file object for ${fileName}`);
+          }
+          
+          let finalTimestamp = timestamp;
+          if (!timestamp) {
+            finalTimestamp = await parseTimestampFromEXIF(file instanceof File ? file : file.file);
+            if (!finalTimestamp) {
+              console.warn(`Unable to parse timestamp from ${fileName}. Skipping.`);
+              return null;
+            }
+          }
+          
+          return { 
+            url: fileUrl, 
+            timestamp: finalTimestamp,
+            originalTimestamp: finalTimestamp,
+            originalName: fileName,
+            name: fileName,
+            relative: 0,
+            timecode: "00:00",
+            timeOfDay: formatClock(finalTimestamp)
+          };
+        })
+      );
+
+      const validImages = newImages.filter(img => img !== null);
+      mediaData.images.push(...validImages);
+    }
+
+    // Update allFiles list
+    mediaData.allFiles = mediaData.allFiles || [];
+    mediaData.allFiles.push(...validFiles.map(file => {
+      const fileName = file.name || getFilePath(file);
+      const fileTimestamp = parseTimestampFromName(fileName);
+      return {
+        name: fileName,
+        size: file.size || 0,
+        lastModified: file.lastModified || 0,
+        timestamp: fileTimestamp ? fileTimestamp.getTime() : null
+      };
+    }));
+
+    // Rebuild timeline with new data
+    if (newAudioFiles.length > 0 || newImageFiles.length > 0) {
+      // Re-sort everything by timestamp
+      mediaData.images.sort((a, b) => a.timestamp - b.timestamp);
+      mediaData.audioTracks.sort((a, b) => (a.fileTimestamp || 0) - (b.fileTimestamp || 0));
+
+      // Recompute image compositions with new data
+      precomputeImageCompositions(mediaData.images);
+      
+      // Recalculate timestamps if we have audio
+      if (mediaData.audioTracks.length > 0) {
+        recalculateImageTimestamps();
+      }
+
+      // Rebuild the timeline
+      destroyTimeline();
+      initializeTimeline();
+      
+      console.log(`Added ${newAudioFiles.length} audio tracks and ${newImageFiles.length} images to timeline`);
+    }
+  }
+
+  function setupSlideshowDragDrop() {
+    const slideshowContainer = document.querySelector('.slideshow__container');
+    if (!slideshowContainer) return;
+
+    // Prevent default behavior for drag events
+    slideshowContainer.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      slideshowContainer.style.opacity = '0.7';
+    });
+
+    slideshowContainer.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      slideshowContainer.style.opacity = '';
+    });
+
+    slideshowContainer.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      slideshowContainer.style.opacity = '';
+
+      try {
+        await handleDrop(e.dataTransfer, 'additive');
+        console.log('Files processed during slideshow');
+      } catch (error) {
+        console.error('Error handling slideshow drop:', error);
+      }
+    });
+  }
+
   function handleTimelineHoverMove(event) {
     if (!timelineState.initialized || !timelineMain) return;
     showHud();
@@ -2402,7 +2853,7 @@
   }
 
   function initializeTimeline(options = {}) {
-    if (!timelineRoot || !mediaData || !mediaData.audioTracks) return;
+    if (!timelineRoot || !mediaData) return;
 
     const data = buildTimelineData();
     if (!data) {
@@ -2510,7 +2961,12 @@
   }
 
   function buildTimelineData() {
-    if (!mediaData || !Array.isArray(mediaData.audioTracks)) return null;
+    if (!mediaData) return null;
+    
+    const hasAudio = Array.isArray(mediaData.audioTracks) && mediaData.audioTracks.length > 0;
+    const hasImages = Array.isArray(mediaData.images) && mediaData.images.length > 0;
+    
+    if (!hasAudio && !hasImages) return null;
 
     const trackRanges = [];
     let minMs = Number.POSITIVE_INFINITY;
@@ -2518,27 +2974,49 @@
 
     const delayMs = getDelaySeconds() * 1000;
 
-    mediaData.audioTracks.forEach((track, index) => {
-      if (!track || !track.duration) return;
-      let startMs = track.adjustedStartTime ? track.adjustedStartTime.getTime() : null;
-      if (!Number.isFinite(startMs)) {
-        if (!(track.fileTimestamp instanceof Date)) return;
-        const referenceMs = track.fileTimestamp.getTime();
-        const durationMs = track.duration * 1000;
-        // Apply delay: negative delay means audio started recording earlier
-        startMs = referenceMs + delayMs;
-        track.adjustedStartTime = new Date(startMs);
-        track.adjustedEndTime = new Date(startMs + durationMs);
+    // Process audio tracks if available
+    if (hasAudio) {
+      mediaData.audioTracks.forEach((track, index) => {
+        if (!track || !track.duration) return;
+        let startMs = track.adjustedStartTime ? track.adjustedStartTime.getTime() : null;
+        if (!Number.isFinite(startMs)) {
+          if (!(track.fileTimestamp instanceof Date)) return;
+          const referenceMs = track.fileTimestamp.getTime();
+          const durationMs = track.duration * 1000;
+          // Apply delay: negative delay means audio started recording earlier
+          startMs = referenceMs + delayMs;
+          track.adjustedStartTime = new Date(startMs);
+          track.adjustedEndTime = new Date(startMs + durationMs);
+        }
+        if (!Number.isFinite(startMs)) return;
+        const endMs = startMs + track.duration * 1000;
+        track.adjustedEndTime = new Date(endMs);
+        trackRanges.push({ track, index, startMs, endMs });
+        if (startMs < minMs) minMs = startMs;
+        if (endMs > maxMs) maxMs = endMs;
+      });
+    }
+    
+    // If we only have images (no audio), use image timestamps to define the timeline range
+    if (!hasAudio && hasImages) {
+      mediaData.images.forEach((img) => {
+        if (!img.originalTimestamp) return;
+        const imgMs = img.originalTimestamp.getTime();
+        if (Number.isFinite(imgMs)) {
+          if (imgMs < minMs) minMs = imgMs;
+          if (imgMs > maxMs) maxMs = imgMs;
+        }
+      });
+      
+      // Add some padding for image-only timelines (30 seconds)
+      if (Number.isFinite(minMs) && Number.isFinite(maxMs)) {
+        maxMs += 30000;
       }
-      if (!Number.isFinite(startMs)) return;
-      const endMs = startMs + track.duration * 1000;
-      track.adjustedEndTime = new Date(endMs);
-      trackRanges.push({ track, index, startMs, endMs });
-      if (startMs < minMs) minMs = startMs;
-      if (endMs > maxMs) maxMs = endMs;
-    });
+    }
 
-    if (!trackRanges.length) return null;
+    if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || minMs >= maxMs) {
+      return null;
+    }
 
     trackRanges.sort((a, b) => a.startMs - b.startMs);
 
