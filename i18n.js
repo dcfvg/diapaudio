@@ -44,6 +44,8 @@
       
       // Timeline
       timelineNotice: "No overlapping images found.",
+      overlapHandlingInfo: "ℹ️ <strong>Overlap Handling:</strong> When audio tracks overlap, playback starts with the first track. When it ends, the second track seamlessly continues from its current position (not from the beginning).",
+      overlapWarning: "⚠️ Overlap detected: \"{trackA}\" begins {duration} before \"{trackB}\" ends.",
       
       // Language selector
       languageLabel: "Language"
@@ -92,6 +94,8 @@
       
       // Timeline
       timelineNotice: "Aucune image superposée trouvée.",
+      overlapHandlingInfo: "ℹ️ <strong>Gestion des chevauchements :</strong> Lorsque des pistes audio se chevauchent, la lecture commence avec la première piste. Quand elle se termine, la deuxième piste continue de manière transparente depuis sa position actuelle (pas depuis le début).",
+      overlapWarning: "⚠️ Chevauchement détecté : \"{trackA}\" commence {duration} avant la fin de \"{trackB}\".",
       
       // Language selector
       languageLabel: "Langue"
@@ -140,6 +144,8 @@
       
       // Timeline
       timelineNotice: "No se encontraron imágenes superpuestas.",
+      overlapHandlingInfo: "ℹ️ <strong>Manejo de superposiciones:</strong> Cuando las pistas de audio se superponen, la reproducción comienza con la primera pista. Cuando termina, la segunda pista continúa sin problemas desde su posición actual (no desde el principio).",
+      overlapWarning: "⚠️ Superposición detectada: \"{trackA}\" comienza {duration} antes de que termine \"{trackB}\".",
       
       // Language selector
       languageLabel: "Idioma"

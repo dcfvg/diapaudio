@@ -1636,8 +1636,17 @@
 
   function cleanTrackNameForDisplay(name) {
     if (!name) return "";
+    
+    // Extract filename from path (remove folder names)
+    // Handle both forward slashes (Unix/Mac) and backslashes (Windows)
+    let cleaned = name;
+    const lastSlash = Math.max(cleaned.lastIndexOf('/'), cleaned.lastIndexOf('\\'));
+    if (lastSlash >= 0) {
+      cleaned = cleaned.substring(lastSlash + 1);
+    }
+    
     // Remove file extension
-    let cleaned = name.replace(/\.[^.]+$/, "");
+    cleaned = cleaned.replace(/\.[^.]+$/, "");
     
     // Remove date patterns: YYYY-MM-DD, YYYY.MM.DD, DD-MM-YYYY, etc.
     cleaned = cleaned.replace(/\d{2,4}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}/g, "");
@@ -2484,6 +2493,14 @@
     return `${hrs}:${mins}:${secs}`;
   }
 
+  function formatDateAndTime(date) {
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    const time = formatClockWithSeconds(date);
+    return `${day}/${month}/${year} — ${time}`;
+  }
+
   function sortImagesByTimestamp(images) {
     if (!Array.isArray(images)) return [];
     return [...images].sort((a, b) => {
@@ -2988,7 +3005,7 @@
     }
 
     if (timelineHoverPreviewTime) {
-      timelineHoverPreviewTime.textContent = formatClockWithSeconds(new Date(absoluteMs));
+      timelineHoverPreviewTime.textContent = formatDateAndTime(new Date(absoluteMs));
     }
 
     // Display the audio track name at this time
@@ -3303,12 +3320,13 @@
           if (overlap >= OVERLAP_REPORT_THRESHOLD_MS) {
             // First overlap detected - add explanatory message
             if (anomalies.length === 0) {
-              anomalies.push(
-                `ℹ️ <strong>Overlap Handling:</strong> When audio tracks overlap, playback starts with the first track. When it ends, the second track seamlessly continues from its current position (not from the beginning).`
-              );
+              anomalies.push(t('overlapHandlingInfo'));
             }
             anomalies.push(
-              `⚠️ Overlap detected: "${range.track.label}" begins ${formatDurationMs(overlap)} before "${latestRange.track.label}" ends.`
+              t('overlapWarning')
+                .replace('{trackA}', range.track.label)
+                .replace('{duration}', formatDurationMs(overlap))
+                .replace('{trackB}', latestRange.track.label)
             );
           }
         } else {
@@ -3558,10 +3576,22 @@
     const step = computeTickStep(range, timelineWidth);
     if (!step) return;
 
+    // Check if the timeline spans multiple days
+    const startDate = new Date(timelineState.viewStartMs);
+    const endDate = new Date(timelineState.viewEndMs);
+    const spansMultipleDays = !isSameDay(startDate, endDate);
+    
+    // Check if corpus (entire dataset) spans multiple days
+    const corpusStartDate = new Date(timelineState.minMs);
+    const corpusEndDate = new Date(timelineState.maxMs);
+    const corpusSpansMultipleDays = !isSameDay(corpusStartDate, corpusEndDate);
+
     // Determine if we should show seconds in labels
     const showSeconds = step < 60 * 1000; // Show seconds if step is less than 1 minute
 
     const firstTick = alignToStep(timelineState.viewStartMs, step);
+    const tickElements = []; // Store tick elements with their positions for overlap detection
+    
     for (let tick = firstTick; tick <= timelineState.viewEndMs + 1; tick += step) {
       const position = ((tick - timelineState.viewStartMs) / range) * 100;
       if (position < -2 || position > 102) continue;
@@ -3571,29 +3601,108 @@
       tickEl.className = "timeline__axis-tick";
       tickEl.style.left = `${position}%`;
       
-      // Format label based on granularity
+      // Format label based on granularity and date context
       const tickDate = new Date(tick);
-      if (showSeconds) {
-        // Show HH:MM:SS for fine granularity
-        const h = String(tickDate.getHours()).padStart(2, '0');
-        const m = String(tickDate.getMinutes()).padStart(2, '0');
-        const s = String(tickDate.getSeconds()).padStart(2, '0');
-        tickEl.textContent = `${h}:${m}:${s}`;
+      
+      // If corpus spans multiple days, show only dates (no time)
+      if (corpusSpansMultipleDays) {
+        const dateLabel = formatDateShort(tickDate);
+        tickEl.textContent = dateLabel;
       } else {
-        // Show HH:MM for normal granularity
-        tickEl.textContent = formatClock(tickDate);
+        // Single day: show time only
+        let timeLabel;
+        if (showSeconds) {
+          // Show HH:MM:SS for fine granularity
+          const h = String(tickDate.getHours()).padStart(2, '0');
+          const m = String(tickDate.getMinutes()).padStart(2, '0');
+          const s = String(tickDate.getSeconds()).padStart(2, '0');
+          timeLabel = `${h}:${m}:${s}`;
+        } else {
+          // Show HH:MM for normal granularity
+          timeLabel = formatClock(tickDate);
+        }
+        tickEl.textContent = timeLabel;
       }
       
-      timelineAxis.appendChild(tickEl);
+      tickElements.push({ element: tickEl, position });
+    }
+    
+    // Apply anti-overlap logic: hide ticks that would overlap
+    const hiddenIndices = computeTickVisibility(tickElements, timelineWidth);
+    
+    // Append visible ticks to DOM
+    tickElements.forEach((tick, index) => {
+      if (!hiddenIndices.has(index)) {
+        timelineAxis.appendChild(tick.element);
+        
+        // Create gridline for visible ticks
+        if (timelineGridlines) {
+          const gridlineEl = document.createElement("div");
+          gridlineEl.className = "timeline__gridline";
+          gridlineEl.style.left = `${tick.position}%`;
+          timelineGridlines.appendChild(gridlineEl);
+        }
+      }
+    });
+  }
+
+  /**
+   * Compute which ticks should be visible to prevent overlap
+   * Returns a Set of indices to hide
+   */
+  function computeTickVisibility(tickElements, timelineWidth) {
+    if (tickElements.length === 0) return new Set();
+    
+    const hiddenIndices = new Set();
+    const TICK_MIN_SPACING_PX = 60; // Minimum pixels between tick labels
+    
+    // Measure actual widths (approximate based on font size and content)
+    // Average character width: ~7px at 0.68rem (approx 11px)
+    const avgCharWidth = 7;
+    
+    tickElements.forEach((tick, i) => {
+      tick.element.style.visibility = 'hidden'; // Temporarily hide to measure
+      timelineAxis.appendChild(tick.element);
+    });
+    
+    // Calculate widths
+    const tickData = tickElements.map((tick, i) => {
+      const width = tick.element.offsetWidth || (tick.element.textContent.length * avgCharWidth);
+      return {
+        index: i,
+        position: tick.position,
+        width,
+        positionPx: (tick.position / 100) * timelineWidth,
+      };
+    });
+    
+    // Remove temporary elements
+    tickElements.forEach(tick => {
+      if (tick.element.parentNode) {
+        tick.element.parentNode.removeChild(tick.element);
+      }
+      tick.element.style.visibility = '';
+    });
+    
+    // Greedy algorithm: keep first, check subsequent ticks for overlap
+    let lastVisibleIndex = 0;
+    
+    for (let i = 1; i < tickData.length; i++) {
+      const lastVisible = tickData[lastVisibleIndex];
+      const current = tickData[i];
       
-      // Create gridline
-      if (timelineGridlines) {
-        const gridlineEl = document.createElement("div");
-        gridlineEl.className = "timeline__gridline";
-        gridlineEl.style.left = `${position}%`;
-        timelineGridlines.appendChild(gridlineEl);
+      const lastVisibleEnd = lastVisible.positionPx + (lastVisible.width / 2);
+      const currentStart = current.positionPx - (current.width / 2);
+      const spacing = currentStart - lastVisibleEnd;
+      
+      if (spacing < TICK_MIN_SPACING_PX) {
+        hiddenIndices.add(i);
+      } else {
+        lastVisibleIndex = i;
       }
     }
+    
+    return hiddenIndices;
   }
 
   function computeTickStep(rangeMs, viewportWidth = 800) {
@@ -3608,8 +3717,8 @@
     const tenSeconds = 10 * 1000;
 
     // Calculate target number of ticks based on viewport width
-    // Aim for ~80-120px between ticks for good readability
-    const minTickSpacing = 80;
+    // Responsive: more ticks on wider screens, fewer on narrow screens
+    const minTickSpacing = viewportWidth < 600 ? 100 : 80;
     const maxTickCount = Math.max(5, Math.floor(viewportWidth / minTickSpacing));
     
     // Calculate ideal step to achieve target tick count
@@ -3646,6 +3755,24 @@
 
   function alignToStep(startMs, stepMs) {
     return Math.ceil(startMs / stepMs) * stepMs;
+  }
+
+  /**
+   * Check if two dates are on the same day
+   */
+  function isSameDay(date1, date2) {
+    return date1.getFullYear() === date2.getFullYear() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getDate() === date2.getDate();
+  }
+
+  /**
+   * Format date in short format (e.g., "Jan 15" or "1/15")
+   */
+  function formatDateShort(date) {
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${month}/${day}`;
   }
 
   function updateTimelineGradients() {
@@ -3831,40 +3958,148 @@
     }
 
     const total = endMs - startMs;
-    const segments = [];
+    const stops = [];
     let cursor = startMs;
+
+    // Day/Night colors - Black and white theme
+    const nightColor = "rgba(0, 0, 0, 0.5)"; // Black for night
+    const dayColor = "rgba(255, 255, 255, 0.11)"; // White for day (25% darker)
+    const sunriseColor = "rgba(128, 128, 128, 0.3)"; // Gray for sunrise
+    const sunsetColor = "rgba(128, 128, 128, 0.3)"; // Gray for sunset
 
     while (cursor < endMs) {
       const currentDate = new Date(cursor);
       const hour = currentDate.getHours();
-      const isDay = hour >= 6 && hour < 18;
-      const boundary = new Date(currentDate);
+      const minute = currentDate.getMinutes();
+      const timeInHours = hour + minute / 60;
 
-      if (isDay) {
-        boundary.setHours(18, 0, 0, 0);
-      } else if (hour < 6) {
-        boundary.setHours(6, 0, 0, 0);
+      // Define transition periods (accelerated changes at sunrise/sunset)
+      const sunrise = 6; // 6:00 AM
+      const sunriseEnd = 7.5; // 7:30 AM
+      const sunset = 18; // 6:00 PM
+      const sunsetEnd = 19.5; // 7:30 PM
+
+      let nextBoundary;
+      
+      if (timeInHours < sunrise) {
+        // Night until sunrise
+        nextBoundary = new Date(currentDate);
+        nextBoundary.setHours(sunrise, 0, 0, 0);
+      } else if (timeInHours < sunriseEnd) {
+        // Sunrise transition - add more stops for smooth gradient
+        const sunriseProgress = (timeInHours - sunrise) / (sunriseEnd - sunrise);
+        const easeProgress = easeInOutQuad(sunriseProgress);
+        
+        // Add intermediate stops during sunrise
+        nextBoundary = new Date(currentDate);
+        nextBoundary.setHours(sunrise, 0, 0, 0);
+        nextBoundary.setTime(nextBoundary.getTime() + (sunriseEnd - sunrise) * 60 * 60 * 1000);
+        
+        // Create multiple color stops for sunrise
+        for (let i = 0; i <= 4; i++) {
+          const frac = i / 4;
+          const easedFrac = easeInOutQuad(frac);
+          const transitionTime = sunrise + frac * (sunriseEnd - sunrise);
+          const transitionDate = new Date(currentDate);
+          transitionDate.setHours(Math.floor(transitionTime), (transitionTime % 1) * 60, 0, 0);
+          const transitionMs = transitionDate.getTime();
+          
+          if (transitionMs >= cursor && transitionMs <= endMs) {
+            const pct = ((transitionMs - startMs) / total) * 100;
+            const color = interpolateColor(nightColor, dayColor, easedFrac, sunriseColor, frac > 0.3 && frac < 0.7);
+            stops.push({ pct, color });
+          }
+        }
+        
+        cursor = Math.min(nextBoundary.getTime(), endMs);
+        continue;
+      } else if (timeInHours < sunset) {
+        // Full day
+        nextBoundary = new Date(currentDate);
+        nextBoundary.setHours(sunset, 0, 0, 0);
+      } else if (timeInHours < sunsetEnd) {
+        // Sunset transition - add more stops for smooth gradient
+        nextBoundary = new Date(currentDate);
+        nextBoundary.setHours(sunset, 0, 0, 0);
+        nextBoundary.setTime(nextBoundary.getTime() + (sunsetEnd - sunset) * 60 * 60 * 1000);
+        
+        // Create multiple color stops for sunset
+        for (let i = 0; i <= 4; i++) {
+          const frac = i / 4;
+          const easedFrac = easeInOutQuad(frac);
+          const transitionTime = sunset + frac * (sunsetEnd - sunset);
+          const transitionDate = new Date(currentDate);
+          transitionDate.setHours(Math.floor(transitionTime), (transitionTime % 1) * 60, 0, 0);
+          const transitionMs = transitionDate.getTime();
+          
+          if (transitionMs >= cursor && transitionMs <= endMs) {
+            const pct = ((transitionMs - startMs) / total) * 100;
+            const color = interpolateColor(dayColor, nightColor, easedFrac, sunsetColor, frac > 0.3 && frac < 0.7);
+            stops.push({ pct, color });
+          }
+        }
+        
+        cursor = Math.min(nextBoundary.getTime(), endMs);
+        continue;
       } else {
-        boundary.setDate(boundary.getDate() + 1);
-        boundary.setHours(6, 0, 0, 0);
+        // Night after sunset
+        nextBoundary = new Date(currentDate);
+        nextBoundary.setDate(nextBoundary.getDate() + 1);
+        nextBoundary.setHours(sunrise, 0, 0, 0);
       }
 
-      const boundaryMs = Math.min(boundary.getTime(), endMs);
+      const boundaryMs = Math.min(nextBoundary.getTime(), endMs);
       const startPct = ((cursor - startMs) / total) * 100;
       const endPct = ((boundaryMs - startMs) / total) * 100;
-      const color = isDay
-        ? "rgba(255, 214, 102, 0.16)"
-        : "rgba(22, 32, 64, 0.42)";
-      segments.push(`${color} ${startPct}% ${endPct}%`);
-
-      if (boundaryMs === cursor) {
-        cursor += 60 * 60 * 1000;
+      
+      let color;
+      if (timeInHours >= sunriseEnd && timeInHours < sunset) {
+        color = dayColor;
       } else {
-        cursor = boundaryMs;
+        color = nightColor;
+      }
+      
+      stops.push({ pct: startPct, color });
+      if (endPct !== startPct) {
+        stops.push({ pct: endPct, color });
+      }
+
+      cursor = boundaryMs;
+      if (cursor === boundaryMs && boundaryMs < endMs) {
+        cursor += 1000; // Advance by 1 second to avoid infinite loop
       }
     }
 
-    return `linear-gradient(to right, ${segments.join(", ")})`;
+    // Sort stops by percentage and build gradient string
+    stops.sort((a, b) => a.pct - b.pct);
+    const gradientStops = stops.map(s => `${s.color} ${s.pct.toFixed(2)}%`).join(", ");
+    
+    return `linear-gradient(to right, ${gradientStops})`;
+  }
+
+  /**
+   * Ease in-out quadratic function for smooth acceleration/deceleration
+   */
+  function easeInOutQuad(t) {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+
+  /**
+   * Interpolate between two rgba colors with optional highlight color at midpoint
+   */
+  function interpolateColor(color1, color2, t, highlightColor = null, useHighlight = false) {
+    if (useHighlight && highlightColor) {
+      return highlightColor;
+    }
+    
+    // Simple approach: just blend between start and end
+    // For more sophisticated blending, we'd parse rgba values
+    if (t <= 0) return color1;
+    if (t >= 1) return color2;
+    
+    // Simple crossfade using rgba
+    // This is a simplified version; full implementation would parse and blend
+    return t < 0.5 ? color1 : color2;
   }
 
   function clamp(value, min, max) {
