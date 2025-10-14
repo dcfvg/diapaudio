@@ -204,6 +204,23 @@
       requestedTrackIndex: null,
     };
 
+    // Helper: find all overlapping tracks for a given absolute time
+    function getOverlappingTracks(absoluteMs) {
+      if (!mediaData || !mediaData.audioTracks) return [];
+      return mediaData.audioTracks
+        .map((track, idx) => ({
+          ...track,
+          _index: idx,
+        }))
+        .filter(track => {
+          if (!(track.adjustedStartTime instanceof Date)) return false;
+          const start = track.adjustedStartTime.getTime();
+          const end = Number.isFinite(track.duration) ? start + track.duration * 1000 : Infinity;
+          return absoluteMs >= start && absoluteMs < end;
+        })
+        .sort((a, b) => a.adjustedStartTime - b.adjustedStartTime);
+    }
+
     function getPlaybackRate() {
       const rate = Number.isFinite(audioElement.playbackRate)
         ? audioElement.playbackRate
@@ -297,16 +314,20 @@
     function syncTrackForAbsolute(absoluteMs) {
       if (!Number.isFinite(absoluteMs)) return;
 
-      const targetIndex = findAudioTrackForTimestamp(absoluteMs);
-      const activeIndex = mediaData?.activeTrackIndex ?? null;
-
-      if (targetIndex === -1) {
+      // Find all overlapping tracks at this absolute time
+      const overlapping = getOverlappingTracks(absoluteMs);
+      if (!overlapping.length) {
         if (!audioElement.paused) {
           audioElement.pause();
         }
         state.requestedTrackIndex = null;
         return;
       }
+      
+      // Play the one that started first
+      const primary = overlapping[0];
+      const targetIndex = primary._index;
+      const activeIndex = mediaData?.activeTrackIndex ?? null;
 
       if (targetIndex !== activeIndex) {
         if (state.requestedTrackIndex !== targetIndex) {
@@ -324,7 +345,6 @@
 
       const trackStartMs = track.adjustedStartTime.getTime();
       const relativeSeconds = (absoluteMs - trackStartMs) / 1000;
-      // Note: delay is already applied in adjustedStartTime, so relativeSeconds is the actual position in the audio
 
       const canControlAudio =
         audioElement.readyState >= 1 || Number.isFinite(audioElement.duration);
@@ -334,8 +354,6 @@
           Number.isFinite(audioElement.duration) && audioElement.duration > 0
             ? audioElement.duration
             : track.duration;
-        // Ensure we don't seek beyond the duration, but allow getting very close to the end
-        // Only apply a tiny buffer (0.01 seconds) to prevent seeking past the actual end
         const maxSeekPosition = Number.isFinite(duration) ? Math.max(0, duration - 0.01) : duration;
         const targetSeconds = Number.isFinite(duration)
           ? clamp(relativeSeconds, 0, maxSeekPosition)
@@ -356,6 +374,20 @@
       } else if (!audioElement.paused) {
         audioElement.pause();
       }
+
+      // When the current track ends, if there is another overlapping, continue it from its current position
+      audioElement.onended = function () {
+        if (!state.playing) return;
+        // Find next overlapping (excluding the one that just ended)
+        const nowAbs = trackStartMs + (audioElement.duration * 1000);
+        const overlaps = getOverlappingTracks(nowAbs).filter(t => t._index !== targetIndex);
+        if (overlaps.length) {
+          // Seek to the current absolute time in the next overlapping track
+          setPendingSeek(null, true, overlaps[0]._index, nowAbs);
+          state.requestedTrackIndex = overlaps[0]._index;
+          requestTrack(overlaps[0]._index, true);
+        }
+      };
     }
 
     function tick(now) {
@@ -508,6 +540,7 @@
     highlightTimeMs: null,
     imageStackMagnitude: 0,
     anomalyMessages: [],
+    noticesShown: false, // Track if modal has been shown
   };
   let timelineInteractionsReady = false;
   let isHoverScrubbing = false;
@@ -1478,6 +1511,9 @@
     destroyWaveform();
     releaseMediaResources(mediaData);
     destroyTimeline();
+    
+    // Reset notices flag when loading new media files
+    timelineState.noticesShown = false;
 
     mediaData = {
       audioTracks: audioTracks || [],
@@ -3265,8 +3301,14 @@
           range.overlapMs = overlap;
           latestRange.overlapAheadMs = Math.max(latestRange.overlapAheadMs || 0, overlap);
           if (overlap >= OVERLAP_REPORT_THRESHOLD_MS) {
+            // First overlap detected - add explanatory message
+            if (anomalies.length === 0) {
+              anomalies.push(
+                `ℹ️ <strong>Overlap Handling:</strong> When audio tracks overlap, playback starts with the first track. When it ends, the second track seamlessly continues from its current position (not from the beginning).`
+              );
+            }
             anomalies.push(
-              `Overlap detected: "${range.track.label}" begins ${formatDurationMs(overlap)} before "${latestRange.track.label}" ends.`
+              `⚠️ Overlap detected: "${range.track.label}" begins ${formatDurationMs(overlap)} before "${latestRange.track.label}" ends.`
             );
           }
         } else {
@@ -3741,6 +3783,27 @@
       .map((message) => `<div>${message}</div>`)
       .join("");
     timelineNotices.classList.remove("hidden");
+  }
+
+  function updateTimelineNotices() {
+    const modal = document.getElementById("timeline-notices-modal");
+    const messagesContainer = document.getElementById("timeline-notices-modal-messages");
+    const closeBtn = document.getElementById("timeline-notices-modal-close");
+    const messages = timelineState.anomalyMessages || [];
+    if (!modal || !messagesContainer || !closeBtn) return;
+    
+    // Only show modal once per session (on initial load with anomalies)
+    if (!messages.length || timelineState.noticesShown) {
+      return;
+    }
+    
+    messagesContainer.innerHTML = messages.map((message) => `<div>${message}</div>`).join("");
+    modal.classList.remove("hidden");
+    timelineState.noticesShown = true;
+    
+    closeBtn.onclick = () => {
+      modal.classList.add("hidden");
+    };
   }
 
   function highlightTimelineImages(images) {

@@ -829,12 +829,14 @@ body {
 }
 
 .timeline__hover-preview-images {
+  position: relative;
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 12px;
+  padding-top: 36px;
   background: rgba(8, 10, 16, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
@@ -866,17 +868,21 @@ body {
 }
 
 .timeline__hover-preview-track {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  right: 12px;
   font-size: 0.72rem;
   color: rgba(255, 255, 255, 0.95);
   padding: 0.3rem 0.7rem;
   background: rgba(0, 0, 0, 0.85);
-  border-radius: 999px;
-  margin-bottom: 0.4rem;
-  max-width: 220px;
+  border-radius: 4px;
+  max-width: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
+  text-align: center;
 }
 
 .timeline__hover-preview-time {
@@ -1000,6 +1006,73 @@ body {
 
 .timeline__notices.hidden {
   display: none;
+}
+
+.timeline-notices-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--bg-overlay);
+  z-index: var(--z-modal, 1050);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.18s;
+}
+
+.timeline-notices-modal.hidden {
+  display: none;
+}
+
+.timeline-notices-modal__content {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  padding: 2.2rem 2.5rem 1.5rem 2.5rem;
+  min-width: 320px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.timeline-notices-modal__close {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 1.7rem;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  z-index: 2;
+}
+
+.timeline-notices-modal__close:hover {
+  opacity: 1;
+}
+
+#timeline-notices-modal-messages > div {
+  margin-bottom: 0.7rem;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+#timeline-notices-modal-messages > div:first-child {
+  background: rgba(59, 130, 246, 0.15);
+  border-left: 3px solid rgba(59, 130, 246, 0.6);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.2rem;
+  border-radius: 4px;
+}
+
+#timeline-notices-modal-messages > div:not(:first-child) {
+  padding-left: 0.5rem;
 }
 
 .control-button {
