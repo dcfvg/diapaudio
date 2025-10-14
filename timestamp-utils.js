@@ -7,6 +7,35 @@
     const basename = name.split("/").pop() || name;
     const clean = basename.replace(/\.[^.]+$/, "");
 
+    // Helper function to validate and create date
+    function tryCreateDate(year, month, day, hours, minutes, seconds, milliseconds = 0) {
+      // Convert 2-digit year to 4-digit (00-49 = 2000-2049, 50-99 = 1950-1999)
+      if (year < 100) {
+        year = year < 50 ? 2000 + year : 1900 + year;
+      }
+      
+      // Validate ranges
+      if (
+        !Number.isInteger(year) ||
+        !Number.isInteger(month) ||
+        !Number.isInteger(day) ||
+        !Number.isInteger(hours) ||
+        !Number.isInteger(minutes) ||
+        !Number.isInteger(seconds) ||
+        year < 1900 || year > 2100 ||
+        month < 1 || month > 12 ||
+        day < 1 || day > 31 ||
+        hours < 0 || hours >= 24 ||
+        minutes < 0 || minutes >= 60 ||
+        seconds < 0 || seconds >= 60
+      ) {
+        return null;
+      }
+      
+      const date = new Date(year, month - 1, day, hours, minutes, seconds, milliseconds);
+      return !isNaN(date.getTime()) ? date : null;
+    }
+
     const regexes = [
       // With milliseconds: YYYY-MM-DD HH:MM:SS.mmm (check first for longest match)
       /(\d{4})[-_](\d{2})[-_](\d{2})[ T_-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})[.,](\d{1,3})/,
@@ -14,8 +43,11 @@
       // ISO 8601-like formats: YYYY-MM-DD HH:MM:SS or YYYY-MM-DDTHH:MM:SS
       /(\d{4})[-_](\d{2})[-_](\d{2})[ T_-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
       
-      // Compact: YYYYMMDD_HHMMSS or YYYYMMDDHHMMSS
+      // Compact 4-digit year: YYYYMMDD_HHMMSS or YYYYMMDDHHMMSS
       /(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})/,
+      
+      // Compact 2-digit year: YYMMDD_HHMMSS (e.g., "Voix 251010_135232.m4a")
+      /(\d{2})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})/,
       
       // European format: DD-MM-YYYY HH:MM:SS
       /(\d{2})[-_](\d{2})[-_](\d{4})[ _-](\d{2})[.\-_:](\d{2})[.\-_:](\d{2})/,
@@ -90,123 +122,50 @@
         // WhatsApp style: IMG-YYYYMMDD-WA#### (date only, no time)
         else if (match.length === 4 && /IMG/i.test(match[0])) {
           const [, yearStr, monthStr, dayStr] = match;
-          const year = Number(yearStr);
-          const month = Number(monthStr);
-          const day = Number(dayStr);
+          const result = tryCreateDate(
+            Number(yearStr),
+            Number(monthStr),
+            Number(dayStr),
+            0, 0, 0
+          );
+          if (result) return result;
+        }
+        
+        // Full date + time: 6 or 7 captures
+        else if (match.length === 7 || match.length === 8) {
+          // Determine if this is a 2-digit or 4-digit year format
+          const captureCount = match.length - 1; // Exclude full match
+          const captures = match.slice(1).map(Number);
           
-          if (
-            Number.isInteger(year) &&
-            Number.isInteger(month) &&
-            Number.isInteger(day) &&
-            year >= 1900 &&
-            year <= 2100 &&
-            month >= 1 &&
-            month <= 12 &&
-            day >= 1 &&
-            day <= 31
-          ) {
-            const ts = new Date(year, month - 1, day, 0, 0, 0);
-            if (!Number.isNaN(ts.getTime())) {
-              return ts;
-            }
+          // Check if first capture looks like a year (4 digits > 1000, or 2 digits for YY format)
+          const firstValue = captures[0];
+          const firstLength = match[1].length;
+          
+          let year, month, day, hours, minutes, seconds, milliseconds = 0;
+          
+          if (captureCount === 7) {
+            // With milliseconds: Y-M-D H:M:S.ms
+            milliseconds = captures[6];
           }
-        }
-        
-        // Full date + time: YYYY-MM-DD HH:MM:SS (and variations)
-        else if (match.length === 7) {
-          let [, p1Str, p2Str, p3Str, hoursStr, minutesStr, secondsStr] = match;
-          const p1 = Number(p1Str);
-          const p2 = Number(p2Str);
-          const p3 = Number(p3Str);
-          const hours = Number(hoursStr);
-          const minutes = Number(minutesStr);
-          const seconds = Number(secondsStr);
-
-          let year;
-          let month;
-          let day;
-
-          // Determine date format by examining the values
-          if (p1 > 1000) {
+          
+          // Extract time components (always last 3 or 4 values)
+          seconds = captures[captureCount - 1];
+          minutes = captures[captureCount - 2];
+          hours = captures[captureCount - 3];
+          
+          // Extract date components (first 3 values)
+          const p1 = captures[0];
+          const p2 = captures[1];
+          const p3 = captures[2];
+          
+          // Determine format based on value ranges and lengths
+          if (firstLength === 4 && p1 > 1000) {
             // YYYY-MM-DD format
             year = p1;
             month = p2;
             day = p3;
-          } else if (p3 > 1000) {
-            // DD-MM-YYYY or MM-DD-YYYY format
-            // Disambiguate: if p1 > 12, it must be day
-            if (p1 > 12) {
-              day = p1;
-              month = p2;
-            } else if (p2 > 12) {
-              // p2 must be day
-              month = p1;
-              day = p2;
-            } else {
-              // Ambiguous - assume DD-MM-YYYY (European)
-              day = p1;
-              month = p2;
-            }
-            year = p3;
-          } else {
-            // Default fallback
-            year = p1;
-            month = p2;
-            day = p3;
-          }
-
-          if (
-            Number.isInteger(year) &&
-            Number.isInteger(month) &&
-            Number.isInteger(day) &&
-            Number.isInteger(hours) &&
-            Number.isInteger(minutes) &&
-            Number.isInteger(seconds) &&
-            year >= 1900 &&
-            year <= 2100 &&
-            month >= 1 &&
-            month <= 12 &&
-            day >= 1 &&
-            day <= 31 &&
-            hours >= 0 &&
-            hours < 24 &&
-            minutes >= 0 &&
-            minutes < 60 &&
-            seconds >= 0 &&
-            seconds < 60
-          ) {
-            const ts = new Date(
-              year,
-              month - 1,
-              day,
-              hours,
-              minutes,
-              seconds
-            );
-            if (!Number.isNaN(ts.getTime())) {
-              return ts;
-            }
-          }
-        }
-        
-        // Full date + time with milliseconds: YYYY-MM-DD HH:MM:SS.mmm
-        else if (match.length === 8) {
-          let [, p1Str, p2Str, p3Str, hoursStr, minutesStr, secondsStr, msStr] = match;
-          const p1 = Number(p1Str);
-          const p2 = Number(p2Str);
-          const p3 = Number(p3Str);
-          const hours = Number(hoursStr);
-          const minutes = Number(minutesStr);
-          const seconds = Number(secondsStr);
-          const milliseconds = Number(msStr);
-
-          let year;
-          let month;
-          let day;
-
-          // Determine date format by examining the values
-          if (p1 > 1000) {
-            // YYYY-MM-DD format
+          } else if (firstLength === 2 && p1 <= 99) {
+            // YY-MM-DD format (2-digit year)
             year = p1;
             month = p2;
             day = p3;
@@ -225,48 +184,14 @@
             }
             year = p3;
           } else {
-            // Default fallback
+            // Fallback to YYYY-MM-DD
             year = p1;
             month = p2;
             day = p3;
           }
-
-          if (
-            Number.isInteger(year) &&
-            Number.isInteger(month) &&
-            Number.isInteger(day) &&
-            Number.isInteger(hours) &&
-            Number.isInteger(minutes) &&
-            Number.isInteger(seconds) &&
-            Number.isInteger(milliseconds) &&
-            year >= 1900 &&
-            year <= 2100 &&
-            month >= 1 &&
-            month <= 12 &&
-            day >= 1 &&
-            day <= 31 &&
-            hours >= 0 &&
-            hours < 24 &&
-            minutes >= 0 &&
-            minutes < 60 &&
-            seconds >= 0 &&
-            seconds < 60 &&
-            milliseconds >= 0 &&
-            milliseconds < 1000
-          ) {
-            const ts = new Date(
-              year,
-              month - 1,
-              day,
-              hours,
-              minutes,
-              seconds,
-              milliseconds
-            );
-            if (!Number.isNaN(ts.getTime())) {
-              return ts;
-            }
-          }
+          
+          const result = tryCreateDate(year, month, day, hours, minutes, seconds, milliseconds);
+          if (result) return result;
         }
       }
     }
