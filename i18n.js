@@ -7,18 +7,18 @@
       tagline: "🎧 Playback photos synced with recordings of that day.",
       
       // Instructions
-      stepsTitle: "How to prepare:",
-      step1Title: "Collect your files",
-      step1Text: "Place audio recordings and the matching photos in <strong>one folder</strong>.",
-      step2Title: "Use timestamps",
-      step2Text: "Name each file with its capture time, for example <code>2025-01-01_08-00-00.jpg</code> <br/>(or make sure they contain metadata)",
-      step3Title: "Drop the folder or ZIP",
-      step3Text: "Drag it here or browse for it below to replay the day.",
+  stepsTitle: "How to prepare:",
+  step1Title: "Compile audio recordings and matching photos.",
+  step1Text: "Recordings and photos do not need to be continuous or taken at the same time.",
+  step2Title: "Use timestamps or metadata",
+  step2Text: "Name each file with its capture time (e.g. <code>2025-01-01_08-00-00.jpg</code>) or make sure files contain metadata.",
+  step3Title: "Drop a folder, files, or a ZIP archive",
+  step3Text: "Drop a folder, files, or a ZIP archive in this area.",
       
       // CTA and buttons
-      dropMessage: "Drop your prepared folder or ZIP file anywhere in this area.",
+  dropMessage: "Drop a folder, files, or a ZIP archive in this area.",
       buttonFolder: "📂 Choose a folder",
-      buttonZip: "📦 Choose a ZIP file",
+  buttonZip: "📦 Choose a ZIP archive",
       buttonFiles: "🎙️🖼️ Choose files",
       
       // Notes
@@ -70,21 +70,21 @@
     fr: {
       // Page title and main heading
       appTitle: "diapaudio 🛝",
-      tagline: "🎧 Synchronisez vos photos avec vos enregistrements audio.",
+  tagline: "🎧 Synchroniser des photos avec des enregistrements audio.",
       
       // Instructions
-      stepsTitle: "Comment préparer :",
-      step1Title: "Rassemblez vos fichiers",
-      step1Text: "Placez les enregistrements audios et les photos correspondantes dans <strong>un seul dossier</strong>.",
-      step2Title: "Utilisez des horodatages",
-      step2Text: "Nommez chaque fichier avec son heure de capture, par exemple <code>2025-01-01_08-00-00.jpg</code> <br/>(ou assurez-vous qu'ils contiennent des métadonnées)",
-      step3Title: "Déposez le dossier ou ZIP",
-      step3Text: "Glissez-le ici ou parcourez ci-dessous pour rejouer la journée.",
+  stepsTitle: "Préparation :",
+  step1Title: "Compiler les enregistrements audio et les photos correspondantes.",
+  step1Text: "Les enregistrements et les photos n'ont pas besoin d'être continus ni pris au même moment.",
+  step2Title: "Utiliser des horodatages ou des métadonnées",
+  step2Text: "Nommer chaque fichier avec l'heure de capture (ex : <code>2025-01-01_08-00-00.jpg</code>) ou s'assurer que les fichiers contiennent des métadonnées.",
+  step3Title: "Déposer le dossier, des fichiers ou une archive ZIP",
+  step3Text: "Déposer un dossier, des fichiers ou une archive ZIP dans cette zone.",
       
       // CTA and buttons
-      dropMessage: "Déposez votre dossier ou fichier ZIP préparé n'importe où dans cette zone.",
+  dropMessage: "Déposer un dossier, des fichiers ou une archive ZIP dans cette zone.",
       buttonFolder: "📂 Choisir un dossier",
-      buttonZip: "📦 Choisir un fichier ZIP",
+  buttonZip: "📦 Choisir une archive ZIP",
       buttonFiles: "🎙️🖼️ Choisir des fichiers",
       
       // Notes
@@ -139,18 +139,18 @@
       tagline: "🎧 Reproduce fotos sincronizadas con grabaciones de ese día.",
       
       // Instructions
-      stepsTitle: "Cómo preparar:",
-      step1Title: "Reúne tus archivos",
-      step1Text: "Coloca la grabación de audio y las fotos correspondientes en <strong>una sola carpeta</strong>.",
-      step2Title: "Usa marcas de tiempo",
-      step2Text: "Nombra cada archivo con su hora de captura, por ejemplo <code>2025-01-01_08-00-00.jpg</code> <br/>(o asegúrate de que contengan metadatos)",
-      step3Title: "Arrastra la carpeta o ZIP",
-      step3Text: "Arrástralo aquí o explora a continuación para reproducir el día.",
+  stepsTitle: "Cómo preparar:",
+  step1Title: "Compilar grabaciones de audio y fotos correspondientes.",
+  step1Text: "Las grabaciones y las fotos no tienen que ser continuas ni tomadas al mismo tiempo.",
+  step2Title: "Usar marcas de tiempo o metadatos",
+  step2Text: "Nombrar cada archivo con la hora de captura (ej: <code>2025-01-01_08-00-00.jpg</code>) o asegurarse de que los archivos contengan metadatos.",
+  step3Title: "Soltar una carpeta, archivos o un archivo ZIP",
+  step3Text: "Soltar una carpeta, archivos o un archivo ZIP en esta zona.",
       
       // CTA and buttons
-      dropMessage: "Arrastra tu carpeta o archivo ZIP preparado en cualquier lugar de esta área.",
+  dropMessage: "Soltar una carpeta, archivos o un archivo ZIP en esta zona.",
       buttonFolder: "📂 Elegir una carpeta",
-      buttonZip: "📦 Elegir un archivo ZIP",
+  buttonZip: "📦 Elegir una archivo ZIP",
       buttonFiles: "🎙️🖼️ Elegir archivos",
       
       // Notes
