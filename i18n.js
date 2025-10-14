@@ -40,6 +40,7 @@
       delay: "Delay",
       delayMs: "ms",
       exportButton: "📋 Export to FCP XML",
+      exportZipButton: "📦 Download ZIP",
       
       // Timeline
       timelineNotice: "No overlapping images found.",
@@ -87,6 +88,7 @@
       delay: "Délai",
       delayMs: "ms",
       exportButton: "📋 Exporter vers FCP XML",
+      exportZipButton: "📦 Télécharger ZIP",
       
       // Timeline
       timelineNotice: "Aucune image superposée trouvée.",
@@ -134,6 +136,7 @@
       delay: "Retraso",
       delayMs: "ms",
       exportButton: "📋 Exportar a FCP XML",
+      exportZipButton: "📦 Descargar ZIP",
       
       // Timeline
       timelineNotice: "No se encontraron imágenes superpuestas.",
