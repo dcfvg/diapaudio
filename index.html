@@ -146,40 +146,44 @@
                     </div>
                     <div class="timeline__inputs">
                       <div class="timeline__controls-row">
-                        <label class="speed-control">
-                          <span data-i18n="speed">Speed</span>
-                          <select id="speed-select" class="speed-control__select">
-                            <option value="0.5">0.5×</option>
-                            <option value="0.75">0.75×</option>
-                            <option value="1" selected>1×</option>
-                            <option value="1.25">1.25×</option>
-                            <option value="1.5">1.5×</option>
-                            <option value="1.8">1.8×</option>
-                            <option value="2">2×</option>
-                            <option value="2.5">2.5×</option>
-                            <option value="3">3×</option>
-                          </select>
-                        </label>
-                        <label class="skip-silence-control">
-                          <input type="checkbox" id="skip-silence-checkbox" checked />
-                          <span data-i18n="skipSilence">Skip silence</span>
-                        </label>
-                        <button type="button" class="export-button" id="export-fcp-button" data-i18n-title="exportButton" title="Export Final Cut Pro XML">
-                          <span class="export-button__icon">⬇️</span>
-                          <span class="export-button__label">XML</span>
-                        </button>
-                      </div>
-                      <div class="timeline__controls-row">
-                        <label class="delay-control">
-                          <span data-i18n="delay">Delay</span>
-                          <div class="delay-control__inputs">
-                            <input type="text" id="delay-field" value="0:00" inputmode="numeric" autocomplete="off" placeholder="0:00" />
-                          </div>
-                        </label>
-                        <button type="button" class="export-button" id="export-zip-button" data-i18n-title="exportZipButton" title="Download ZIP">
-                          <span class="export-button__icon">📦</span>
-                          <span class="export-button__label">ZIP</span>
-                        </button>
+                        <div class="timeline__controls-column">
+                          <label class="delay-control">
+                            <span data-i18n="delay">Delay</span>
+                            <div class="delay-control__inputs">
+                              <input type="text" id="delay-field" value="0:00" inputmode="numeric" autocomplete="off" placeholder="0:00" />
+                            </div>
+                          </label>
+                          <label class="speed-control">
+                            <span data-i18n="speed">Speed</span>
+                            <select id="speed-select" class="speed-control__select">
+                              <option value="0.5">0.5×</option>
+                              <option value="0.75">0.75×</option>
+                              <option value="1" selected>1×</option>
+                              <option value="1.25">1.25×</option>
+                              <option value="1.5">1.5×</option>
+                              <option value="1.8">1.8×</option>
+                              <option value="2">2×</option>
+                              <option value="2.5">2.5×</option>
+                              <option value="3">3×</option>
+                            </select>
+                          </label>
+                        </div>
+                        <div class="timeline__controls-column">
+                          <label class="skip-silence-control">
+                            <input type="checkbox" id="skip-silence-checkbox" />
+                            <span data-i18n="skipSilence">Skip silence</span>
+                          </label>
+                        </div>
+                        <div class="timeline__controls-column">
+                          <button type="button" class="export-button" id="export-fcp-button" data-i18n-title="exportButton" title="Export Final Cut Pro XML">
+                            <span class="export-button__icon">⬇️</span>
+                            <span class="export-button__label">XML</span>
+                          </button>
+                          <button type="button" class="export-button" id="export-zip-button" data-i18n-title="exportZipButton" title="Download ZIP">
+                            <span class="export-button__icon">📦</span>
+                            <span class="export-button__label">ZIP</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>

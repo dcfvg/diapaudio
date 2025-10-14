@@ -654,7 +654,7 @@
   }
 
   // Initialize skip silence setting
-  const savedSkipSilence = loadFromStorage(STORAGE_KEYS.SKIP_SILENCE, true);
+  const savedSkipSilence = loadFromStorage(STORAGE_KEYS.SKIP_SILENCE, false);
   if (skipSilenceCheckbox) {
     skipSilenceCheckbox.checked = savedSkipSilence;
   }

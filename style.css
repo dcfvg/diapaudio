@@ -625,20 +625,44 @@ body {
 
 .timeline__controls-row {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  align-items: flex-start;
+  gap: 1rem;
   flex-wrap: nowrap;
+  width: 100%;
+}
+
+.timeline__controls-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+.timeline__controls-column:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.timeline__controls-column:nth-child(2) {
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+.timeline__controls-column:last-child {
+  flex-shrink: 0;
+  min-width: 68px;
 }
 
 .timeline__controls-row .speed-control,
 .timeline__controls-row .delay-control {
-  flex: 1;
+  width: 100%;
   min-width: 0;
 }
 
 .timeline__controls-row .export-button {
   flex-shrink: 0;
   min-width: 68px;
+  width: 100%;
 }
 
 .timeline__buttons {
@@ -668,15 +692,53 @@ body {
 .skip-silence-control {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.6rem;
   cursor: pointer;
+  position: relative;
 }
 
 .skip-silence-control input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
+  /* Hide the default checkbox */
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 20px;
+  height: 20px;
   cursor: pointer;
   margin: 0;
+  position: relative;
+  background: var(--button-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  transition: var(--transition-base);
+  flex-shrink: 0;
+}
+
+.skip-silence-control input[type="checkbox"]:hover {
+  background: var(--button-bg-hover);
+  border-color: var(--border-color-hover);
+}
+
+.skip-silence-control input[type="checkbox"]:checked {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.75);
+}
+
+.skip-silence-control input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid #000;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.skip-silence-control input[type="checkbox"]:focus {
+  outline: 2px solid var(--highlight-color);
+  outline-offset: 2px;
 }
 
 .skip-silence-control span {
