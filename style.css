@@ -189,7 +189,13 @@ body {
   margin: 0;
   color: #f4f4f8;
   font-size: 1rem;
-  flex: 1 1 auto;
+  flex: 1 1 100%;
+}
+
+.dropzone__buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .dropzone__browse {

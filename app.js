@@ -4,7 +4,8 @@
   const dropzoneLoader = document.getElementById("dropzone-loader");
   const folderInput = document.getElementById("folder-input");
   const zipInput = document.getElementById("zip-input");
-  const browseTrigger = document.getElementById("browse-trigger");
+  const browseFolderButton = document.getElementById("browse-folder");
+  const browseZipButton = document.getElementById("browse-zip");
   const playToggle = document.getElementById("play-toggle");
   const playToggleIcon = playToggle ? playToggle.querySelector(".control-button__icon") : null;
   const playToggleLabel = playToggle ? playToggle.querySelector(".control-button__sr-label") : null;
@@ -482,10 +483,12 @@
     }
   }
 
-  browseTrigger.addEventListener("click", () => {
-    // Try folder selection first (more common use case)
-    // Modern browsers will show a folder picker
+  browseFolderButton.addEventListener("click", () => {
     folderInput.click();
+  });
+
+  browseZipButton.addEventListener("click", () => {
+    zipInput.click();
   });
 
   // Also add handler for ZIP input
