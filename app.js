@@ -89,11 +89,15 @@
   const audioElement = new Audio();
   audioElement.preload = "metadata";
 
+  // Get translation function
+  const i18n = window.DiapAudioI18n;
+  const t = i18n ? i18n.t : (key) => key;
+
   const PLAY_TOGGLE_ICONS = {
-    play: { icon: "▶", label: "Play" },
-    pause: { icon: "⏸", label: "Pause" },
-    replay: { icon: "↺", label: "Replay" },
-    loading: { icon: "⏳", label: "Loading" },
+    play: { icon: "▶", labelKey: "play" },
+    pause: { icon: "⏸", labelKey: "pause" },
+    replay: { icon: "↺", labelKey: "play" },
+    loading: { icon: "⏳", labelKey: "loadingFiles" },
   };
 
   function createPlaybackController({
@@ -380,9 +384,10 @@
   function setPlayToggleState(state) {
     if (!playToggle) return;
     const config = PLAY_TOGGLE_ICONS[state] || PLAY_TOGGLE_ICONS.play;
+    const label = t(config.labelKey);
     if (playToggleIcon) playToggleIcon.textContent = config.icon;
-    if (playToggleLabel) playToggleLabel.textContent = config.label;
-    playToggle.setAttribute("aria-label", config.label);
+    if (playToggleLabel) playToggleLabel.textContent = label;
+    playToggle.setAttribute("aria-label", label);
     playToggle.dataset.state = state;
   }
 

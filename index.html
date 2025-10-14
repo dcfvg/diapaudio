@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="style.css" />
     <!-- zip.js for ZIP file extraction -->
     <script src="zip.min.js"></script>
+    <script src="i18n.js"></script>
     <script src="timestamp-utils.js" defer></script>
     <script src="app.js" defer></script>
   </head>
@@ -16,54 +17,65 @@
         <section class="viewer">
           <div class="dropzone" id="dropzone">
             <div class="dropzone__content">
-              <div class="dropzone__hero">
-                <h1 class="dropzone__title">diapaudio</h1>
-                <p class="dropzone__lead">🎧 Playback photos synced with recordings of that day.</p>
+              <div class="dropzone__language-selector">
+                <label for="language-select" class="language-selector__label">
+                  <!-- <span data-i18n="languageLabel">Language</span> -->
+                  <select id="language-select" class="language-selector__select">
+                    <option value="en">🇬🇧 English</option>
+                    <option value="fr">🇫🇷 Français</option>
+                    <option value="es">🇪🇸 Español</option>
+                  </select>
+                </label>
               </div>
+              <div class="dropzone__hero">
+                <h1 class="dropzone__title" data-i18n="appTitle">diapaudio</h1>
+                <p class="dropzone__lead" data-i18n="tagline">🎧 Playback photos synced with recordings of that day.</p>
+              </div>
+
 
               <div class="dropzone__assist" aria-label="How to prepare your folder">
                 <ol class="dropzone__steps">
                   <li class="dropzone__step">
                     <span class="dropzone__step-icon" aria-hidden="true">📁</span>
                     <div>
-                      <h3 class="dropzone__step-title">Collect your files</h3>
-                      <p class="dropzone__step-text">Place the audio recording and the matching photos in <strong>one folder</strong>.</p>
+                      <h3 class="dropzone__step-title" data-i18n="step1Title">Collect your files</h3>
+                      <p class="dropzone__step-text" data-i18n="step1Text" data-i18n-html>Place audio recordings and the matching photos in <strong>one folder</strong>.</p>
                     </div>
                   </li>
                   <li class="dropzone__step">
                     <span class="dropzone__step-icon" aria-hidden="true">⏱️</span>
                     <div>
-                      <h3 class="dropzone__step-title">Use timestamps</h3>
-                      <p class="dropzone__step-text">Name each file with its capture time, for example <code>2025-01-01_08-00-00.jpg</code> <br/>(or make sure they contain metadata)</p>
+                      <h3 class="dropzone__step-title" data-i18n="step2Title">Use timestamps</h3>
+                      <p class="dropzone__step-text" data-i18n="step2Text" data-i18n-html>Name each file with its capture time, for example <code>2025-01-01_08-00-00.jpg</code> <br/>(or make sure they contain metadata)</p>
                     </div>
                   </li>
                   <li class="dropzone__step">
                     <span class="dropzone__step-icon" aria-hidden="true">🚀</span>
                     <div>
-                      <h3 class="dropzone__step-title">Drop the folder or ZIP</h3>
-                      <p class="dropzone__step-text">Drag it here or browse for it below to replay the day.</p>
+                      <h3 class="dropzone__step-title" data-i18n="step3Title">Drop the folder or ZIP</h3>
+                      <p class="dropzone__step-text" data-i18n="step3Text" data-i18n-html>Drag it here or browse for it below to replay the day.</p>
                     </div>
                   </li>
                 </ol>
               </div>
 
               <div class="dropzone__cta" role="group" aria-label="Start syncing">
-                <p class="dropzone__cta-text" id="dropzone-message">Drop your prepared folder or ZIP file anywhere in this area.</p>
+                <p class="dropzone__cta-text" id="dropzone-message" data-i18n="dropMessage">Drop your prepared folder or ZIP file anywhere in this area.</p>
                 <div class="dropzone__buttons">
-                  <button type="button" class="dropzone__browse" id="browse-folder">📂 Choose a folder</button>
-                  <button type="button" class="dropzone__browse" id="browse-zip">📦 Choose a ZIP file</button>
+                  <button type="button" class="dropzone__browse" id="browse-folder" data-i18n="buttonFolder">📂 Choose a folder</button>
+                  <button type="button" class="dropzone__browse" id="browse-zip" data-i18n="buttonZip">📦 Choose a ZIP file</button>
                 </div>
               </div>
 
               <div class="dropzone__body">
-                <p class="dropzone__note">🔒 Nothing leaves your computer — no uploads, no servers, just your session.</p>
-                <p class="dropzone__note">💡 Tip: keeping your recorder, camera, and phone on the same time makes syncing effortless.</p>
-                <p class="dropzone__note">📚 For detailed instructions and source code, see the <a href="https://github.com/dcfvg/diapaudio" target="_blank" rel="noopener noreferrer">README</a>.</p>
+                <p class="dropzone__note" data-i18n="notePrivacy">🔒 Nothing leaves your computer — no uploads, no servers, just your session.</p>
+                <p class="dropzone__note" data-i18n="noteTip">💡 Tip: keeping your recorder, camera, and phone on the same time makes syncing effortless.</p>
+                <p class="dropzone__note" data-i18n="noteReadme" data-i18n-html>📚 For detailed instructions and source code, see the <a href="https://github.com/dcfvg/diapaudio" target="_blank" rel="noopener noreferrer">README</a>.</p>
               </div>
 
               <div class="dropzone__loader hidden" id="dropzone-loader">
                 <div class="loader-spinner"></div>
-                <p>Loading files...</p>
+                <p data-i18n="loadingFiles">Loading files...</p>
               </div>
             </div>
             <input type="file" webkitdirectory directory multiple id="folder-input" hidden />
@@ -97,9 +109,9 @@
               <div class="viewer__hud" id="viewer-hud">
                 <div class="timeline hidden" id="timeline">
                   <div class="timeline__toolbar">
-                    <button class="control-button control-button--icon" id="play-toggle" disabled aria-label="Play">
+                    <button class="control-button control-button--icon" id="play-toggle" disabled data-i18n-aria="play" aria-label="Play">
                       <span class="control-button__icon" aria-hidden="true">▶</span>
-                      <span class="visually-hidden control-button__sr-label">Play</span>
+                      <span class="visually-hidden control-button__sr-label" data-i18n="play">Play</span>
                     </button>
                     <div class="timeline__scrubber">
                       <div class="timeline__main">
@@ -118,7 +130,7 @@
                     </div>
                     <div class="timeline__inputs">
                       <label class="speed-control">
-                        <span>Speed</span>
+                        <span data-i18n="speed">Speed</span>
                         <select id="speed-select" class="speed-control__select">
                           <option value="0.5">0.5×</option>
                           <option value="0.75">0.75×</option>
@@ -132,13 +144,13 @@
                         </select>
                       </label>
                       <label class="delay-control">
-                        <span>Delay</span>
+                        <span data-i18n="delay">Delay</span>
                         <div class="delay-control__inputs">
                           <input type="text" id="delay-field" value="0:00" inputmode="numeric" autocomplete="off" placeholder="0:00" />
                         </div>
                       </label>
-                      <button type="button" class="export-button" id="export-fcp-button" title="Export Final Cut Pro XML">
-                        <span class="export-button__icon">📤</span>
+                      <button type="button" class="export-button" id="export-fcp-button" data-i18n-title="exportButton" title="Export Final Cut Pro XML">
+                        <span class="export-button__icon">⬇️</span>
                         <span class="export-button__label">XML</span>
                       </button>
                     </div>
