@@ -3,7 +3,7 @@
   const translations = {
     en: {
       // Page title and main heading
-      appTitle: "diapaudio",
+      appTitle: "diapaudio 🛝",
       tagline: "🎧 Playback photos synced with recordings of that day.",
       
       // Instructions
@@ -51,7 +51,7 @@
     
     fr: {
       // Page title and main heading
-      appTitle: "diapaudio",
+      appTitle: "diapaudio 🛝",
       tagline: "🎧 Synchronisez vos photos avec vos enregistrements audio.",
       
       // Instructions
@@ -99,7 +99,7 @@
     
     es: {
       // Page title and main heading
-      appTitle: "diapaudio",
+      appTitle: "diapaudio 🛝",
       tagline: "🎧 Reproduce fotos sincronizadas con grabaciones de ese día.",
       
       // Instructions

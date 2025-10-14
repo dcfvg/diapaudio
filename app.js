@@ -998,10 +998,12 @@
   }
 
   async function handleFolder(files) {
-    showLoadingState(true);
+    showLoader('readingFolder');
+    updateLoaderProgress(0, 'readingFolder', 'Starting...');
 
     try {
       // Check for _delay.txt file and read delay setting
+      updateLoaderProgress(5, 'readingFolder', 'Checking for delay file...');
       const delayFile = files.find(file => {
         const path = getFilePath(file);
         const name = path.split('/').pop();
@@ -1023,6 +1025,7 @@
         }
       }
 
+      updateLoaderProgress(10, 'processingFiles', 'Scanning files...');
       const audioFiles = files
         .filter((file) => {
           const path = getFilePath(file);
@@ -1035,6 +1038,7 @@
         .sort((a, b) => getFilePath(a).localeCompare(getFilePath(b), undefined, { numeric: true, sensitivity: "base" }));
 
       // Remove duplicate audio files (same name, size, and timestamp from filename)
+      updateLoaderProgress(15, 'processingFiles', 'Checking for duplicates...');
       const uniqueAudioFiles = [];
       const audioFileKeys = new Set();
       const skippedAudioDuplicates = [];
@@ -1102,8 +1106,12 @@
       }
 
       // Process audio files if any
+      updateLoaderProgress(20, 'processingFiles', `Processing ${uniqueAudioFiles.length} audio files...`);
       const audioTracks = uniqueAudioFiles.length > 0 ? await Promise.all(
         uniqueAudioFiles.map(async (file, index) => {
+          const progress = 20 + (index / uniqueAudioFiles.length) * 20;
+          updateLoaderProgress(progress, 'processingFiles', `Processing audio ${index + 1}/${uniqueAudioFiles.length}...`);
+          
           const filePath = getFilePath(file);
           let fileTimestamp = parseTimestampFromName(filePath);
           
@@ -1126,13 +1134,18 @@
 
       // Load durations for all audio tracks
       if (audioTracks.length > 0) {
+        updateLoaderProgress(40, 'processingFiles', 'Loading audio durations...');
         console.log('Loading durations for all audio tracks...');
         await loadAllAudioDurations(audioTracks);
         console.log('All audio durations loaded:', audioTracks.map(t => ({ label: t.label, duration: t.duration })));
       }
 
+      updateLoaderProgress(50, 'processingFiles', `Processing ${uniqueImageFiles.length} images...`);
       const images = uniqueImageFiles.length > 0 ? await Promise.all(
-        uniqueImageFiles.map(async (file) => {
+        uniqueImageFiles.map(async (file, index) => {
+          const progress = 50 + (index / uniqueImageFiles.length) * 40;
+          updateLoaderProgress(progress, 'processingFiles', `Processing image ${index + 1}/${uniqueImageFiles.length}...`);
+          
           const url = URL.createObjectURL(file);
           const timestamp = parseTimestampFromName(getFilePath(file));
           
@@ -1161,6 +1174,7 @@
         throw new Error("No valid media files with timestamps found. Please ensure files have timestamps in their names or metadata.");
       }
 
+      updateLoaderProgress(95, 'processingFiles', 'Finalizing...');
       await processMediaData(audioTracks, validImages, files);
     } catch (error) {
       console.error(error);
@@ -3419,8 +3433,13 @@
     }
     if (range <= 0) return;
 
-    const step = computeTickStep(range);
+    // Get timeline width to calculate optimal number of ticks
+    const timelineWidth = timelineMain ? timelineMain.offsetWidth : 800;
+    const step = computeTickStep(range, timelineWidth);
     if (!step) return;
+
+    // Determine if we should show seconds in labels
+    const showSeconds = step < 60 * 1000; // Show seconds if step is less than 1 minute
 
     const firstTick = alignToStep(timelineState.viewStartMs, step);
     for (let tick = firstTick; tick <= timelineState.viewEndMs + 1; tick += step) {
@@ -3431,7 +3450,20 @@
       const tickEl = document.createElement("div");
       tickEl.className = "timeline__axis-tick";
       tickEl.style.left = `${position}%`;
-      tickEl.textContent = formatClock(new Date(tick));
+      
+      // Format label based on granularity
+      const tickDate = new Date(tick);
+      if (showSeconds) {
+        // Show HH:MM:SS for fine granularity
+        const h = String(tickDate.getHours()).padStart(2, '0');
+        const m = String(tickDate.getMinutes()).padStart(2, '0');
+        const s = String(tickDate.getSeconds()).padStart(2, '0');
+        tickEl.textContent = `${h}:${m}:${s}`;
+      } else {
+        // Show HH:MM for normal granularity
+        tickEl.textContent = formatClock(tickDate);
+      }
+      
       timelineAxis.appendChild(tickEl);
       
       // Create gridline
@@ -3444,21 +3476,52 @@
     }
   }
 
-  function computeTickStep(rangeMs) {
+  function computeTickStep(rangeMs, viewportWidth = 800) {
     const hour = 60 * 60 * 1000;
     const halfHour = 30 * 60 * 1000;
     const quarterHour = 15 * 60 * 1000;
+    const tenMinutes = 10 * 60 * 1000;
     const fiveMinutes = 5 * 60 * 1000;
+    const twoMinutes = 2 * 60 * 1000;
     const minute = 60 * 1000;
     const halfMinute = 30 * 1000;
+    const tenSeconds = 10 * 1000;
 
-    if (rangeMs > 12 * hour) return 2 * hour;
-    if (rangeMs > 6 * hour) return hour;
-    if (rangeMs > 3 * hour) return halfHour;
-    if (rangeMs > 90 * 60 * 1000) return quarterHour;
-    if (rangeMs > 45 * 60 * 1000) return fiveMinutes;
-    if (rangeMs > 15 * 60 * 1000) return minute;
-    return halfMinute;
+    // Calculate target number of ticks based on viewport width
+    // Aim for ~80-120px between ticks for good readability
+    const minTickSpacing = 80;
+    const maxTickCount = Math.max(5, Math.floor(viewportWidth / minTickSpacing));
+    
+    // Calculate ideal step to achieve target tick count
+    const idealStep = rangeMs / maxTickCount;
+    
+    // Available step options (in ascending order)
+    const steps = [
+      tenSeconds,
+      halfMinute,
+      minute,
+      twoMinutes,
+      fiveMinutes,
+      tenMinutes,
+      quarterHour,
+      halfHour,
+      hour,
+      2 * hour,
+      4 * hour,
+      6 * hour,
+      12 * hour,
+      24 * hour,
+    ];
+    
+    // Find the smallest step that's >= idealStep
+    for (const step of steps) {
+      if (step >= idealStep) {
+        return step;
+      }
+    }
+    
+    // If range is very large, use the largest step
+    return 24 * hour;
   }
 
   function alignToStep(startMs, stepMs) {
