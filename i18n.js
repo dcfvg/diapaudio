@@ -39,6 +39,7 @@
       speed: "Speed",
       delay: "Delay",
       delayMs: "ms",
+      skipSilence: "Skip silence",
       exportButton: "📋 Export to FCP XML",
       exportZipButton: "📦 Download ZIP",
       
@@ -89,6 +90,7 @@
       speed: "Vitesse",
       delay: "Délai",
       delayMs: "ms",
+      skipSilence: "Sauter le silence",
       exportButton: "📋 Exporter vers FCP XML",
       exportZipButton: "📦 Télécharger ZIP",
       
@@ -137,6 +139,11 @@
       play: "Reproducir",
       pause: "Pausa",
       speed: "Velocidad",
+      delay: "Retraso",
+      delayMs: "ms",
+      skipSilence: "Saltar silencio",
+      exportButton: "📋 Exportar a FCP XML",
+      exportZipButton: "📦 Descargar ZIP",
       delay: "Retraso",
       delayMs: "ms",
       exportButton: "📋 Exportar a FCP XML",

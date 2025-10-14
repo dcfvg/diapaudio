@@ -665,6 +665,28 @@ body {
   min-width: 42px;
 }
 
+.skip-silence-control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.skip-silence-control input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.skip-silence-control span {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b9bec9;
+  user-select: none;
+}
+
 .timeline__main {
   position: relative;
   height: 53px; /* 16px images + 4px gap + 16px tracks + (25-36) + 28px axis */
@@ -1620,7 +1642,8 @@ body {
   }
 
   .timeline__inputs .speed-control,
-  .timeline__inputs .delay-control {
+  .timeline__inputs .delay-control,
+  .timeline__inputs .skip-silence-control {
     width: 100%;
     min-width: 0;
     align-items: center;

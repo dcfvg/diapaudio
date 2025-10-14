@@ -19,6 +19,7 @@
   const playToggleIcon = playToggle ? playToggle.querySelector(".control-button__icon") : null;
   const playToggleLabel = playToggle ? playToggle.querySelector(".control-button__sr-label") : null;
   const speedSelect = document.getElementById("speed-select");
+  const skipSilenceCheckbox = document.getElementById("skip-silence-checkbox");
   const viewerContent = document.getElementById("viewer-content");
   const slideshowContainer = document.getElementById("slideshow-container");
   const timelineRoot = document.getElementById("timeline");
@@ -392,6 +393,40 @@
       };
     }
 
+    function findNextMediaTime(currentMs) {
+      if (!window.mediaDataRef) return null;
+      const mediaData = window.mediaDataRef;
+      
+      let nextTime = null;
+      
+      // Check for next image
+      if (mediaData.images && mediaData.images.length) {
+        for (const image of mediaData.images) {
+          const imageMs = image.originalTimestamp?.getTime?.();
+          if (Number.isFinite(imageMs) && imageMs > currentMs) {
+            if (nextTime === null || imageMs < nextTime) {
+              nextTime = imageMs;
+            }
+            break; // Images are sorted, so first one found is the next
+          }
+        }
+      }
+      
+      // Check for next audio track
+      if (mediaData.audioTracks && mediaData.audioTracks.length) {
+        for (const track of mediaData.audioTracks) {
+          const trackStartMs = track.adjustedStartTime?.getTime?.();
+          if (Number.isFinite(trackStartMs) && trackStartMs > currentMs) {
+            if (nextTime === null || trackStartMs < nextTime) {
+              nextTime = trackStartMs;
+            }
+          }
+        }
+      }
+      
+      return nextTime;
+    }
+
     function tick(now) {
       state.rafId = requestAnimationFrame(tick);
 
@@ -404,6 +439,31 @@
       if (!Number.isFinite(absolute)) {
         state.lastFrameTime = now;
         return;
+      }
+
+      // Skip silence feature: if enabled, check if we're in a gap with no media
+      if (window.isSkipSilenceEnabled && window.isSkipSilenceEnabled()) {
+        // Check if there's any media at current time
+        const hasImages = window.mediaDataRef?.images?.some(img => {
+          const imgMs = img.originalTimestamp?.getTime?.();
+          if (!Number.isFinite(imgMs)) return false;
+          // Image is visible if it's recent enough
+          return imgMs <= absolute && (absolute - imgMs) <= 120000; // MAX_IMAGE_CARRYOVER_MS
+        });
+        
+        const hasAudio = getOverlappingTracks(absolute).length > 0;
+        
+        // If no media at current time, skip to next media
+        if (!hasImages && !hasAudio) {
+          const nextMediaMs = findNextMediaTime(absolute);
+          if (nextMediaMs !== null && nextMediaMs > absolute) {
+            // Jump to next media
+            commitAbsolute(nextMediaMs, { fromAudio: false });
+            syncTrackForAbsolute(nextMediaMs);
+            state.lastFrameTime = now;
+            return;
+          }
+        }
       }
 
       commitAbsolute(absolute, { fromAudio: false });
@@ -590,6 +650,12 @@
     audioElement.playbackRate = savedSpeed;
   }
 
+  // Initialize skip silence setting
+  const savedSkipSilence = loadFromStorage(STORAGE_KEYS.SKIP_SILENCE, true);
+  if (skipSilenceCheckbox) {
+    skipSilenceCheckbox.checked = savedSkipSilence;
+  }
+
   const playback = createPlaybackController({
     audioElement,
     getDelaySeconds,
@@ -750,6 +816,12 @@
     saveToStorage(STORAGE_KEYS.PLAYBACK_SPEED, audioElement.playbackRate);
   });
 
+  if (skipSilenceCheckbox) {
+    skipSilenceCheckbox.addEventListener("change", () => {
+      saveToStorage(STORAGE_KEYS.SKIP_SILENCE, skipSilenceCheckbox.checked);
+    });
+  }
+
   if (delayField) {
     const commitDelay = () => {
       const parsed = parseDelayField(delayField.value);
@@ -821,6 +893,13 @@
   function getDelaySeconds() {
     return delaySeconds;
   }
+
+  function isSkipSilenceEnabled() {
+    return skipSilenceCheckbox ? skipSilenceCheckbox.checked : true;
+  }
+
+  // Expose to window so playback controller can access it
+  window.isSkipSilenceEnabled = isSkipSilenceEnabled;
 
   function setDelaySeconds(value) {
     if (!Number.isFinite(value)) return;
@@ -1540,6 +1619,9 @@
       })
     };
 
+    // Expose to window for playback controller
+    window.mediaDataRef = mediaData;
+
     precomputeImageCompositions(mediaData.images);
 
     clearPendingSeek();
@@ -2103,8 +2185,49 @@
       return baseVisible.slice(0, MAX_VISIBLE_IMAGES);
     }
 
-    // Requirement 2: Maximum display time of 45 seconds after timestamp
-    const windowEnd = clusterStart + MAX_IMAGE_CARRYOVER_MS;
+    // Check if skip silence is enabled and if this is the last image before a gap
+    let effectiveCarryover = MAX_IMAGE_CARRYOVER_MS;
+    if (isSkipSilenceEnabled()) {
+      // Check if there's a next image
+      const nextImage = images[anchorIndex + 1];
+      if (nextImage && nextImage.originalTimestamp) {
+        const nextImageMs = nextImage.originalTimestamp.getTime();
+        const gapToNextImage = nextImageMs - clusterStart;
+        
+        // If gap to next image is significant (more than carryover), this is last image before silence
+        // In that case, don't apply MAX_IMAGE_CARRYOVER_MS - let it disappear when no more media
+        if (gapToNextImage > MAX_IMAGE_CARRYOVER_MS) {
+          // Check if there's audio coverage
+          const hasAudioCoverage = mediaData.audioTracks?.some(track => {
+            if (!track.adjustedStartTime || !track.adjustedEndTime) return false;
+            const trackStart = track.adjustedStartTime.getTime();
+            const trackEnd = track.adjustedEndTime.getTime();
+            return absoluteMs >= trackStart && absoluteMs <= trackEnd;
+          });
+          
+          // If no audio coverage either, don't show this image (skip the silence)
+          if (!hasAudioCoverage) {
+            return [];
+          }
+        }
+      } else {
+        // This is the last image overall - check if we have audio coverage
+        const hasAudioCoverage = mediaData.audioTracks?.some(track => {
+          if (!track.adjustedStartTime || !track.adjustedEndTime) return false;
+          const trackStart = track.adjustedStartTime.getTime();
+          const trackEnd = track.adjustedEndTime.getTime();
+          return absoluteMs >= trackStart && absoluteMs <= trackEnd;
+        });
+        
+        // If no audio coverage, don't show this image
+        if (!hasAudioCoverage) {
+          return [];
+        }
+      }
+    }
+
+    // Requirement 2: Maximum display time after timestamp
+    const windowEnd = clusterStart + effectiveCarryover;
     if (absoluteMs < clusterStart || absoluteMs > windowEnd) {
       return [];
     }
