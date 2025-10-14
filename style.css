@@ -388,7 +388,7 @@ body {
 }
 
 .dropzone__title {
-  font-size: clamp(2rem, 3vw, 2.4rem);
+  font-size: clamp(2rem, 4vw, 2.4rem);
 }
 
 .dropzone__lead {
@@ -1309,14 +1309,15 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  padding: 0;
+  padding: 4vw;
   overflow: hidden;
   cursor: pointer;
+  box-sizing: border-box;  
 }
 
 .slideshow__container.split-1 {
   gap: 0;
-  padding: 0;
+  padding: 4vw;
 }
 
 .slideshow__image {
@@ -1328,6 +1329,7 @@ body {
   object-fit: contain;
   flex-shrink: 1;
   flex-grow: 0;
+  border-radius: 6px;
 }
 
 .slideshow__container.split-1 .slideshow__image {
@@ -1445,8 +1447,8 @@ body {
 
 .viewer__clock {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 4vw;
+  right: 4vw;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1460,9 +1462,10 @@ body {
   pointer-events: auto;
 }
 
+
 .clock-analog {
   display: block;
-  background: rgba(0, 0, 0, 0.85);
+  background: transparent;
   padding: 0.75rem;
   border-radius: 8px;
   transition: background 0.2s ease;
@@ -1551,22 +1554,24 @@ body {
 }
 
 .clock-date {
-  font-size: 0.75rem;
+  font-size: 0.62rem;
   color: var(--text-secondary);
   text-align: center;
   font-variant-numeric: tabular-nums;
-  background: var(--bg-overlay);
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--button-border-radius);
-  line-height: 1.4;
+  background: transparent;
+  padding: 0.1rem 0.2rem 0 0.2rem;
+  border-radius: 4px;
+  line-height: 1.1;
   transition: var(--transition-fast);
-  width: 115px;
+  width: 100%;
   box-sizing: border-box;
+  display: block;
+  margin: 0 auto;
+  font-weight: 400;
+  text-shadow: 0 1px 2px #000, 0 0px 6px #000;
 }
 
-.clock-date:hover {
-  background: rgba(0, 0, 0, 0.95);
-}
+
 
 .viewer__hud {
   position: absolute;
