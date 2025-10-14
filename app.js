@@ -239,23 +239,33 @@
     }
 
     function getInitialAbsoluteTime() {
-      const active = getActiveTrack();
-      if (active?.adjustedStartTime instanceof Date) {
-        return active.adjustedStartTime.getTime();
+      let earliestTime = null;
+      
+      // Check all audio tracks for the earliest time
+      if (mediaData?.audioTracks) {
+        for (const track of mediaData.audioTracks) {
+          if (track?.adjustedStartTime instanceof Date) {
+            const trackTime = track.adjustedStartTime.getTime();
+            if (earliestTime === null || trackTime < earliestTime) {
+              earliestTime = trackTime;
+            }
+          }
+        }
       }
-      const firstTrack = mediaData?.audioTracks?.find(
-        (track) => track?.adjustedStartTime instanceof Date
-      );
-      if (firstTrack?.adjustedStartTime) {
-        return firstTrack.adjustedStartTime.getTime();
+      
+      // Check all images for the earliest time
+      if (mediaData?.images) {
+        for (const image of mediaData.images) {
+          if (image?.originalTimestamp instanceof Date) {
+            const imageTime = image.originalTimestamp.getTime();
+            if (earliestTime === null || imageTime < earliestTime) {
+              earliestTime = imageTime;
+            }
+          }
+        }
       }
-      const firstImage = mediaData?.images?.find(
-        (image) => image?.originalTimestamp instanceof Date
-      );
-      if (firstImage?.originalTimestamp) {
-        return firstImage.originalTimestamp.getTime();
-      }
-      return null;
+      
+      return earliestTime;
     }
 
     function ensureTicker() {

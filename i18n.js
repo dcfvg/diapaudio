@@ -39,7 +39,7 @@
       speed: "Speed",
       delay: "Delay",
       delayMs: "ms",
-      skipSilence: "Skip void",
+      skipSilence: "Auto-skip",
       exportButton: "📋 Export to FCP XML",
       exportZipButton: "📦 Download ZIP",
       
@@ -47,6 +47,21 @@
       timelineNotice: "No overlapping images found.",
       overlapHandlingInfo: "ℹ️ <strong>Overlap Handling:</strong> When audio tracks overlap, playback starts with the first track. When it ends, the second track seamlessly continues from its current position (not from the beginning).",
       overlapWarning: "⚠️ Overlap detected: \"{trackA}\" begins {duration} before \"{trackB}\" ends.",
+      
+      // Tooltips
+      tooltipPlayPause: "Play/Pause playback (Spacebar)",
+      tooltipTimeline: "Click to seek, drag to scrub through time. Scroll to zoom in/out.",
+      tooltipAudioTracks: "Audio tracks - Click to switch between tracks",
+      tooltipPhotoTimeline: "Photo timeline - Shows when photos were captured",
+      tooltipClock: "Current time of day during recording. Click to switch between analog/digital display.",
+      tooltipDelay: "Adjust time offset between audio and photos. Use format: minutes:seconds or -minutes:seconds",
+      tooltipDelayInput: "Time offset (e.g., 0:30 or -1:15)",
+      tooltipSpeed: "Adjust playback speed - slower or faster than real-time",
+      tooltipSpeedSelect: "Playback speed multiplier",
+      tooltipAutoSkip: "Automatically skip periods with no audio and no photos",
+      tooltipAutoSkipCheckbox: "Enable/disable auto-skip of silent periods",
+      tooltipExportXML: "Export timeline as Final Cut Pro XML for video editing",
+      tooltipExportZIP: "Download all media files as a ZIP archive",
       
       // Language selector
       languageLabel: "Language"
@@ -90,7 +105,7 @@
       speed: "Vitesse",
       delay: "Délai",
       delayMs: "ms",
-      skipSilence: "Sauter le vide",
+      skipSilence: "Auto-saut",
       exportButton: "📋 Exporter vers FCP XML",
       exportZipButton: "📦 Télécharger ZIP",
       
@@ -98,6 +113,21 @@
       timelineNotice: "Aucune image superposée trouvée.",
       overlapHandlingInfo: "ℹ️ <strong>Gestion des chevauchements :</strong> Lorsque des pistes audio se chevauchent, la lecture commence avec la première piste. Quand elle se termine, la deuxième piste continue de manière transparente depuis sa position actuelle (pas depuis le début).",
       overlapWarning: "⚠️ Chevauchement détecté : \"{trackA}\" commence {duration} avant la fin de \"{trackB}\".",
+      
+      // Tooltips
+      tooltipPlayPause: "Lecture/Pause (Barre d'espace)",
+      tooltipTimeline: "Cliquez pour chercher, glissez pour parcourir le temps. Molette pour zoomer.",
+      tooltipAudioTracks: "Pistes audio - Cliquez pour changer de piste",
+      tooltipPhotoTimeline: "Chronologie des photos - Montre quand les photos ont été prises",
+      tooltipClock: "Heure du jour pendant l'enregistrement. Cliquez pour basculer entre affichage analogique/numérique.",
+      tooltipDelay: "Ajuster le décalage temporel entre audio et photos. Format : minutes:secondes ou -minutes:secondes",
+      tooltipDelayInput: "Décalage temporel (ex : 0:30 ou -1:15)",
+      tooltipSpeed: "Ajuster la vitesse de lecture - plus lente ou plus rapide que le temps réel",
+      tooltipSpeedSelect: "Multiplicateur de vitesse de lecture",
+      tooltipAutoSkip: "Sauter automatiquement les périodes sans audio et sans photos",
+      tooltipAutoSkipCheckbox: "Activer/désactiver le saut automatique des périodes silencieuses",
+      tooltipExportXML: "Exporter la chronologie en XML Final Cut Pro pour le montage vidéo",
+      tooltipExportZIP: "Télécharger tous les fichiers médias dans une archive ZIP",
       
       // Language selector
       languageLabel: "Langue"
@@ -141,7 +171,7 @@
       speed: "Velocidad",
       delay: "Retraso",
       delayMs: "ms",
-      skipSilence: "Saltar vacío",
+      skipSilence: "Auto-salto",
       exportButton: "📋 Exportar a FCP XML",
       exportZipButton: "📦 Descargar ZIP",
       
@@ -149,6 +179,21 @@
       timelineNotice: "No se encontraron imágenes superpuestas.",
       overlapHandlingInfo: "ℹ️ <strong>Manejo de superposiciones:</strong> Cuando las pistas de audio se superponen, la reproducción comienza con la primera pista. Cuando termina, la segunda pista continúa sin problemas desde su posición actual (no desde el principio).",
       overlapWarning: "⚠️ Superposición detectada: \"{trackA}\" comienza {duration} antes de que termine \"{trackB}\".",
+      
+      // Tooltips
+      tooltipPlayPause: "Reproducir/Pausar (Barra espaciadora)",
+      tooltipTimeline: "Clic para buscar, arrastrar para recorrer el tiempo. Desplazar para acercar/alejar.",
+      tooltipAudioTracks: "Pistas de audio - Clic para cambiar entre pistas",
+      tooltipPhotoTimeline: "Línea de tiempo de fotos - Muestra cuándo se capturaron las fotos",
+      tooltipClock: "Hora del día durante la grabación. Clic para cambiar entre visualización analógica/digital.",
+      tooltipDelay: "Ajustar desfase temporal entre audio y fotos. Formato: minutos:segundos o -minutos:segundos",
+      tooltipDelayInput: "Desfase temporal (ej: 0:30 o -1:15)",
+      tooltipSpeed: "Ajustar velocidad de reproducción - más lenta o más rápida que tiempo real",
+      tooltipSpeedSelect: "Multiplicador de velocidad de reproducción",
+      tooltipAutoSkip: "Saltar automáticamente períodos sin audio y sin fotos",
+      tooltipAutoSkipCheckbox: "Activar/desactivar salto automático de períodos silenciosos",
+      tooltipExportXML: "Exportar línea de tiempo como XML de Final Cut Pro para edición de video",
+      tooltipExportZIP: "Descargar todos los archivos multimedia como archivo ZIP",
       
       // Language selector
       languageLabel: "Idioma"

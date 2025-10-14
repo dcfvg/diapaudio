@@ -93,7 +93,7 @@
                 <!-- Images will be dynamically inserted here -->
               </div>
               <div class="slideshow__preview hidden" id="slideshow-preview"></div>
-              <div class="viewer__clock" id="viewer-clock">
+              <div class="viewer__clock" id="viewer-clock" data-i18n-title="tooltipClock">
                 <svg class="clock-svg clock-analog" id="clock-analog" viewBox="0 0 100 100">
                   <circle class="clock-face" cx="50" cy="50" r="48" />
                   <!-- Hour ticks for all 12 hours -->
@@ -124,17 +124,17 @@
               <div class="viewer__hud" id="viewer-hud">
                 <div class="timeline hidden" id="timeline">
                   <div class="timeline__toolbar">
-                    <button class="control-button control-button--icon" id="play-toggle" disabled data-i18n-aria="play" aria-label="Play">
+                    <button class="control-button control-button--icon" id="play-toggle" disabled data-i18n-aria="play" aria-label="Play" data-i18n-title="tooltipPlayPause">
                       <span class="control-button__icon" aria-hidden="true">▶</span>
                       <span class="visually-hidden control-button__sr-label" data-i18n="play">Play</span>
                     </button>
-                    <div class="timeline__scrubber">
+                    <div class="timeline__scrubber" data-i18n-title="tooltipTimeline">
                       <div class="timeline__main">
                         <div class="timeline__gradient" id="timeline-gradient"></div>
                         <div class="timeline__gridlines" id="timeline-gridlines"></div>
                         <div class="timeline__axis" id="timeline-axis"></div>
-                        <div class="timeline__tracks" id="timeline-tracks"></div>
-                        <div class="timeline__images" id="timeline-images"></div>
+                        <div class="timeline__tracks" id="timeline-tracks" data-i18n-title="tooltipAudioTracks"></div>
+                        <div class="timeline__images" id="timeline-images" data-i18n-title="tooltipPhotoTimeline"></div>
                         <div class="timeline__cursor" id="timeline-cursor"></div>
                         <div class="timeline__seeker" id="timeline-seeker"></div>
                         <div class="timeline__hover-preview hidden" id="timeline-hover-preview">
@@ -145,45 +145,43 @@
                       </div>
                     </div>
                     <div class="timeline__inputs">
-                      <div class="timeline__controls-row">
-                        <div class="timeline__controls-column">
-                          <label class="delay-control">
-                            <span data-i18n="delay">Delay</span>
-                            <div class="delay-control__inputs">
-                              <input type="text" id="delay-field" value="0:00" inputmode="numeric" autocomplete="off" placeholder="0:00" />
-                            </div>
-                          </label>
-                          <label class="speed-control">
-                            <span data-i18n="speed">Speed</span>
-                            <select id="speed-select" class="speed-control__select">
-                              <option value="0.5">0.5×</option>
-                              <option value="0.75">0.75×</option>
-                              <option value="1" selected>1×</option>
-                              <option value="1.25">1.25×</option>
-                              <option value="1.5">1.5×</option>
-                              <option value="1.8">1.8×</option>
-                              <option value="2">2×</option>
-                              <option value="2.5">2.5×</option>
-                              <option value="3">3×</option>
-                            </select>
-                          </label>
-                        </div>
-                        <div class="timeline__controls-column">
-                          <label class="skip-silence-control">
-                            <input type="checkbox" id="skip-silence-checkbox" />
-                            <span data-i18n="skipSilence">Skip silence</span>
-                          </label>
-                        </div>
-                        <div class="timeline__controls-column">
-                          <button type="button" class="export-button" id="export-fcp-button" data-i18n-title="exportButton" title="Export Final Cut Pro XML">
-                            <span class="export-button__icon">⬇️</span>
-                            <span class="export-button__label">XML</span>
-                          </button>
-                          <button type="button" class="export-button" id="export-zip-button" data-i18n-title="exportZipButton" title="Download ZIP">
-                            <span class="export-button__icon">📦</span>
-                            <span class="export-button__label">ZIP</span>
-                          </button>
-                        </div>
+                      <div class="timeline__controls-grid">
+                        <!-- Row 1 -->
+                        <label class="delay-control" data-i18n-title="tooltipDelay">
+                          <span data-i18n="delay">Delay</span>
+                          <div class="delay-control__inputs">
+                            <input type="text" id="delay-field" value="0:00" inputmode="numeric" autocomplete="off" placeholder="0:00" data-i18n-title="tooltipDelayInput" />
+                          </div>
+                        </label>
+                        <label class="speed-control" data-i18n-title="tooltipSpeed">
+                          <span data-i18n="speed">Speed</span>
+                          <select id="speed-select" class="speed-control__select" data-i18n-title="tooltipSpeedSelect">
+                            <option value="0.5">0.5×</option>
+                            <option value="0.75">0.75×</option>
+                            <option value="1" selected>1×</option>
+                            <option value="1.25">1.25×</option>
+                            <option value="1.5">1.5×</option>
+                            <option value="1.8">1.8×</option>
+                            <option value="2">2×</option>
+                            <option value="2.5">2.5×</option>
+                            <option value="3">3×</option>
+                          </select>
+                        </label>
+                        <button type="button" class="export-button" id="export-fcp-button" data-i18n-title="tooltipExportXML">
+                          <span class="export-button__icon">⬇</span>
+                          <span class="export-button__label">XML</span>
+                        </button>
+                        
+                        <!-- Row 2 -->
+                        <div class="timeline__empty-cell"></div>
+                        <label class="skip-silence-control" data-i18n-title="tooltipAutoSkip">
+                          <span data-i18n="skipSilence">Skip silence</span>
+                          <input type="checkbox" id="skip-silence-checkbox" data-i18n-title="tooltipAutoSkipCheckbox" />
+                        </label>
+                        <button type="button" class="export-button" id="export-zip-button" data-i18n-title="tooltipExportZIP">
+                          <span class="export-button__icon">⬇</span>
+                          <span class="export-button__label">ZIP</span>
+                        </button>
                       </div>
                     </div>
                   </div>
