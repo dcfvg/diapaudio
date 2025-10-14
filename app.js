@@ -45,6 +45,7 @@
   const viewerClock = document.getElementById("viewer-clock");
   const clockAnalog = document.getElementById("clock-analog");
   const clockDigital = document.getElementById("clock-digital");
+  const clockMinimal = document.getElementById("clock-minimal");
   const clockTime = document.getElementById("clock-time");
 
   const utils = typeof window !== "undefined" ? window.DiapAudioUtils : null;
@@ -471,7 +472,7 @@
   const alwaysShowHud = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(hover: none)").matches;
   let timelineHoverReady = false;
   let currentHoverPreviewKey = null;
-  let isAnalogClock = true; // Track clock mode
+  let clockMode = 'analog'; // Track clock mode: 'analog' or 'digital'
 
   // LocalStorage helpers
   const STORAGE_KEYS = {
@@ -519,13 +520,17 @@
     },
   });
 
-  isAnalogClock = loadFromStorage(STORAGE_KEYS.CLOCK_MODE, true);
+  clockMode = loadFromStorage(STORAGE_KEYS.CLOCK_MODE, 'analog');
   if (clockAnalog && clockDigital) {
-    if (isAnalogClock) {
+    // Hide all first
+    clockAnalog.classList.add("hidden");
+    clockDigital.classList.add("hidden");
+    
+    // Show the selected mode (default to analog if minimal was previously saved)
+    if (clockMode === 'analog' || clockMode === 'minimal') {
+      clockMode = 'analog';
       clockAnalog.classList.remove("hidden");
-      clockDigital.classList.add("hidden");
-    } else {
-      clockAnalog.classList.add("hidden");
+    } else if (clockMode === 'digital') {
       clockDigital.classList.remove("hidden");
     }
   }
@@ -560,14 +565,24 @@
   if (viewerClock) {
     viewerClock.addEventListener("click", (event) => {
       event.stopPropagation();
-      isAnalogClock = !isAnalogClock;
-      saveToStorage(STORAGE_KEYS.CLOCK_MODE, isAnalogClock);
       
-      if (isAnalogClock) {
-        clockAnalog.classList.remove("hidden");
-        clockDigital.classList.add("hidden");
+      // Toggle between analog and digital only
+      if (clockMode === 'analog') {
+        clockMode = 'digital';
       } else {
-        clockAnalog.classList.add("hidden");
+        clockMode = 'analog';
+      }
+      
+      saveToStorage(STORAGE_KEYS.CLOCK_MODE, clockMode);
+      
+      // Hide all first
+      clockAnalog.classList.add("hidden");
+      clockDigital.classList.add("hidden");
+      
+      // Show the selected mode
+      if (clockMode === 'analog') {
+        clockAnalog.classList.remove("hidden");
+      } else if (clockMode === 'digital') {
         clockDigital.classList.remove("hidden");
       }
     });
@@ -2194,11 +2209,22 @@
       clockTime.textContent = formatClockWithSeconds(date);
     }
     
-    // Update date display
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
+    // Update date display in human language
+    const lang = i18n ? i18n.getCurrentLanguage() : 'fr';
+    
+    const monthsOfYear = {
+      fr: ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'],
+      en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+      es: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+    };
+    
+    const currentMonthsOfYear = monthsOfYear[lang] || monthsOfYear['fr'];
+    
+    const dayOfMonth = date.getDate();
+    const month = currentMonthsOfYear[date.getMonth()];
     const year = date.getFullYear();
-    clockDate.textContent = `${day}/${month}/${year}`;
+    
+    clockDate.innerHTML = `${dayOfMonth} ${month}<br>${year}`;
   }
 
   function formatDurationMs(ms) {
