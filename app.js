@@ -598,7 +598,8 @@
       const files = Array.from(event.target.files);
       if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
         try {
-          await handleZipFile(files[0]);
+          const wasPlaying = playback ? playback.isPlaying() : false;
+          await handleZipFile(files[0], !wasPlaying);
         } catch (error) {
           console.error('Error handling ZIP file:', error);
           showError(`Failed to process ZIP file: ${error.message}`);
@@ -614,7 +615,8 @@
       const files = Array.from(event.target.files);
       if (files.length > 0) {
         try {
-          await handleIndividualFiles(files);
+          const wasPlaying = playback ? playback.isPlaying() : false;
+          await handleIndividualFiles(files, !wasPlaying);
         } catch (error) {
           console.error('Error handling individual files:', error);
           showError(`Failed to process files: ${error.message}`);
@@ -655,10 +657,13 @@
 
   folderInput.addEventListener("change", async (event) => {
     const files = Array.from(event.target.files);
+    const wasPlaying = playback ? playback.isPlaying() : false;
+    const shouldAutoPlay = !wasPlaying;
+    
     if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
       // Handle ZIP file
       try {
-        await handleZipFile(files[0]);
+        await handleZipFile(files[0], shouldAutoPlay);
       } catch (error) {
         console.error('Error handling ZIP file:', error);
         showError(`Failed to process ZIP file: ${error.message}`);
@@ -666,7 +671,7 @@
       folderInput.value = "";
     } else if (files.length > 0) {
       // Handle regular folder
-      handleFolder(files);
+      handleFolder(files, shouldAutoPlay);
       folderInput.value = "";
     }
   });
@@ -1501,6 +1506,8 @@
 
     initializeTimeline();
     
+    console.log('processMediaData - autoPlay:', autoPlay, 'audioTracks:', audioTracks?.length, 'images:', validImages?.length);
+    
     // Only load audio track if we have audio files
     if (audioTracks && audioTracks.length > 0) {
       loadAudioTrack(0, autoPlay);
@@ -1515,12 +1522,8 @@
         });
         updateAnalogClock(firstImage.originalTimestamp);
         // Auto-play for image-only timelines
-        if (autoPlay && playback && typeof playback.play === 'function' && !playback.isPlaying()) {
-          setTimeout(() => {
-            if (!playback.isPlaying()) {
-              playback.play();
-            }
-          }, 100);
+        if (autoPlay && playback && typeof playback.play === 'function') {
+          setTimeout(() => playback.play(), 100);
         }
       }
     }
@@ -1746,7 +1749,9 @@
         playback.refresh();
       }
 
-      if (autoPlay && !handledPlayback && !playback.isPlaying()) {
+      console.log('Audio loaded - autoPlay:', autoPlay, 'handledPlayback:', handledPlayback);
+      if (autoPlay && !handledPlayback) {
+        console.log('Starting autoplay...');
         playback.play();
         setPlayToggleState("pause");
       }
@@ -2489,6 +2494,13 @@
     const items = Array.from(dataTransfer.items);
     const files = Array.from(dataTransfer.files);
     
+    // Capture current playing state before processing
+    // In replace mode, autoplay unless we were already playing
+    const wasPlaying = playback ? playback.isPlaying() : false;
+    const shouldAutoPlay = (mode === 'replace') && !wasPlaying;
+    
+    console.log('handleDrop:', { mode, wasPlaying, shouldAutoPlay });
+    
     // Check if a single ZIP file was dropped
     if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
       if (mode === 'additive' && mediaData) {
@@ -2496,7 +2508,7 @@
         await handleZipFileAddition(files[0]);
       } else {
         // Replace current content with ZIP (or create initial content)
-        await handleZipFile(files[0], true); // autoPlay enabled
+        await handleZipFile(files[0], shouldAutoPlay);
       }
       return;
     }
@@ -2513,7 +2525,7 @@
         await handleFolderAddition(folderEntries[0]);
       } else {
         // Replace current content with folder (or create initial content)
-        await handleDirectoryEntry(folderEntries[0], true); // autoPlay enabled
+        await handleDirectoryEntry(folderEntries[0], shouldAutoPlay);
       }
       return;
     }
@@ -2526,11 +2538,11 @@
           await addFilesToTimeline(files);
         } else {
           // No timeline yet, create initial content
-          await handleIndividualFiles(files, true); // autoPlay enabled
+          await handleIndividualFiles(files, shouldAutoPlay);
         }
       } else {
         // Replace current content with files
-        await handleIndividualFiles(files, true); // autoPlay enabled
+        await handleIndividualFiles(files, shouldAutoPlay);
       }
       return;
     }
