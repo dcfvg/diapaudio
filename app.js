@@ -2725,6 +2725,10 @@
 
     // Rebuild timeline with new data
     if (newAudioFiles.length > 0 || newImageFiles.length > 0) {
+      // Preserve current playback state
+      const wasPlaying = playback ? playback.isPlaying() : false;
+      const currentAbsoluteMs = playback ? playback.getAbsoluteMs() : null;
+      
       // Re-sort everything by timestamp
       mediaData.images.sort((a, b) => a.timestamp - b.timestamp);
       mediaData.audioTracks.sort((a, b) => (a.fileTimestamp || 0) - (b.fileTimestamp || 0));
@@ -2740,6 +2744,54 @@
       // Rebuild the timeline
       destroyTimeline();
       initializeTimeline();
+      
+      // Restore playback position to same absolute time (time-of-day)
+      if (currentAbsoluteMs !== null && Number.isFinite(currentAbsoluteMs)) {
+        // Find the appropriate track and relative position
+        const activeTrack = mediaData.audioTracks[mediaData.activeTrackIndex];
+        if (activeTrack && activeTrack.adjustedStartTime) {
+          const trackStartMs = activeTrack.adjustedStartTime.getTime();
+          const relativeSeconds = (currentAbsoluteMs - trackStartMs) / 1000;
+          
+          // If still within current track, seek to that position
+          if (relativeSeconds >= 0 && relativeSeconds <= activeTrack.duration) {
+            audioElement.currentTime = relativeSeconds;
+            if (wasPlaying) {
+              playback.play();
+            }
+          } else {
+            // Find which track contains this absolute time
+            let targetTrackIndex = -1;
+            for (let i = 0; i < mediaData.audioTracks.length; i++) {
+              const track = mediaData.audioTracks[i];
+              if (track.adjustedStartTime && track.adjustedEndTime) {
+                const start = track.adjustedStartTime.getTime();
+                const end = track.adjustedEndTime.getTime();
+                if (currentAbsoluteMs >= start && currentAbsoluteMs < end) {
+                  targetTrackIndex = i;
+                  break;
+                }
+              }
+            }
+            
+            if (targetTrackIndex >= 0) {
+              // Switch to the track that contains this time
+              const targetTrack = mediaData.audioTracks[targetTrackIndex];
+              const targetStartMs = targetTrack.adjustedStartTime.getTime();
+              const targetRelativeSeconds = (currentAbsoluteMs - targetStartMs) / 1000;
+              
+              loadAudioTrack(targetTrackIndex, false);
+              audioElement.currentTime = targetRelativeSeconds;
+              if (wasPlaying) {
+                playback.play();
+              }
+            }
+          }
+          
+          // Update display for current time
+          playback.refresh();
+        }
+      }
       
       console.log(`Added ${newAudioFiles.length} audio tracks and ${newImageFiles.length} images to timeline`);
     }
