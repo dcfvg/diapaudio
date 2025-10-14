@@ -865,6 +865,20 @@ body {
   max-width: 25%;
 }
 
+.timeline__hover-preview-track {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.95);
+  padding: 0.3rem 0.7rem;
+  background: rgba(0, 0, 0, 0.85);
+  border-radius: 999px;
+  margin-bottom: 0.4rem;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
 .timeline__hover-preview-time {
   font-size: 0.78rem;
   letter-spacing: 0.02em;
@@ -872,6 +886,7 @@ body {
   padding: 0.2rem 0.55rem;
   background: rgba(0, 0, 0, 0.75);
   border-radius: 999px;
+  margin-top: 0.3rem;
 }
 
 .timeline__cursor {
@@ -1144,6 +1159,7 @@ body {
   gap: 0.75rem;
   padding: 0;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .slideshow__container.split-1 {

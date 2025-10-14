@@ -37,6 +37,7 @@
   const timelineNotices = document.getElementById("timeline-notices");
   const timelineHoverPreview = document.getElementById("timeline-hover-preview");
   const timelineHoverPreviewImages = document.getElementById("timeline-hover-preview-images");
+  const timelineHoverPreviewTrack = document.getElementById("timeline-hover-preview-track");
   const timelineHoverPreviewTime = document.getElementById("timeline-hover-preview-time");
   const imageTimecode = document.getElementById("image-timecode");
   const imageTimeOfDay = document.getElementById("image-timeofday");
@@ -1597,6 +1598,38 @@
     return cleaned || `Track ${index + 1}`;
   }
 
+  function cleanTrackNameForDisplay(name) {
+    if (!name) return "";
+    // Remove file extension
+    let cleaned = name.replace(/\.[^.]+$/, "");
+    
+    // Remove date patterns: YYYY-MM-DD, YYYY.MM.DD, DD-MM-YYYY, etc.
+    cleaned = cleaned.replace(/\d{2,4}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}/g, "");
+    
+    // Remove time patterns: HH.MM.SS or HH:MM:SS
+    cleaned = cleaned.replace(/\d{1,2}[\.:\-]\d{2}[\.:\-]\d{2}/g, "");
+    
+    // Remove timestamp patterns like YYMMDD_HHMMSS, YYYYMMDD_HHMMSS
+    cleaned = cleaned.replace(/\d{6,8}[_\-]\d{6}/g, "");
+    
+    // Remove standalone numbers that look like dates, times or IDs (5+ digits)
+    cleaned = cleaned.replace(/\b\d{5,}\b/g, "");
+    
+    // Remove patterns like "_00109_M2" (underscore + numbers + optional letters)
+    cleaned = cleaned.replace(/[_\-]\d+[_\-]?[A-Z]?\d*/g, "");
+    
+    // Remove leading dashes, underscores, spaces, or "—"
+    cleaned = cleaned.replace(/^[\s\-_—]+/g, "");
+    
+    // Remove trailing dashes, underscores, spaces, slashes, or "—"
+    cleaned = cleaned.replace(/[\s\-_—\/]+$/g, "");
+    
+    // Replace multiple spaces/dashes/underscores with single space
+    cleaned = cleaned.replace(/[\s\-_—]+/g, " ");
+    
+    return cleaned.trim();
+  }
+
   function getFilePath(file) {
     return file.webkitRelativePath || file.path || file.name;
   }
@@ -2871,6 +2904,18 @@
         console.error('Error handling slideshow drop:', error);
       }
     });
+
+    // Toggle play/pause when clicking on slideshow images
+    slideshowContainer.addEventListener('click', (e) => {
+      // Only toggle if we have media and playback controller
+      if (!mediaData || !mediaData.audioTracks.length || !playback) return;
+      
+      // Don't toggle if clicking on a button or interactive element
+      if (e.target.closest('button') || e.target.closest('a')) return;
+      
+      playback.toggle();
+      setPlayToggleState(playback.isPlaying() ? "pause" : "play");
+    });
   }
 
   function handleTimelineHoverMove(event) {
@@ -2908,6 +2953,19 @@
 
     if (timelineHoverPreviewTime) {
       timelineHoverPreviewTime.textContent = formatClockWithSeconds(new Date(absoluteMs));
+    }
+
+    // Display the audio track name at this time
+    if (timelineHoverPreviewTrack) {
+      const trackIndex = findAudioTrackForTimestamp(absoluteMs);
+      if (trackIndex >= 0 && mediaData?.audioTracks?.[trackIndex]) {
+        const track = mediaData.audioTracks[trackIndex];
+        const displayName = cleanTrackNameForDisplay(track.originalName || track.label || "");
+        timelineHoverPreviewTrack.textContent = displayName || track.label || `Track ${trackIndex + 1}`;
+        timelineHoverPreviewTrack.style.display = "block";
+      } else {
+        timelineHoverPreviewTrack.style.display = "none";
+      }
     }
 
     updateTimelineSeeker(absoluteMs);
