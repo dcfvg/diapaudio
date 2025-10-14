@@ -321,6 +321,8 @@
           audioElement.pause();
         }
         state.requestedTrackIndex = null;
+        // For image-only mode (no audio tracks), allow playback to continue
+        // The ticker will advance time and show images as appropriate
         return;
       }
       
@@ -735,7 +737,8 @@
   });
 
   playToggle.addEventListener("click", () => {
-    if (!mediaData || !mediaData.audioTracks.length) return;
+    if (!mediaData) return;
+    // Allow playback even without audio tracks (image-only mode)
     playback.toggle();
     setPlayToggleState(playback.isPlaying() ? "pause" : "play");
   });
@@ -1558,9 +1561,23 @@
           force: true,
         });
         updateAnalogClock(firstImage.originalTimestamp);
+        
+        // Initialize playback controller with the first image's timestamp
+        if (playback && typeof playback.setAbsoluteTime === 'function') {
+          playback.setAbsoluteTime(firstMs, { autoplay: false });
+        }
+        
+        // Enable play button for image-only mode
+        if (playToggle) {
+          playToggle.disabled = false;
+        }
+        
         // Auto-play for image-only timelines
         if (autoPlay && playback && typeof playback.play === 'function') {
-          setTimeout(() => playback.play(), 100);
+          setTimeout(() => {
+            playback.play();
+            setPlayToggleState("pause");
+          }, 100);
         }
       }
     }
@@ -1648,20 +1665,27 @@
     // Remove file extension
     cleaned = cleaned.replace(/\.[^.]+$/, "");
     
-    // Remove date patterns: YYYY-MM-DD, YYYY.MM.DD, DD-MM-YYYY, etc.
-    cleaned = cleaned.replace(/\d{2,4}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}/g, "");
+    // Remove date patterns (various formats)
+    // YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD, YYYY MM DD
+    cleaned = cleaned.replace(/\b\d{4}[\s\-\./]\d{1,2}[\s\-\./]\d{1,2}\b/g, "");
+    // DD-MM-YYYY, DD.MM.YYYY, DD/MM/YYYY, DD MM YYYY
+    cleaned = cleaned.replace(/\b\d{1,2}[\s\-\./]\d{1,2}[\s\-\./]\d{4}\b/g, "");
+    // YYYYMMDD (8 digits together)
+    cleaned = cleaned.replace(/\b\d{8}\b/g, "");
+    // YYYY MM DD or YYYY-MM-DD variants (space or dash separated)
+    cleaned = cleaned.replace(/\b\d{4}\s+\d{1,2}\s+\d{1,2}\b/g, "");
     
-    // Remove time patterns: HH.MM.SS or HH:MM:SS
-    cleaned = cleaned.replace(/\d{1,2}[\.:\-]\d{2}[\.:\-]\d{2}/g, "");
+    // Remove time patterns - be aggressive about catching HH.MM.SS format
+    // Pattern: 1-2 digits, dot/colon/dash, 2 digits, dot/colon/dash, 2 digits
+    cleaned = cleaned.replace(/\d{1,2}[.\-:]\d{2}[.\-:]\d{2}/g, "");
+    // HH MM SS (space separated, not followed by letters to avoid matching IDs)
+    cleaned = cleaned.replace(/\b\d{1,2}\s+\d{2}\s+\d{2}\b(?!\s*[A-Z])/g, "");
     
     // Remove timestamp patterns like YYMMDD_HHMMSS, YYYYMMDD_HHMMSS
     cleaned = cleaned.replace(/\d{6,8}[_\-]\d{6}/g, "");
     
-    // Remove standalone numbers that look like dates, times or IDs (5+ digits)
-    cleaned = cleaned.replace(/\b\d{5,}\b/g, "");
-    
-    // Remove patterns like "_00109_M2" (underscore + numbers + optional letters)
-    cleaned = cleaned.replace(/[_\-]\d+[_\-]?[A-Z]?\d*/g, "");
+    // Remove year-like 4-digit numbers at the start (e.g., "2025")
+    cleaned = cleaned.replace(/^\s*\d{4}\s+/g, "");
     
     // Remove leading dashes, underscores, spaces, or "—"
     cleaned = cleaned.replace(/^[\s\-_—]+/g, "");
@@ -3715,6 +3739,7 @@
     const minute = 60 * 1000;
     const halfMinute = 30 * 1000;
     const tenSeconds = 10 * 1000;
+    const day = 24 * hour;
 
     // Calculate target number of ticks based on viewport width
     // Responsive: more ticks on wider screens, fewer on narrow screens
@@ -3739,7 +3764,12 @@
       4 * hour,
       6 * hour,
       12 * hour,
-      24 * hour,
+      day,           // 1 day
+      2 * day,       // 2 days
+      3 * day,       // 3 days
+      7 * day,       // 1 week
+      14 * day,      // 2 weeks
+      30 * day,      // ~1 month
     ];
     
     // Find the smallest step that's >= idealStep
@@ -3750,7 +3780,7 @@
     }
     
     // If range is very large, use the largest step
-    return 24 * hour;
+    return 30 * day;
   }
 
   function alignToStep(startMs, stepMs) {
