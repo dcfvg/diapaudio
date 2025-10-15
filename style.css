@@ -1065,20 +1065,6 @@ body {
   padding: 0.6rem 0.8rem;
 }
 
-.timeline__notices {
-  font-size: 0.75rem;
-  color: #f2f2f2;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  padding: 0.4rem 0.6rem;
-  line-height: 1.4;
-}
-
-.timeline__notices.hidden {
-  display: none;
-}
-
 .timeline-notices-modal {
   position: fixed;
   top: 0;

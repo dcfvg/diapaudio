@@ -35,7 +35,6 @@
   const timelineMinimapGradient = document.getElementById("timeline-minimap-gradient");
   const timelineMinimapTracks = document.getElementById("timeline-minimap-tracks");
   const timelineMinimapImages = document.getElementById("timeline-minimap-images");
-  const timelineNotices = document.getElementById("timeline-notices");
   const timelineHoverPreview = document.getElementById("timeline-hover-preview");
   const timelineHoverPreviewImages = document.getElementById("timeline-hover-preview-images");
   const timelineHoverPreviewTrack = document.getElementById("timeline-hover-preview-track");
@@ -1927,7 +1926,8 @@
     timelineState.anomalyMessages = (timelineState.anomalyMessages || []).concat(messages);
     // Allow showing again for new loads/additions
     timelineState.noticesShown = false;
-    try { updateTimelineNotices(); } catch (e) { /* no-op */ }
+    // Update modal directly
+    try { updateTimelineNoticesModal(timelineState.anomalyMessages); } catch (e) { /* no-op */ }
   }
 
   // Expand ZIP files in a list of files and return a flat list without the ZIPs
@@ -3669,7 +3669,8 @@
     timelineSetActiveTrack(mediaData.activeTrackIndex);
     highlightTimelineImages(sortImagesByTimestamp(currentDisplayedImages));
     updateTimelineCursor(timelineState.currentCursorMs);
-    updateTimelineNotices();
+    // Update modal with anomaly messages
+    updateTimelineNoticesModal(timelineState.anomalyMessages);
 
     timelineRoot.classList.remove("hidden");
   }
@@ -3711,10 +3712,6 @@
     }
     if (timelineMinimapGradient) {
       timelineMinimapGradient.style.removeProperty("backgroundImage");
-    }
-    if (timelineNotices) {
-      timelineNotices.innerHTML = "";
-      timelineNotices.classList.add("hidden");
     }
     // Reset overlap warning flag on timeline clear
     if (timelineState) {
@@ -3825,10 +3822,11 @@
               anomalies.push(t('overlapHandlingInfo'));
             }
             anomalies.push(
-              t('overlapWarning')
-                .replace('{trackA}', range.track.label)
-                .replace('{duration}', formatDurationMs(overlap))
-                .replace('{trackB}', latestRange.track.label)
+              t('overlapWarning', {
+                trackA: range.track.label,
+                duration: formatDurationMs(overlap),
+                trackB: latestRange.track.label
+              })
             );
           }
         } else {
@@ -4405,41 +4403,6 @@
     });
   }
 
-  function updateTimelineNotices() {
-    if (!timelineNotices) return;
-    let messages = timelineState.anomalyMessages || [];
-    // Only show if message is not a generic success/no-issue message
-    messages = messages.filter(msg => {
-      if (!msg) return false;
-      const lower = msg.toLowerCase();
-      if (lower.includes('no new files') || lower.includes('aucun nouveau fichier')) return false;
-      if (lower.includes('adding') && !lower.includes('skipped')) return false;
-      return true;
-    });
-    if (!messages.length) {
-      timelineNotices.innerHTML = "";
-      timelineNotices.classList.add("hidden");
-      return;
-    }
-
-    // Short help message for warnings (translated)
-    const helpMsg = `<div class='timeline-warning-help'>\
-      <b>⚠️ ${t('warningTitle')}</b> <br>
-      <b>${t('overlap')}</b> : ${t('overlapHelp')}<br>
-      <b>${t('duplicate')}</b> : ${t('duplicateHelp')}<br>
-      <b>${t('delay')}</b> : ${t('delayHelp')}<br>
-      <i>${t('warningTypes')}</i>
-    </div>`;
-    // Messages are already translated by addAnomalyMessages, so just display them
-    timelineNotices.innerHTML = helpMsg + messages
-      .map((message) => `<div>${message}</div>`)
-      .join("");
-    timelineNotices.classList.remove("hidden");
-    
-    // Also update the modal if it exists
-    updateTimelineNoticesModal(messages);
-  }
-
   function updateTimelineNoticesModal(messages) {
     const modal = document.getElementById("timeline-notices-modal");
     const messagesContainer = document.getElementById("timeline-notices-modal-messages");
@@ -4447,13 +4410,22 @@
     
     if (!modal || !messagesContainer || !closeBtn) return;
     
+    // Filter out generic success messages
+    const filteredMessages = (messages || []).filter(msg => {
+      if (!msg) return false;
+      const lower = msg.toLowerCase();
+      if (lower.includes('no new files') || lower.includes('aucun nouveau fichier')) return false;
+      if (lower.includes('adding') && !lower.includes('skipped')) return false;
+      return true;
+    });
+    
     // Only show modal once per session (on initial load with anomalies)
-    if (!messages || !messages.length || timelineState.noticesShown) {
+    if (!filteredMessages.length || timelineState.noticesShown) {
       return;
     }
     
     // Messages are already translated by addAnomalyMessages, so just display them
-    messagesContainer.innerHTML = messages.map((message) => `<div>${message}</div>`).join("");
+    messagesContainer.innerHTML = filteredMessages.map((message) => `<div>${message}</div>`).join("");
     modal.classList.remove("hidden");
     timelineState.noticesShown = true;
     
