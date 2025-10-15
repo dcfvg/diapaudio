@@ -166,7 +166,12 @@
       loaderStatus.textContent = t(statusKey);
     }
     if (loaderDetails) {
-      loaderDetails.textContent = details;
+      // Use innerHTML to support <br> tags, but escape the content first for safety
+      if (details.includes('<br>')) {
+        loaderDetails.innerHTML = details;
+      } else {
+        loaderDetails.textContent = details;
+      }
     }
     // Update global loader
     if (globalLoaderProgressBar) {
@@ -176,7 +181,12 @@
       globalLoaderStatus.textContent = t(statusKey);
     }
     if (globalLoaderDetails) {
-      globalLoaderDetails.textContent = details;
+      // Use innerHTML to support <br> tags, but escape the content first for safety
+      if (details.includes('<br>')) {
+        globalLoaderDetails.innerHTML = details;
+      } else {
+        globalLoaderDetails.textContent = details;
+      }
     }
   }
 
@@ -944,7 +954,7 @@
   if (exportFcpButton) {
     exportFcpButton.addEventListener("click", () => {
       if (!mediaData || !mediaData.images || mediaData.images.length === 0) {
-        alert("No media loaded. Please load a folder with images and audio first.");
+        alert(t('alertNoMediaLoaded'));
         return;
       }
       exportFinalCutProXML();
@@ -954,7 +964,7 @@
   if (exportZipButton) {
     exportZipButton.addEventListener("click", () => {
       if (!mediaData || !mediaData.images || mediaData.images.length === 0) {
-        alert("No media loaded. Please load a folder with images and audio first.");
+        alert(t('alertNoMediaLoaded'));
         return;
       }
       exportZipArchive();
@@ -1191,8 +1201,99 @@
         event.preventDefault();
         hideTimeline();
         break;
+
+      case "j": // j - pause and go to next image or sound beginning
+        event.preventDefault();
+        if (playback.isPlaying()) {
+          playback.pause();
+          setPlayToggleState("pause");
+        }
+        goToNextMedia();
+        break;
+
+      case "k": // k - pause and go to previous image or sound beginning
+        event.preventDefault();
+        if (playback.isPlaying()) {
+          playback.pause();
+          setPlayToggleState("pause");
+        }
+        goToPreviousMedia();
+        break;
     }
   });
+
+  // Helper functions to navigate to next/previous media items
+  function goToNextMedia() {
+    if (!mediaData) return;
+    
+    const currentMs = playback.getAbsoluteTime();
+    if (currentMs === null) return;
+    
+    // Collect all media start times (audio tracks and images)
+    const mediaTimes = [];
+    
+    // Add audio track start times
+    if (mediaData.audioTracks) {
+      mediaData.audioTracks.forEach(track => {
+        if (track.adjustedStartTime instanceof Date) {
+          mediaTimes.push(track.adjustedStartTime.getTime());
+        }
+      });
+    }
+    
+    // Add image timestamps
+    if (mediaData.images) {
+      mediaData.images.forEach(img => {
+        if (img.originalTimestamp instanceof Date) {
+          mediaTimes.push(img.originalTimestamp.getTime());
+        }
+      });
+    }
+    
+    // Sort and find next time after current
+    mediaTimes.sort((a, b) => a - b);
+    const nextTime = mediaTimes.find(t => t > currentMs + 100); // Add small buffer to avoid same position
+    
+    if (nextTime !== undefined) {
+      seekToAbsoluteMs(nextTime, null, { forceDisplay: true });
+    }
+  }
+
+  function goToPreviousMedia() {
+    if (!mediaData) return;
+    
+    const currentMs = playback.getAbsoluteTime();
+    if (currentMs === null) return;
+    
+    // Collect all media start times (audio tracks and images)
+    const mediaTimes = [];
+    
+    // Add audio track start times
+    if (mediaData.audioTracks) {
+      mediaData.audioTracks.forEach(track => {
+        if (track.adjustedStartTime instanceof Date) {
+          mediaTimes.push(track.adjustedStartTime.getTime());
+        }
+      });
+    }
+    
+    // Add image timestamps
+    if (mediaData.images) {
+      mediaData.images.forEach(img => {
+        if (img.originalTimestamp instanceof Date) {
+          mediaTimes.push(img.originalTimestamp.getTime());
+        }
+      });
+    }
+    
+    // Sort and find previous time before current
+    mediaTimes.sort((a, b) => b - a); // Reverse sort
+    const prevTime = mediaTimes.find(t => t < currentMs - 100); // Add small buffer to avoid same position
+    
+    if (prevTime !== undefined) {
+      seekToAbsoluteMs(prevTime, null, { forceDisplay: true });
+    }
+  }
 
   // Remember the freshest seek request while a track is still loading.
   function setPendingSeek(image, shouldPlay, trackIndex, timeMs = null) {
@@ -1220,7 +1321,7 @@
     pendingSeek = null;
   }
 
-  async function handleFolder(files, autoPlay = false) {
+  async function handleFolder(files, autoPlay = false, sourceName = null) {
     showLoader('readingFolder');
     updateLoaderProgress(0, 'readingFolder', 'Starting...');
 
@@ -1244,7 +1345,8 @@
             setDelaySeconds(parsed);
             console.log(`Loaded delay setting from _delay.txt: ${formatDelay(parsed)}`);
             if (delayFiles.length > 1) {
-              addAnomalyMessages([`Multiple delay files detected (${delayFiles.length}); using the last one: ${formatDelay(parsed)}`]);
+              const msg = t('multipleDelayFilesDetected', { count: delayFiles.length, delay: formatDelay(parsed) });
+              addAnomalyMessages([msg]);
             }
           } else {
             console.warn(`Invalid delay format in _delay.txt: "${text.trim()}"`);
@@ -1290,7 +1392,7 @@
       }
       
       if (skippedAudioDuplicates.length > 0) {
-        const msg = `Removed ${skippedAudioDuplicates.length} duplicate audio file(s) in this drop`;
+        const msg = t('removedDuplicateAudio', { count: skippedAudioDuplicates.length });
         console.warn(msg);
         addAnomalyMessages([msg]);
       }
@@ -1325,7 +1427,7 @@
       }
       
       if (skippedImageDuplicates.length > 0) {
-        const msg = `Removed ${skippedImageDuplicates.length} duplicate image file(s) in this drop`;
+        const msg = t('removedDuplicateImage', { count: skippedImageDuplicates.length });
         console.warn(msg);
         addAnomalyMessages([msg]);
       }
@@ -1333,9 +1435,9 @@
       // Check if we have at least some media files
       if (!uniqueAudioFiles.length && !uniqueImageFiles.length) {
         if (skippedAudioDuplicates.length > 0 || skippedImageDuplicates.length > 0) {
-          throw new Error("Only duplicate files detected. All files were already processed.");
+          throw new Error(t('errorOnlyDuplicates'));
         }
-        throw new Error("No audio or image files detected. Please add media files with timestamps.");
+        throw new Error(t('errorNoMediaFiles'));
       }
 
       // Process audio files if any
@@ -1404,7 +1506,7 @@
       
       // At least one type of media must have valid content
       if (audioTracks.length === 0 && validImages.length === 0) {
-        throw new Error("No valid media files with timestamps found. Please ensure files have timestamps in their names or metadata.");
+        throw new Error(t('errorNoValidMediaFiles'));
       }
 
       updateLoaderProgress(95, 'processingFiles', 'Finalizing...');
@@ -1443,7 +1545,7 @@
       console.log('Extracting ZIP file:', zipFile.name);
       const files = await unzipFile(zipFile);
       console.log(`Extracted ${files.length} files from ZIP`);
-      await handleFolder(files, autoPlay);
+      await handleFolder(files, autoPlay, zipFile.name);
     } catch (error) {
       console.error('Error processing ZIP file:', error);
       showError(error.message);
@@ -1460,7 +1562,7 @@
     console.log(`Extracting ZIP file: ${zipFile.name}, size: ${zipFile.size} bytes`);
 
     if (!window.zip) {
-      throw new Error('zip.js library not loaded');
+      throw new Error(t('errorZipLibraryNotLoaded'));
     }
 
     const files = [];
@@ -1477,7 +1579,7 @@
       totalEntries = entries.length;
       
       console.log(`Found ${totalEntries} entries in ZIP`);
-      updateLoaderProgress(10, 'extractingZip', `0 / ${totalEntries}`);
+      updateLoaderProgress(10, 'extractingZip', `${zipFile.name}<br>0 / ${totalEntries}`);
 
       // Process each entry
       for (const entry of entries) {
@@ -1486,7 +1588,7 @@
 
         processedEntries++;
         const progress = 10 + (processedEntries / totalEntries) * 80; // 10% to 90%
-        updateLoaderProgress(progress, 'extractingZip', `${processedEntries} / ${totalEntries}`);
+        updateLoaderProgress(progress, 'extractingZip', `${zipFile.name}<br>${processedEntries} / ${totalEntries}`);
 
         // Skip directories and system files
         if (entry.directory || isSystemFile(fileName)) {
@@ -1520,7 +1622,7 @@
 
     } catch (error) {
       console.error('ZIP extraction error:', error);
-      throw new Error(`Failed to extract ZIP: ${error.message}`);
+      throw new Error(t('errorFailedExtractZip', { message: error.message }));
     }
 
     console.log(`ZIP extraction complete. Extracted ${files.length} files`);
@@ -1528,9 +1630,9 @@
 
     if (files.length === 0) {
       if (systemFileCount > 0 && totalEntries === systemFileCount) {
-        throw new Error('ZIP archive only contains system files (__MACOSX, .DS_Store, etc). Please recreate the ZIP without these files.');
+        throw new Error(t('errorZipOnlySystemFiles'));
       }
-      throw new Error('No valid files found in ZIP archive. Make sure the ZIP contains images and audio files.');
+      throw new Error(t('errorZipNoValidFiles'));
     }
 
     // Deduplicate files within ZIP (same name, size, and timestamp)
@@ -1589,9 +1691,9 @@
 
       if (expanded.length === 0) {
         if (systemFileCount > 0) {
-          throw new Error('Only system files detected. Please select valid audio and image files.');
+          throw new Error(t('errorOnlySystemFiles'));
         }
-        throw new Error('No valid files found. Please select audio and image files.');
+        throw new Error(t('errorNoValidFiles'));
       }
 
       updateLoaderProgress(95, 'processingFiles', `${expanded.length} ${t('filesProcessed')}`);
@@ -2987,7 +3089,7 @@
 
     if (!combined.length) {
       hideLoader();
-      throw new Error("Please drop a folder, ZIP file, or individual audio/image files.");
+      throw new Error(t('errorDropFolderOrFiles'));
     }
 
     // Filter out system files
@@ -3071,7 +3173,8 @@
           setDelaySeconds(parsed);
           console.log(`Updated delay setting from _delay.txt: ${formatDelay(parsed)}`);
           if (delayFiles.length > 1) {
-            addAnomalyMessages([`Multiple delay files detected in addition (${delayFiles.length}); using the last one: ${formatDelay(parsed)}`]);
+            const msg = t('multipleDelayFilesDetectedAddition', { count: delayFiles.length, delay: formatDelay(parsed) });
+            addAnomalyMessages([msg]);
           }
         } else {
           console.warn(`Invalid delay format in _delay.txt: "${text.trim()}"`);
@@ -3460,7 +3563,8 @@
     isHoverScrubbing = false;
 
     // Always seek to the clicked time, regardless of images
-    seekToAbsoluteMs(absoluteMs, shouldPlay, { forceDisplay: true });
+    // Disable snapping on click - snapping is only for dragging/scrubbing
+    seekToAbsoluteMs(absoluteMs, shouldPlay, { forceDisplay: true, snap: false });
     
     showHud();
   }
@@ -4326,24 +4430,29 @@
       <b>${t('delay')}</b> : ${t('delayHelp')}<br>
       <i>${t('warningTypes')}</i>
     </div>`;
+    // Messages are already translated by addAnomalyMessages, so just display them
     timelineNotices.innerHTML = helpMsg + messages
-      .map((message) => `<div>${t(message)}</div>`)
+      .map((message) => `<div>${message}</div>`)
       .join("");
     timelineNotices.classList.remove("hidden");
+    
+    // Also update the modal if it exists
+    updateTimelineNoticesModal(messages);
   }
 
-  function updateTimelineNotices() {
+  function updateTimelineNoticesModal(messages) {
     const modal = document.getElementById("timeline-notices-modal");
     const messagesContainer = document.getElementById("timeline-notices-modal-messages");
     const closeBtn = document.getElementById("timeline-notices-modal-close");
-    const messages = timelineState.anomalyMessages || [];
+    
     if (!modal || !messagesContainer || !closeBtn) return;
     
     // Only show modal once per session (on initial load with anomalies)
-    if (!messages.length || timelineState.noticesShown) {
+    if (!messages || !messages.length || timelineState.noticesShown) {
       return;
     }
     
+    // Messages are already translated by addAnomalyMessages, so just display them
     messagesContainer.innerHTML = messages.map((message) => `<div>${message}</div>`).join("");
     modal.classList.remove("hidden");
     timelineState.noticesShown = true;
@@ -4731,7 +4840,7 @@
 
   async function exportZipArchive() {
     if (!mediaData || !mediaData.images || mediaData.images.length === 0) {
-      alert("No media loaded to export.");
+      alert(t('alertNoMediaToExport'));
       return;
     }
 
@@ -4837,7 +4946,7 @@
       hideLoader();
     } catch (error) {
       console.error("Error creating ZIP archive:", error);
-      alert(`Failed to create ZIP archive: ${error.message}`);
+      alert(t('alertFailedCreateZip', { message: error.message }));
       hideLoader();
     }
   }
