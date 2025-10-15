@@ -2,6 +2,18 @@
 (() => {
   const translations = {
     en: {
+  // Warnings & Modal Help
+  warningTitle: "Warning:",
+  overlap: "Overlap",
+  overlapHelp: "Audio files overlap in the timeline.",
+  duplicate: "Duplicate",
+  duplicateHelp: "Identical files were ignored.",
+  delay: "Delay",
+  delayHelp: "Multiple delay files detected, only the last is used.",
+  warningTypes: "Warning types: <b>Overlap</b> (audio files overlap), <b>Duplicate</b> (identical files ignored), <b>Delay</b> (multiple delay files, last used).",
+  // Dynamic feedback
+  noNewFiles: "No new files to add. Skipped {duplicateCount} duplicate(s) already in timeline{intraBatchDuplicateCount, plural, =0 {} other { and {intraBatchDuplicateCount} duplicate(s) within selection}}.",
+  addedFiles: "Adding {count} new file(s) to timeline. Skipped {duplicateCount} duplicate(s) already in timeline{intraBatchDuplicateCount, plural, =0 {} other { and {intraBatchDuplicateCount} duplicate(s) within selection}}.",
       // Page title and main heading
       appTitle: "diapaudio 🛝",
       tagline: "🎧 Playback photos synced with recordings of that day.",
@@ -68,6 +80,18 @@
     },
     
     fr: {
+  // Warnings & Modal Help
+  warningTitle: "Avertissement :",
+  overlap: "Chevauchement",
+  overlapHelp: "Des fichiers audio se superposent dans la timeline.",
+  duplicate: "Doublon",
+  duplicateHelp: "Des fichiers identiques ont été ignorés.",
+  delay: "Délai",
+  delayHelp: "Plusieurs fichiers de délai détectés, seul le dernier est utilisé.",
+  warningTypes: "Types d'avertissement : <b>Chevauchement</b> (fichiers audio superposés), <b>Doublon</b> (fichiers identiques ignorés), <b>Délai</b> (plusieurs fichiers de délai, seul le dernier est utilisé).",
+  // Dynamic feedback
+  noNewFiles: "Aucun nouveau fichier à ajouter. {duplicateCount} doublon(s) déjà dans la timeline{intraBatchDuplicateCount, plural, =0 {} other { et {intraBatchDuplicateCount} doublon(s) dans la sélection}} ignoré(s).",
+  addedFiles: "Ajout de {count} nouveau(x) fichier(s) à la timeline. {duplicateCount} doublon(s) déjà dans la timeline{intraBatchDuplicateCount, plural, =0 {} other { et {intraBatchDuplicateCount} doublon(s) dans la sélection}} ignoré(s).",
       // Page title and main heading
       appTitle: "diapaudio 🛝",
   tagline: "🎧 Synchroniser des photos avec des enregistrements audio.",

@@ -127,7 +127,37 @@
   };
 
   // Progress tracking helpers
+  // Global progress state for batch imports
+  let globalProgressState = null;
+
+  function startGlobalProgress(totalSteps) {
+    globalProgressState = {
+      total: totalSteps,
+      current: 0,
+      lastPercent: 0,
+    };
+    updateLoaderProgress(0, 'processingFiles', t('globalProgressStart'));
+  }
+
+  function incrementGlobalProgress(details = '') {
+    if (!globalProgressState) return;
+    globalProgressState.current++;
+    const percent = Math.round((globalProgressState.current / globalProgressState.total) * 100);
+    globalProgressState.lastPercent = percent;
+    updateLoaderProgress(percent, 'processingFiles', details);
+  }
+
+  function finishGlobalProgress() {
+    if (!globalProgressState) return;
+    updateLoaderProgress(100, 'processingFiles', t('globalProgressDone'));
+    globalProgressState = null;
+  }
+
   function updateLoaderProgress(percent, statusKey, details = '') {
+    // If global progress is active, override percent
+    if (globalProgressState && typeof percent === 'number') {
+      percent = globalProgressState.lastPercent;
+    }
     // Update dropzone loader
     if (loaderProgressBar) {
       loaderProgressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
@@ -138,7 +168,6 @@
     if (loaderDetails) {
       loaderDetails.textContent = details;
     }
-    
     // Update global loader
     if (globalLoaderProgressBar) {
       globalLoaderProgressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
@@ -616,6 +645,7 @@
     imageStackMagnitude: 0,
     anomalyMessages: [],
     noticesShown: false, // Track if modal has been shown
+    overlapWarned: false, // Only show overlap warning on first import
   };
   let timelineInteractionsReady = false;
   let isHoverScrubbing = false;
@@ -710,14 +740,31 @@
   // Also add handler for ZIP input
   if (zipInput) {
     zipInput.addEventListener("change", async (event) => {
-      const files = Array.from(event.target.files);
-      if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
+      const files = Array.from(event.target.files).filter(f => f.name.toLowerCase().endsWith('.zip'));
+      if (files.length > 0) {
+        showLoader('extractingZip');
         try {
+          startGlobalProgress(files.length);
           const wasPlaying = playback ? playback.isPlaying() : false;
-          await handleZipFile(files[0], !wasPlaying);
+          const shouldAutoPlay = !wasPlaying;
+          
+          // Extract all ZIPs and accumulate files
+          let allExtractedFiles = [];
+          for (let i = 0; i < files.length; i++) {
+            console.log(`Extracting ZIP ${i + 1}/${files.length}: ${files[i].name}`);
+            const extractedFiles = await unzipFile(files[i]);
+            allExtractedFiles = allExtractedFiles.concat(extractedFiles);
+            incrementGlobalProgress(`${i + 1} / ${files.length}`);
+          }
+          finishGlobalProgress();
+          
+          console.log(`Extracted ${allExtractedFiles.length} total files from ${files.length} ZIP(s)`);
+          // Process all files together
+          await handleFolder(allExtractedFiles, shouldAutoPlay);
         } catch (error) {
-          console.error('Error handling ZIP file:', error);
-          showError(`Failed to process ZIP file: ${error.message}`);
+          console.error('Error handling ZIP file(s):', error);
+          showError(`Failed to process ZIP file(s): ${error.message}`);
+          hideLoader();
         }
         zipInput.value = "";
       }
@@ -728,16 +775,46 @@
   if (filesInput) {
     filesInput.addEventListener("change", async (event) => {
       const files = Array.from(event.target.files);
-      if (files.length > 0) {
+      const zipFiles = files.filter(f => f.name.toLowerCase().endsWith('.zip'));
+      const otherFiles = files.filter(f => !f.name.toLowerCase().endsWith('.zip'));
+      
+      if (zipFiles.length > 0) {
+        showLoader('extractingZip');
+        try {
+          startGlobalProgress(zipFiles.length);
+          const wasPlaying = playback ? playback.isPlaying() : false;
+          const shouldAutoPlay = !wasPlaying;
+          
+          // Extract all ZIPs and accumulate files
+          let allExtractedFiles = [];
+          for (let i = 0; i < zipFiles.length; i++) {
+            console.log(`Extracting ZIP ${i + 1}/${zipFiles.length}: ${zipFiles[i].name}`);
+            const extractedFiles = await unzipFile(zipFiles[i]);
+            allExtractedFiles = allExtractedFiles.concat(extractedFiles);
+            incrementGlobalProgress(`${i + 1} / ${zipFiles.length}`);
+          }
+          finishGlobalProgress();
+          
+          console.log(`Extracted ${allExtractedFiles.length} total files from ${zipFiles.length} ZIP(s)`);
+          // Add other files to the extracted files
+          allExtractedFiles = allExtractedFiles.concat(otherFiles);
+          // Process all files together
+          await handleFolder(allExtractedFiles, shouldAutoPlay);
+        } catch (error) {
+          console.error('Error handling files:', error);
+          showError(`Failed to process files: ${error.message}`);
+          hideLoader();
+        }
+      } else if (otherFiles.length > 0) {
         try {
           const wasPlaying = playback ? playback.isPlaying() : false;
-          await handleIndividualFiles(files, !wasPlaying);
+          await handleIndividualFiles(otherFiles, !wasPlaying);
         } catch (error) {
           console.error('Error handling individual files:', error);
           showError(`Failed to process files: ${error.message}`);
         }
-        filesInput.value = "";
       }
+      filesInput.value = "";
     });
   }
 
@@ -1148,21 +1225,27 @@
     updateLoaderProgress(0, 'readingFolder', 'Starting...');
 
     try {
-      // Check for _delay.txt file and read delay setting
-      updateLoaderProgress(5, 'readingFolder', 'Checking for delay file...');
-      const delayFile = files.find(file => {
-        const path = getFilePath(file);
-        const name = path.split('/').pop();
-        return name === '_delay.txt';
-      });
+      // If ZIP archives are included in the provided files, expand them first
+      const { expanded, zipCount, extractedCount } = await expandZipFiles(files, { phase: 'readingFolder' });
+      if (zipCount > 0) {
+        console.log(`Expanded ${zipCount} ZIP(s) inside folder input; extracted ${extractedCount} file(s).`);
+      }
+      files = expanded.length ? expanded : files;
 
-      if (delayFile) {
+      // Check for _delay.txt files and read delay setting (prefer the last one)
+      updateLoaderProgress(5, 'readingFolder', 'Checking for delay file...');
+      const delayFiles = files.filter(file => getBaseName(getFilePath(file)) === '_delay.txt');
+      if (delayFiles.length > 0) {
+        const chosenDelayFile = delayFiles[delayFiles.length - 1];
         try {
-          const text = await delayFile.text();
+          const text = await chosenDelayFile.text();
           const parsed = parseDelayField(text.trim());
           if (parsed !== null) {
             setDelaySeconds(parsed);
             console.log(`Loaded delay setting from _delay.txt: ${formatDelay(parsed)}`);
+            if (delayFiles.length > 1) {
+              addAnomalyMessages([`Multiple delay files detected (${delayFiles.length}); using the last one: ${formatDelay(parsed)}`]);
+            }
           } else {
             console.warn(`Invalid delay format in _delay.txt: "${text.trim()}"`);
           }
@@ -1207,7 +1290,9 @@
       }
       
       if (skippedAudioDuplicates.length > 0) {
-        console.warn(`Removed ${skippedAudioDuplicates.length} duplicate audio files`);
+        const msg = `Removed ${skippedAudioDuplicates.length} duplicate audio file(s) in this drop`;
+        console.warn(msg);
+        addAnomalyMessages([msg]);
       }
 
       const imageFiles = files.filter(
@@ -1240,7 +1325,9 @@
       }
       
       if (skippedImageDuplicates.length > 0) {
-        console.warn(`Removed ${skippedImageDuplicates.length} duplicate image files`);
+        const msg = `Removed ${skippedImageDuplicates.length} duplicate image file(s) in this drop`;
+        console.warn(msg);
+        addAnomalyMessages([msg]);
       }
 
       // Check if we have at least some media files
@@ -1482,39 +1569,36 @@
       console.log('Processing individual files:', fileList.map(f => f.name));
       
       // Filter out system files
-      const files = [];
+      const initial = [];
       let systemFileCount = 0;
       
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        
-        updateLoaderProgress(10 + (i / fileList.length) * 80, 'processingFiles', `${i + 1} / ${fileList.length}`);
-        
+        updateLoaderProgress(10 + (i / Math.max(1, fileList.length)) * 60, 'processingFiles', `${i + 1} / ${fileList.length}`);
         if (isSystemFile(file.name)) {
           systemFileCount++;
           console.log(`Skipping system file: ${file.name}`);
           continue;
         }
-        
-        // Pass the File object directly since handleFolder expects it
-        files.push(file);
-        console.log(`Added file: ${file.name}`);
+        initial.push(file);
       }
-      
-      updateLoaderProgress(95, 'processingFiles', `${files.length} ${t('filesProcessed')}`);
-      
-      console.log(`Individual files processing complete. Processed ${files.length} files`);
-      console.log(`Skipped ${systemFileCount} system files`);
-      
-      if (files.length === 0) {
+
+      // Expand any ZIPs among selected files
+      const { expanded, zipCount, extractedCount } = await expandZipFiles(initial);
+      updateLoaderProgress(80, 'processingFiles', `Unzipped ${zipCount} ZIP(s)`);
+
+      if (expanded.length === 0) {
         if (systemFileCount > 0) {
           throw new Error('Only system files detected. Please select valid audio and image files.');
         }
         throw new Error('No valid files found. Please select audio and image files.');
       }
+
+      updateLoaderProgress(95, 'processingFiles', `${expanded.length} ${t('filesProcessed')}`);
+      console.log(`Individual files processing complete. Processed ${expanded.length} file(s), skipped ${systemFileCount} system file(s), extracted ${extractedCount} from zips.`);
       
       // Process the files using the existing handleFolder logic
-      await handleFolder(files, autoPlay);
+      await handleFolder(expanded, autoPlay);
       
     } catch (error) {
       console.error('Error processing individual files:', error);
@@ -1561,8 +1645,9 @@
 
     try {
       const files = await readDirectoryRecursive(dirEntry);
-      updateLoaderProgress(95, 'processingFiles', `${files.length} ${t('filesProcessed')}`);
-      await handleFolder(files, autoPlay);
+      const { expanded } = await expandZipFiles(files, { phase: 'readingFolder' });
+      updateLoaderProgress(95, 'processingFiles', `${expanded.length} ${t('filesProcessed')}`);
+      await handleFolder(expanded, autoPlay);
     } catch (error) {
       console.error(error);
       showError(error.message);
@@ -1719,6 +1804,61 @@
       destroyTimeline();
       timelineRoot.classList.add("hidden");
     }
+  }
+
+  // Helper: get basename from a path
+  function getBaseName(path) {
+    if (!path) return '';
+    const normalized = String(path).replace(/\\/g, '/');
+    const parts = normalized.split('/');
+    return parts[parts.length - 1] || normalized;
+  }
+
+  // Helper: merge anomaly messages into timeline notices and show
+  function addAnomalyMessages(messages, opts = {}) {
+    if (!Array.isArray(messages) || !messages.length) return;
+    // If overlap warning, only show on first import
+    if (opts.overlap) {
+      if (timelineState.overlapWarned) return;
+      timelineState.overlapWarned = true;
+    }
+    timelineState.anomalyMessages = (timelineState.anomalyMessages || []).concat(messages);
+    // Allow showing again for new loads/additions
+    timelineState.noticesShown = false;
+    try { updateTimelineNotices(); } catch (e) { /* no-op */ }
+  }
+
+  // Expand ZIP files in a list of files and return a flat list without the ZIPs
+  async function expandZipFiles(files, { phase = 'processingFiles' } = {}) {
+    if (!Array.isArray(files) || !files.length) return { expanded: [], extractedCount: 0, zipCount: 0 };
+    const nonZip = [];
+    const zips = [];
+    for (const f of files) {
+      const name = f?.name || getFilePath(f) || '';
+      if (/\.zip$/i.test(name)) {
+        zips.push(f);
+      } else {
+        nonZip.push(f);
+      }
+    }
+    if (!zips.length) {
+      return { expanded: nonZip, extractedCount: 0, zipCount: 0 };
+    }
+    let extracted = [];
+    let processed = 0;
+    for (const zipFile of zips) {
+      processed += 1;
+      const progress = 10 + Math.round((processed / Math.max(1, zips.length)) * 70);
+      updateLoaderProgress(progress, 'extractingZip', `${processed} / ${zips.length}`);
+      try {
+        const innerFiles = await unzipFile(zipFile);
+        extracted = extracted.concat(innerFiles);
+      } catch (e) {
+        console.warn('Failed to unzip', zipFile?.name || '(unknown)', e);
+      }
+    }
+    const expanded = nonZip.concat(extracted);
+    return { expanded, extractedCount: extracted.length, zipCount: zips.length };
   }
 
   function isImage(name) {
@@ -2813,63 +2953,56 @@
   }
 
   async function handleDrop(dataTransfer, mode = 'replace') {
-    const items = Array.from(dataTransfer.items);
-    const files = Array.from(dataTransfer.files);
-    
+    showLoader('processingFiles');
+    const items = Array.from(dataTransfer.items || []);
+    const files = Array.from(dataTransfer.files || []);
+
     // Capture current playing state before processing
-    // In replace mode, autoplay unless we were already playing
     const wasPlaying = playback ? playback.isPlaying() : false;
     const shouldAutoPlay = (mode === 'replace') && !wasPlaying;
-    
     console.log('handleDrop:', { mode, wasPlaying, shouldAutoPlay });
-    
-    // Check if a single ZIP file was dropped
-    if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
-      if (mode === 'additive' && mediaData) {
-        // Extract ZIP and add files to existing timeline
-        await handleZipFileAddition(files[0]);
-      } else {
-        // Replace current content with ZIP (or create initial content)
-        await handleZipFile(files[0], shouldAutoPlay);
-      }
-      return;
-    }
-    
-    // Check if it's a folder
+
+    // Collect directory entries (possibly multiple)
     const folderEntries = items
       .filter(item => item.kind === 'file')
       .map(item => item.webkitGetAsEntry && item.webkitGetAsEntry())
       .filter(entry => entry && entry.isDirectory);
 
-    if (folderEntries.length > 0) {
-      if (mode === 'additive' && mediaData) {
-        // Add folder files to existing timeline
-        await handleFolderAddition(folderEntries[0]);
-      } else {
-        // Replace current content with folder (or create initial content)
-        await handleDirectoryEntry(folderEntries[0], shouldAutoPlay);
+    // Read all directories
+    let folderFiles = [];
+    for (let i = 0; i < folderEntries.length; i++) {
+      updateLoaderProgress(5 + Math.min(20, (i + 1) * 2), 'readingFolder', `Folder ${i + 1}/${folderEntries.length}`);
+      try {
+        const dirFiles = await readDirectoryRecursive(folderEntries[i]);
+        folderFiles.push(...dirFiles);
+      } catch (e) {
+        console.warn('Failed to read dropped folder:', e);
       }
+    }
+
+    // Merge all sources
+    let combined = [];
+    if (files.length) combined.push(...files);
+    if (folderFiles.length) combined.push(...folderFiles);
+
+    if (!combined.length) {
+      hideLoader();
+      throw new Error("Please drop a folder, ZIP file, or individual audio/image files.");
+    }
+
+    // Filter out system files
+    combined = combined.filter(f => !isSystemFile(f.name || getFilePath(f)));
+
+    // Expand any ZIPs found
+    const { expanded } = await expandZipFiles(combined);
+
+    if (mode === 'additive' && mediaData) {
+      await addFilesToTimeline(expanded);
+      hideLoader();
       return;
     }
-    
-    // Handle individual files
-    if (files.length > 0) {
-      if (mode === 'additive') {
-        if (mediaData) {
-          // Add files to existing timeline
-          await addFilesToTimeline(files);
-        } else {
-          // No timeline yet, create initial content
-          await handleIndividualFiles(files, shouldAutoPlay);
-        }
-      } else {
-        // Replace current content with files
-        await handleIndividualFiles(files, shouldAutoPlay);
-      }
-      return;
-    }
-    
-    throw new Error("Please drop a folder, ZIP file, or individual audio/image files.");
+
+    await handleFolder(expanded, shouldAutoPlay);
   }
 
   async function handleFolderAddition(dirEntry) {
@@ -2882,13 +3015,14 @@
     try {
       const newFiles = await readDirectoryRecursive(dirEntry);
       const validFiles = newFiles.filter(file => !isSystemFile(getFilePath(file)));
+      const { expanded } = await expandZipFiles(validFiles, { phase: 'readingFolder' });
       
-      if (validFiles.length === 0) {
+      if (expanded.length === 0) {
         console.log('No valid files found in folder');
         return;
       }
 
-      await addFilesToTimeline(validFiles);
+      await addFilesToTimeline(expanded);
     } catch (error) {
       console.error('Error adding folder to timeline:', error);
       throw error;
@@ -2926,20 +3060,19 @@
   }
 
   async function addFilesToTimeline(newFiles) {
-    // Check for _delay.txt file first
-    const delayFile = newFiles.find(file => {
-      const fileName = file.name || getFilePath(file);
-      const name = fileName.split('/').pop();
-      return name === '_delay.txt';
-    });
-
-    if (delayFile) {
+    // Check for _delay.txt files; apply the last one
+    const delayFiles = newFiles.filter(file => getBaseName(file.name || getFilePath(file)) === '_delay.txt');
+    if (delayFiles.length > 0) {
+      const chosenDelayFile = delayFiles[delayFiles.length - 1];
       try {
-        const text = await delayFile.text();
+        const text = await chosenDelayFile.text();
         const parsed = parseDelayField(text.trim());
         if (parsed !== null) {
           setDelaySeconds(parsed);
           console.log(`Updated delay setting from _delay.txt: ${formatDelay(parsed)}`);
+          if (delayFiles.length > 1) {
+            addAnomalyMessages([`Multiple delay files detected in addition (${delayFiles.length}); using the last one: ${formatDelay(parsed)}`]);
+          }
         } else {
           console.warn(`Invalid delay format in _delay.txt: "${text.trim()}"`);
         }
@@ -2949,8 +3082,10 @@
     }
 
     // Filter out duplicates and system files
-    const validFiles = [];
-    let duplicateCount = 0;
+  const validFiles = [];
+  let duplicateCount = 0;
+  let intraBatchDuplicateCount = 0;
+  const seenKeys = new Set();
 
     for (const file of newFiles) {
       const fileName = file.name || getFilePath(file);
@@ -2964,16 +3099,24 @@
         continue;
       }
 
-      // Check for duplicates (same name, size, timestamp, and last modified)
+      // Create duplicate key (name + size + timestamp), ignoring lastModified
       const fileSize = file.size || 0;
-      const fileLastModified = file.lastModified || 0;
       const fileTimestamp = parseTimestampFromName(fileName);
       const timestampKey = fileTimestamp ? fileTimestamp.getTime() : null;
+      const batchKey = `${fileName}__${fileSize}__${timestampKey ?? 'no_ts'}`;
+
+      // Intra-batch dedupe first
+      if (seenKeys.has(batchKey)) {
+        intraBatchDuplicateCount++;
+        console.log(`Skipping duplicate within selection: ${fileName}`);
+        continue;
+      }
+      seenKeys.add(batchKey);
       
-      const isDuplicate = mediaData.allFiles.some(existingFile => 
-        existingFile.name === fileName && 
-        existingFile.size === fileSize && 
-        existingFile.lastModified === fileLastModified &&
+      // Check across existing timeline
+      const isDuplicate = (mediaData.allFiles || []).some(existingFile => 
+        existingFile.name === fileName &&
+        existingFile.size === fileSize &&
         (timestampKey === null || existingFile.timestamp === timestampKey)
       );
 
@@ -2987,11 +3130,21 @@
     }
 
     if (validFiles.length === 0) {
-      console.log(`No new files to add. Skipped ${duplicateCount} duplicates.`);
+      // Only show warning if there are actual duplicates
+      if (duplicateCount > 0 || intraBatchDuplicateCount > 0) {
+        const msg = `No new files to add. Skipped ${duplicateCount} duplicate(s) already in timeline${intraBatchDuplicateCount ? ` and ${intraBatchDuplicateCount} duplicate(s) within selection` : ''}.`;
+        console.log(msg);
+        addAnomalyMessages([msg]);
+      }
       return;
     }
 
-    console.log(`Adding ${validFiles.length} new files to timeline. Skipped ${duplicateCount} duplicates.`);
+    // Only show warning if there are actual duplicates
+    if (duplicateCount > 0 || intraBatchDuplicateCount > 0) {
+      const addedMsg = `Adding ${validFiles.length} new file(s) to timeline. Skipped ${duplicateCount} duplicate(s) already in timeline${intraBatchDuplicateCount ? ` and ${intraBatchDuplicateCount} duplicate(s) within selection` : ''}.`;
+      console.log(addedMsg);
+      addAnomalyMessages([addedMsg]);
+    }
 
     // Separate audio and image files
     const newAudioFiles = validFiles.filter(file => {
@@ -3458,6 +3611,10 @@
     if (timelineNotices) {
       timelineNotices.innerHTML = "";
       timelineNotices.classList.add("hidden");
+    }
+    // Reset overlap warning flag on timeline clear
+    if (timelineState) {
+      timelineState.overlapWarned = false;
     }
     if (timelineCursor) {
       timelineCursor.classList.remove("timeline__cursor--visible");
@@ -4146,15 +4303,31 @@
 
   function updateTimelineNotices() {
     if (!timelineNotices) return;
-    const messages = timelineState.anomalyMessages || [];
+    let messages = timelineState.anomalyMessages || [];
+    // Only show if message is not a generic success/no-issue message
+    messages = messages.filter(msg => {
+      if (!msg) return false;
+      const lower = msg.toLowerCase();
+      if (lower.includes('no new files') || lower.includes('aucun nouveau fichier')) return false;
+      if (lower.includes('adding') && !lower.includes('skipped')) return false;
+      return true;
+    });
     if (!messages.length) {
       timelineNotices.innerHTML = "";
       timelineNotices.classList.add("hidden");
       return;
     }
 
-    timelineNotices.innerHTML = messages
-      .map((message) => `<div>${message}</div>`)
+    // Short help message for warnings (translated)
+    const helpMsg = `<div class='timeline-warning-help'>\
+      <b>⚠️ ${t('warningTitle')}</b> <br>
+      <b>${t('overlap')}</b> : ${t('overlapHelp')}<br>
+      <b>${t('duplicate')}</b> : ${t('duplicateHelp')}<br>
+      <b>${t('delay')}</b> : ${t('delayHelp')}<br>
+      <i>${t('warningTypes')}</i>
+    </div>`;
+    timelineNotices.innerHTML = helpMsg + messages
+      .map((message) => `<div>${t(message)}</div>`)
       .join("");
     timelineNotices.classList.remove("hidden");
   }
