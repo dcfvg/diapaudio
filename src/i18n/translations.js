@@ -7,9 +7,6 @@ export const translations = {
     duplicate: "Duplicate",
     duplicateHelp: "Identical files were ignored.",
     delay: "Delay",
-    delayHelp: "Multiple delay files detected, only the last is used.",
-    warningTypes:
-      "Warning types: <b>Overlap</b> (audio files overlap), <b>Duplicate</b> (identical files ignored), <b>Delay</b> (multiple delay files, last used).",
     // Dynamic feedback
     noNewFiles:
       "No new files to add. Skipped {{duplicateCount}} duplicate(s) already in timeline{{intraBatchText}}.",
@@ -52,19 +49,16 @@ export const translations = {
     step2Title: "Use timestamps or metadata",
     step2Text:
       "Name each file with its capture time (e.g. <code>2025-01-01_08-00-00.jpg</code>) or make sure files contain metadata.",
-    step3Title: "Drop a folder, files, or a ZIP archive in this area",
-    step3Text: "",
+    step3Title: "Drop folders, files, or ZIP archives in this area",
 
     // CTA and buttons
-    dropMessage: "Drop a folder, files, or a ZIP archive in this area.",
+    dropMessage: "Drop folders, files, or ZIP archives in this area.",
     buttonFolder: "Choose a folder",
     buttonZip: "Choose a ZIP archive",
     buttonFiles: "Choose files",
 
     // Notes
     notePrivacy: "Nothing leaves your computer — no uploads, no servers, just your session. For detailed instructions and source code, see the <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
-    noteTip: "",
-    noteReadme: "",
 
     // Loader
     loadingFiles: "Loading files...",
@@ -82,8 +76,6 @@ export const translations = {
     speed: "Speed",
     delayControl: "Delay",
     delayMs: "ms",
-  // Deprecated UI label; checkbox removed in favor of auto-skip voids toggle
-  // skipSilence: "Auto-skip",
     exportButton: "Export to FCP XML",
     exportZipButton: "Download ZIP",
     closeButton: "Close",
@@ -187,11 +179,10 @@ export const translations = {
     step2Title: "Utiliser des horodatages ou des métadonnées",
     step2Text:
       "Nommer chaque fichier avec l'heure de capture (ex : <code>2025-01-01_08-00-00.jpg</code>) ou s'assurer que les fichiers contiennent des métadonnées.",
-    step3Title: "Déposer un dossier, des fichiers ou une archive ZIP dans cette zone",
-    step3Text: "",
+    step3Title: "Déposer des dossiers, des fichiers ou des archives ZIP dans cette zone",
 
     // CTA and buttons
-    dropMessage: "Déposer un dossier, des fichiers ou une archive ZIP dans cette zone.",
+    dropMessage: "Déposer des dossiers, des fichiers ou des archives ZIP dans cette zone.",
     buttonFolder: "Choisir un dossier",
     buttonZip: "Choisir une archive ZIP",
     buttonFiles: "Choisir des fichiers",
@@ -199,8 +190,6 @@ export const translations = {
     // Notes
     notePrivacy:
       "Rien ne quitte votre ordinateur — pas de téléversement, pas de serveur, juste votre session. Pour des instructions détaillées et le code source, consultez le <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
-    noteTip: "",
-    noteReadme: "",
 
     // Loader
     loadingFiles: "Chargement des fichiers...",
@@ -218,7 +207,6 @@ export const translations = {
     speed: "Vitesse",
     delayControl: "Délai",
     delayMs: "ms",
-    skipSilence: "Auto-saut",
     exportButton: "Exporter vers FCP XML",
     exportZipButton: "Télécharger ZIP",
     closeButton: "Fermer",
@@ -325,19 +313,16 @@ export const translations = {
     step2Title: "Usar marcas de tiempo o metadatos",
     step2Text:
       "Nombrar cada archivo con la hora de captura (ej: <code>2025-01-01_08-00-00.jpg</code>) o asegurarse de que los archivos contengan metadatos.",
-    step3Title: "Soltar una carpeta, archivos o un archivo ZIP en esta zona",
-    step3Text: "",
+    step3Title: "Soltar carpetas, archivos o archivos ZIP en esta zona",
 
     // CTA and buttons
-    dropMessage: "Soltar una carpeta, archivos o un archivo ZIP en esta zona.",
+    dropMessage: "Soltar carpetas, archivos o archivos ZIP en esta zona.",
     buttonFolder: "Elegir una carpeta",
     buttonZip: "Elegir un archivo ZIP",
     buttonFiles: "Elegir archivos",
 
     // Notes
     notePrivacy: "Nada sale de tu computadora — sin cargas, sin servidores, solo tu sesión. Para instrucciones detalladas y código fuente, consulta el <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
-    noteTip: "",
-    noteReadme: "",
 
     // Loader
     loadingFiles: "Cargando archivos...",
@@ -355,7 +340,6 @@ export const translations = {
     speed: "Velocidad",
     delayControl: "Retraso",
     delayMs: "ms",
-    skipSilence: "Auto-salto",
     exportButton: "Exportar a FCP XML",
     exportZipButton: "Descargar ZIP",
     closeButton: "Cerrar",

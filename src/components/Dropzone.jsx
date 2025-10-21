@@ -43,9 +43,7 @@ function Dropzone({
   const sanitizedStepTitle3 = sanitizeHtml(t("step3Title"));
   const sanitizedStepText1 = sanitizeHtml(t("step1Text"));
   const sanitizedStepText2 = sanitizeHtml(t("step2Text"));
-  const sanitizedStepText3 = sanitizeHtml(t("step3Text"));
   const sanitizedNotePrivacy = sanitizeHtml(t("notePrivacy"));
-  const sanitizedNoteReadme = sanitizeHtml(t("noteReadme"));
 
   const progressValue = Number.isFinite(progressPercent)
     ? Math.max(0, Math.min(100, progressPercent))
@@ -132,10 +130,10 @@ function Dropzone({
       },
       {
         icon: "upload",
-        html: `<strong>${sanitizedStepTitle3}</strong> ${sanitizedStepText3}`,
+        html: `<strong>${sanitizedStepTitle3}</strong>`,
       },
     ],
-    [sanitizedStepTitle1, sanitizedStepTitle2, sanitizedStepTitle3, sanitizedStepText1, sanitizedStepText2, sanitizedStepText3]
+    [sanitizedStepTitle1, sanitizedStepTitle2, sanitizedStepTitle3, sanitizedStepText1, sanitizedStepText2]
   );
 
   return (
@@ -207,11 +205,6 @@ function Dropzone({
           <p
             className="dropzone__note"
             dangerouslySetInnerHTML={{ __html: sanitizedNotePrivacy }}
-          />
-          <p className="dropzone__note">{t("noteTip")}</p>
-          <p
-            className="dropzone__note"
-            dangerouslySetInnerHTML={{ __html: sanitizedNoteReadme }}
           />
         </div>
 

@@ -241,7 +241,7 @@ describe('Dropzone', () => {
     expect(screen.getByText(/Compile audio recordings/i)).toBeTruthy();
     expect(screen.getByText(/Use timestamps or metadata/i)).toBeTruthy();
     // getAllByText since this text appears multiple times (step title and button)
-    const dropFolderElements = screen.getAllByText(/Drop a folder/i);
+    const dropFolderElements = screen.getAllByText(/Drop folders/i);
     expect(dropFolderElements.length).toBeGreaterThan(0);
   });
 
