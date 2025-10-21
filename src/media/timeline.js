@@ -1,4 +1,5 @@
-import { formatClock, formatTime } from "./formatters.js";
+import { formatTime } from "./formatters.js";
+import { formatClock } from "../utils/dateUtils.js";
 import {
   TIMELINE_PADDING_RATIO,
   IMAGE_STACK_WINDOW_MS,

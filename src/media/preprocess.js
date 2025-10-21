@@ -13,12 +13,22 @@ import {
   parseTimestampFromName,
 } from "../utils/timestampUtils.js";
 import { toTimestamp } from "../utils/dateUtils.js";
+import { translate } from "../utils/i18nHelpers.js";
+import { DEFAULT_TIMESTAMP_INTERVAL_MS } from "./constants.js";
+import * as logger from "../utils/logger.js";
 
-function translate(t, key, params) {
-  if (typeof t === "function") {
-    return t(key, params);
-  }
-  return key;
+/**
+ * Create a unique key for file deduplication based on name, size, and timestamp
+ * @param {File} file - File object
+ * @param {string} filePath - File path
+ * @returns {string} Unique file key
+ */
+function createFileKey(file, filePath) {
+  const fileName = filePath;
+  const fileSize = file.size || 0;
+  const fileTimestamp = parseTimestampFromName(filePath);
+  const timestampKey = fileTimestamp ? toTimestamp(fileTimestamp) : "no_timestamp";
+  return `${fileName}_${fileSize}_${timestampKey}`;
 }
 
 function addAnomaly(anomalies, message, meta = {}) {
@@ -70,10 +80,10 @@ export async function prepareMediaFromFiles(files, options = {}) {
           onAnomaly?.(message, { type: "delay" });
         }
       } else {
-        console.warn(`Invalid delay format in _delay.txt: "${text.trim()}"`);
+        logger.warn(`Invalid delay format in _delay.txt: "${text.trim()}"`);
       }
     } catch (error) {
-      console.error("Error reading _delay.txt:", error);
+      logger.error("Error reading _delay.txt:", error);
     }
   }
 
@@ -98,14 +108,11 @@ export async function prepareMediaFromFiles(files, options = {}) {
   const skippedAudioDuplicates = [];
 
   for (const file of audioCandidates) {
-    const fileName = getFilePath(file);
-    const fileSize = file.size || 0;
-    const fileTimestamp = parseTimestampFromName(fileName);
-    const timestampKey = fileTimestamp ? toTimestamp(fileTimestamp) : "no_timestamp";
-    const fileKey = `${fileName}_${fileSize}_${timestampKey}`;
+    const filePath = getFilePath(file);
+    const fileKey = createFileKey(file, filePath);
 
     if (audioFileKeys.has(fileKey)) {
-      skippedAudioDuplicates.push(fileName);
+      skippedAudioDuplicates.push(filePath);
       continue;
     }
 
@@ -115,7 +122,7 @@ export async function prepareMediaFromFiles(files, options = {}) {
 
   if (skippedAudioDuplicates.length > 0) {
     const message = translateKey("removedDuplicateAudio", { count: skippedAudioDuplicates.length });
-    console.warn(message);
+    logger.warn(message);
     addAnomaly(anomalies, message, { type: "audio" });
     onAnomaly?.(message, { type: "audio" });
   }
@@ -130,14 +137,11 @@ export async function prepareMediaFromFiles(files, options = {}) {
   const skippedImageDuplicates = [];
 
   for (const file of imageCandidates) {
-    const fileName = getFilePath(file);
-    const fileSize = file.size || 0;
-    const fileTimestamp = parseTimestampFromName(fileName);
-    const timestampKey = fileTimestamp ? toTimestamp(fileTimestamp) : "no_timestamp";
-    const fileKey = `${fileName}_${fileSize}_${timestampKey}`;
+    const filePath = getFilePath(file);
+    const fileKey = createFileKey(file, filePath);
 
     if (imageFileKeys.has(fileKey)) {
-      skippedImageDuplicates.push(fileName);
+      skippedImageDuplicates.push(filePath);
       continue;
     }
 
@@ -147,7 +151,7 @@ export async function prepareMediaFromFiles(files, options = {}) {
 
   if (skippedImageDuplicates.length > 0) {
     const message = translateKey("removedDuplicateImage", { count: skippedImageDuplicates.length });
-    console.warn(message);
+    logger.warn(message);
     addAnomaly(anomalies, message, { type: "image" });
     onAnomaly?.(message, { type: "image" });
   }
@@ -176,7 +180,7 @@ export async function prepareMediaFromFiles(files, options = {}) {
       if (!fileTimestamp) {
         fileTimestamp = await parseTimestampFromAudio(file);
         if (fileTimestamp) {
-          console.log(`Extracted timestamp from audio metadata for ${file.name}:`, fileTimestamp);
+          logger.info(`Extracted timestamp from audio metadata for ${file.name}:`, fileTimestamp);
         }
       }
 
@@ -232,7 +236,6 @@ export async function prepareMediaFromFiles(files, options = {}) {
   const validImages = images.filter(Boolean);
 
   if (validImages.length) {
-    const DEFAULT_INTERVAL = 1_000;
     const times = validImages.map((image) =>
       image.timestamp instanceof Date ? toTimestamp(image.timestamp) : null
     );
@@ -254,7 +257,7 @@ export async function prepareMediaFromFiles(files, options = {}) {
     if (!knownIndices.length) {
       const base = validImages[0]?.lastModified ?? Date.now();
       for (let i = 0; i < times.length; i += 1) {
-        times[i] = base + i * DEFAULT_INTERVAL;
+        times[i] = base + i * DEFAULT_TIMESTAMP_INTERVAL_MS;
       }
     } else {
       // Fill leading segment
@@ -264,8 +267,8 @@ export async function prepareMediaFromFiles(files, options = {}) {
         const candidate =
           Number.isFinite(validImages[i].lastModified) && validImages[i].lastModified < nextValue
             ? validImages[i].lastModified
-            : nextValue - DEFAULT_INTERVAL;
-        times[i] = Math.min(candidate, nextValue - DEFAULT_INTERVAL);
+            : nextValue - DEFAULT_TIMESTAMP_INTERVAL_MS;
+        times[i] = Math.min(candidate, nextValue - DEFAULT_TIMESTAMP_INTERVAL_MS);
       }
 
       // Fill gaps between known points
@@ -278,11 +281,11 @@ export async function prepareMediaFromFiles(files, options = {}) {
         if (gapCount <= 0) {
           continue;
         }
-        const availableSpan = Math.max(endTime - startTime, (gapCount + 1) * DEFAULT_INTERVAL);
-        const step = Math.max(DEFAULT_INTERVAL, Math.floor(availableSpan / (gapCount + 1)));
+        const availableSpan = Math.max(endTime - startTime, (gapCount + 1) * DEFAULT_TIMESTAMP_INTERVAL_MS);
+        const step = Math.max(DEFAULT_TIMESTAMP_INTERVAL_MS, Math.floor(availableSpan / (gapCount + 1)));
         for (let offset = 1; offset <= gapCount; offset += 1) {
           const candidate = startTime + step * offset;
-          const maxAllowed = endTime - DEFAULT_INTERVAL * (gapCount - offset + 1);
+          const maxAllowed = endTime - DEFAULT_TIMESTAMP_INTERVAL_MS * (gapCount - offset + 1);
           times[startIdx + offset] = Math.min(candidate, maxAllowed);
         }
       }
@@ -294,8 +297,8 @@ export async function prepareMediaFromFiles(files, options = {}) {
         const candidate =
           Number.isFinite(validImages[i].lastModified) && validImages[i].lastModified > previous
             ? validImages[i].lastModified
-            : previous + DEFAULT_INTERVAL;
-        times[i] = Math.max(candidate, previous + DEFAULT_INTERVAL);
+            : previous + DEFAULT_TIMESTAMP_INTERVAL_MS;
+        times[i] = Math.max(candidate, previous + DEFAULT_TIMESTAMP_INTERVAL_MS);
       }
     }
 
@@ -304,7 +307,7 @@ export async function prepareMediaFromFiles(files, options = {}) {
     for (let i = 0; i < times.length; i += 1) {
       // Only enforce monotonic order if this image had NO originalTimestamp (was interpolated)
       if (!validImages[i].originalTimestamp && i > 0 && times[i] <= times[i - 1]) {
-        times[i] = times[i - 1] + DEFAULT_INTERVAL;
+        times[i] = times[i - 1] + DEFAULT_TIMESTAMP_INTERVAL_MS;
       }
       validImages[i].timestamp = new Date(times[i]);
     }

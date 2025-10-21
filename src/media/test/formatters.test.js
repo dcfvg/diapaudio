@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { formatClock, formatTime, formatClockWithSeconds, formatDateAndTime } from '../formatters.js';
+import { formatClock, formatClockWithSeconds, formatDateAndTime } from '../../utils/dateUtils.js';
+import { formatTime } from '../formatters.js';
 
 describe('formatters', () => {
   describe('formatClock', () => {

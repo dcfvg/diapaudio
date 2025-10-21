@@ -1,13 +1,8 @@
-import {
-  formatClock as formatClockDateFns,
-  formatClockWithSeconds as formatClockWithSecondsDateFns,
-  formatDateAndTime as formatDateAndTimeDateFns,
-} from "../utils/dateUtils.js";
-
-export function formatClock(date) {
-  return formatClockDateFns(date);
-}
-
+/**
+ * Format time duration in seconds as MM:SS or HH:MM:SS
+ * @param {number} seconds - Duration in seconds
+ * @returns {string} - Formatted time string
+ */
 export function formatTime(seconds) {
   if (!Number.isFinite(seconds)) {
     return "00:00";
@@ -22,17 +17,6 @@ export function formatTime(seconds) {
   return [mins, secs].map((part) => String(part).padStart(2, "0")).join(":");
 }
 
-export function formatClockWithSeconds(date) {
-  return formatClockWithSecondsDateFns(date);
-}
-
-export function formatDateAndTime(date) {
-  return formatDateAndTimeDateFns(date);
-}
-
 export default {
-  formatClock,
-  formatClockWithSeconds,
-  formatDateAndTime,
   formatTime,
 };

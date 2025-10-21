@@ -3,8 +3,8 @@ import { useMemo, useCallback, useRef, memo, useEffect } from "react";
 import { useMediaStore } from "../state/useMediaStore.js";
 import { useSettingsStore } from "../state/useSettingsStore.js";
 import { usePlaybackStore } from "../state/usePlaybackStore.js";
-import { formatClockWithSeconds, formatDateAndTime, formatTime } from "../media/formatters.js";
-import { formatClock } from "../utils/dateUtils.js";
+import { formatClockWithSeconds, formatDateAndTime, formatClock } from "../utils/dateUtils.js";
+import { formatTime } from "../media/formatters.js";
 import {
   MIN_IMAGE_DISPLAY_DEFAULT_MS,
   MIN_IMAGE_DISPLAY_MIN_MS,

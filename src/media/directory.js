@@ -1,11 +1,5 @@
 import { isSystemFile } from "./fileUtils.js";
-
-function translate(t, key) {
-  if (typeof t === "function") {
-    return t(key);
-  }
-  return key;
-}
+import { translate } from "../utils/i18nHelpers.js";
 
 export async function readDirectoryRecursive(
   dirEntry,

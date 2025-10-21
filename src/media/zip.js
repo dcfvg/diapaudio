@@ -2,13 +2,9 @@ import { ZipReader, BlobReader, BlobWriter } from "@zip.js/zip.js";
 import { getMimeType, isSystemFile, shouldSkipEntry, isZipFileName } from "./fileUtils.js";
 import { parseTimestampFromName } from "../utils/timestampUtils.js";
 import { toTimestamp } from "../utils/dateUtils.js";
-
-function translate(t, key, params) {
-  if (typeof t === "function") {
-    return t(key, params);
-  }
-  return key;
-}
+import { translate } from "../utils/i18nHelpers.js";
+import { ZIP_PROCESSING_DELAY_MS } from "./constants.js";
+import * as logger from "../utils/logger.js";
 
 export async function unzipFile(zipFile, { progress, t } = {}) {
   if (!zipFile) {
@@ -48,7 +44,7 @@ export async function unzipFile(zipFile, { progress, t } = {}) {
         const file = new File([blob], baseName, { type: mimeType });
         files.push(file);
       } catch (error) {
-        console.warn(`Failed to extract ${fileName}:`, error);
+        logger.warn(`Failed to extract ${fileName}:`, error);
       }
     }
 
@@ -69,7 +65,7 @@ export async function unzipFile(zipFile, { progress, t } = {}) {
       try {
         await reader.close();
       } catch (closeError) {
-        console.warn("Error closing ZIP reader:", closeError);
+        logger.warn("Error closing ZIP reader:", closeError);
       }
     }
   }
@@ -93,7 +89,7 @@ export async function unzipFile(zipFile, { progress, t } = {}) {
   }
 
   if (duplicateCount > 0) {
-    console.warn(`Removed ${duplicateCount} duplicate file(s) inside ZIP ${zipFile.name}`);
+    logger.warn(`Removed ${duplicateCount} duplicate file(s) inside ZIP ${zipFile.name}`);
   }
 
   return uniqueFiles;
@@ -134,10 +130,10 @@ export async function expandZipFiles(initialFiles, { progress, t, phase } = {}) 
       
       // Add a small delay between archives to ensure workers are fully released
       if (processed < zips.length) {
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, ZIP_PROCESSING_DELAY_MS));
       }
     } catch (error) {
-      console.error("Failed to unzip", zipFile?.name || "(unknown)", error);
+      logger.error("Failed to unzip", zipFile?.name || "(unknown)", error);
       // Continue processing remaining ZIPs even if one fails
     }
   }

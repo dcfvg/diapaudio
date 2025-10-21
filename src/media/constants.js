@@ -54,3 +54,9 @@ export const TIMELINE_PADDING_RATIO = 0.08;
 export const OVERLAP_REPORT_THRESHOLD_MS = 5_000;
 // Pixel threshold for snapping the timeline seek to nearby media
 export const SEEK_SNAP_THRESHOLD_PX = 10;
+
+// Default timestamp interpolation interval when no timestamp is available (milliseconds)
+export const DEFAULT_TIMESTAMP_INTERVAL_MS = 1_000;
+
+// Delay between processing ZIP archives to ensure workers are fully released (milliseconds)
+export const ZIP_PROCESSING_DELAY_MS = 50;

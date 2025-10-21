@@ -303,7 +303,7 @@ describe('directory', () => {
 
       await readDirectoryRecursive(mockDirEntry, { progress: mockProgress, t: mockT });
 
-      expect(mockT).toHaveBeenCalledWith('filesProcessed');
+      expect(mockT).toHaveBeenCalledWith('filesProcessed', undefined);
     });
 
     it('caps progress at 90%', async () => {

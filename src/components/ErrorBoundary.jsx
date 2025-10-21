@@ -1,5 +1,6 @@
 import { Component } from "react";
 import Modal from "./Modal.jsx";
+import * as logger from "../utils/logger.js";
 
 /**
  * Error Boundary component to catch and handle React component errors gracefully.
@@ -23,7 +24,7 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     // Log error details for debugging
-    console.error("ErrorBoundary caught an error:", error, errorInfo);
+    logger.error("ErrorBoundary caught an error:", error, errorInfo);
 
     // Update state with error details
     this.setState((prevState) => ({
