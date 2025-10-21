@@ -56,7 +56,7 @@
   flex-grow: 0;
   border-radius: 6px;
   opacity: 0;
-  transition: opacity 0.75s ease;
+  transition: opacity 0.2s ease;
 }
 
 .slideshow__container.split-1 .slideshow__image {

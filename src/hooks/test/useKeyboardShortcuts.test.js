@@ -25,6 +25,8 @@ describe('useKeyboardShortcuts', () => {
       onPlayPause: vi.fn(),
       onSeekForward: vi.fn(),
       onSeekBackward: vi.fn(),
+      onNextMedia: vi.fn(),
+      onPrevMedia: vi.fn(),
       onSpeedIncrease: vi.fn(),
       onSpeedDecrease: vi.fn(),
       onToggleFullscreen: vi.fn(),
@@ -47,23 +49,10 @@ describe('useKeyboardShortcuts', () => {
       expect(callbacks.onPlayPause).toHaveBeenCalledTimes(1);
     });
 
-    it('should register k key for play/pause', () => {
-      renderHook(() => useKeyboardShortcuts(callbacks));
-
-      expect(global.hotkeyCallbacks['k']).toBeDefined();
-      
-      const event = { preventDefault: vi.fn() };
-      global.hotkeyCallbacks['k'](event);
-
-      expect(event.preventDefault).toHaveBeenCalled();
-      expect(callbacks.onPlayPause).toHaveBeenCalledTimes(1);
-    });
-
     it('should not register play/pause shortcuts when disabled', () => {
       renderHook(() => useKeyboardShortcuts({ ...callbacks, disabled: true }));
 
       expect(global.hotkeyCallbacks['space']).toBeUndefined();
-      expect(global.hotkeyCallbacks['k']).toBeUndefined();
     });
 
     it('should not register play/pause shortcuts when callback is not provided', () => {
@@ -73,12 +62,11 @@ describe('useKeyboardShortcuts', () => {
   renderHook(() => useKeyboardShortcuts(rest));
 
       expect(global.hotkeyCallbacks['space']).toBeUndefined();
-      expect(global.hotkeyCallbacks['k']).toBeUndefined();
     });
   });
 
   describe('Seek shortcuts', () => {
-    it('should seek forward 1 second on right arrow', () => {
+    it('should seek forward 10 seconds on right arrow', () => {
       renderHook(() => useKeyboardShortcuts(callbacks));
 
       expect(global.hotkeyCallbacks['right']).toBeDefined();
@@ -87,64 +75,16 @@ describe('useKeyboardShortcuts', () => {
       global.hotkeyCallbacks['right'](event);
 
       expect(event.preventDefault).toHaveBeenCalled();
-      expect(callbacks.onSeekForward).toHaveBeenCalledWith(1000);
+      expect(callbacks.onSeekForward).toHaveBeenCalledWith(10000);
     });
 
-    it('should seek backward 1 second on left arrow', () => {
+    it('should seek backward 10 seconds on left arrow', () => {
       renderHook(() => useKeyboardShortcuts(callbacks));
 
       expect(global.hotkeyCallbacks['left']).toBeDefined();
       
       const event = { preventDefault: vi.fn() };
       global.hotkeyCallbacks['left'](event);
-
-      expect(event.preventDefault).toHaveBeenCalled();
-      expect(callbacks.onSeekBackward).toHaveBeenCalledWith(1000);
-    });
-
-    it('should seek forward 5 seconds on shift+right arrow', () => {
-      renderHook(() => useKeyboardShortcuts(callbacks));
-
-      expect(global.hotkeyCallbacks['shift+right']).toBeDefined();
-      
-      const event = { preventDefault: vi.fn() };
-      global.hotkeyCallbacks['shift+right'](event);
-
-      expect(event.preventDefault).toHaveBeenCalled();
-      expect(callbacks.onSeekForward).toHaveBeenCalledWith(5000);
-    });
-
-    it('should seek backward 5 seconds on shift+left arrow', () => {
-      renderHook(() => useKeyboardShortcuts(callbacks));
-
-      expect(global.hotkeyCallbacks['shift+left']).toBeDefined();
-      
-      const event = { preventDefault: vi.fn() };
-      global.hotkeyCallbacks['shift+left'](event);
-
-      expect(event.preventDefault).toHaveBeenCalled();
-      expect(callbacks.onSeekBackward).toHaveBeenCalledWith(5000);
-    });
-
-    it('should seek forward 10 seconds on l key', () => {
-      renderHook(() => useKeyboardShortcuts(callbacks));
-
-      expect(global.hotkeyCallbacks['l']).toBeDefined();
-      
-      const event = { preventDefault: vi.fn() };
-      global.hotkeyCallbacks['l'](event);
-
-      expect(event.preventDefault).toHaveBeenCalled();
-      expect(callbacks.onSeekForward).toHaveBeenCalledWith(10000);
-    });
-
-    it('should seek backward 10 seconds on j key', () => {
-      renderHook(() => useKeyboardShortcuts(callbacks));
-
-      expect(global.hotkeyCallbacks['j']).toBeDefined();
-      
-      const event = { preventDefault: vi.fn() };
-      global.hotkeyCallbacks['j'](event);
 
       expect(event.preventDefault).toHaveBeenCalled();
       expect(callbacks.onSeekBackward).toHaveBeenCalledWith(10000);
@@ -155,8 +95,6 @@ describe('useKeyboardShortcuts', () => {
 
       expect(global.hotkeyCallbacks['right']).toBeUndefined();
       expect(global.hotkeyCallbacks['left']).toBeUndefined();
-      expect(global.hotkeyCallbacks['j']).toBeUndefined();
-      expect(global.hotkeyCallbacks['l']).toBeUndefined();
     });
 
     it('should not register seek shortcuts when callbacks are not provided', () => {
@@ -168,8 +106,50 @@ describe('useKeyboardShortcuts', () => {
 
       expect(global.hotkeyCallbacks['right']).toBeUndefined();
       expect(global.hotkeyCallbacks['left']).toBeUndefined();
+    });
+  });
+
+  describe('Media navigation shortcuts', () => {
+    it('should jump to next media on j key', () => {
+      renderHook(() => useKeyboardShortcuts(callbacks));
+
+      expect(global.hotkeyCallbacks['j']).toBeDefined();
+      
+      const event = { preventDefault: vi.fn() };
+      global.hotkeyCallbacks['j'](event);
+
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(callbacks.onNextMedia).toHaveBeenCalledTimes(1);
+    });
+
+    it('should jump to previous media on k key', () => {
+      renderHook(() => useKeyboardShortcuts(callbacks));
+
+      expect(global.hotkeyCallbacks['k']).toBeDefined();
+      
+      const event = { preventDefault: vi.fn() };
+      global.hotkeyCallbacks['k'](event);
+
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(callbacks.onPrevMedia).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not register media navigation shortcuts when disabled', () => {
+      renderHook(() => useKeyboardShortcuts({ ...callbacks, disabled: true }));
+
       expect(global.hotkeyCallbacks['j']).toBeUndefined();
-      expect(global.hotkeyCallbacks['l']).toBeUndefined();
+      expect(global.hotkeyCallbacks['k']).toBeUndefined();
+    });
+
+    it('should not register media navigation shortcuts when callbacks are not provided', () => {
+  // remove media navigation handlers
+  const rest = { ...callbacks };
+  delete rest.onNextMedia;
+  delete rest.onPrevMedia;
+  renderHook(() => useKeyboardShortcuts(rest));
+
+      expect(global.hotkeyCallbacks['j']).toBeUndefined();
+      expect(global.hotkeyCallbacks['k']).toBeUndefined();
     });
   });
 
@@ -297,15 +277,12 @@ describe('useKeyboardShortcuts', () => {
     it('should register all shortcuts when all callbacks provided', () => {
       renderHook(() => useKeyboardShortcuts(callbacks));
 
-      // Should have 10 shortcuts registered (space, k, left, right, shift+left, shift+right, j, l, up, down, f, shift+/)
+      // Should have 8 shortcuts registered (space, left, right, j, k, up, down, f, shift+/)
       expect(global.hotkeyCallbacks['space']).toBeDefined();
-      expect(global.hotkeyCallbacks['k']).toBeDefined();
       expect(global.hotkeyCallbacks['left']).toBeDefined();
       expect(global.hotkeyCallbacks['right']).toBeDefined();
-      expect(global.hotkeyCallbacks['shift+left']).toBeDefined();
-      expect(global.hotkeyCallbacks['shift+right']).toBeDefined();
       expect(global.hotkeyCallbacks['j']).toBeDefined();
-      expect(global.hotkeyCallbacks['l']).toBeDefined();
+      expect(global.hotkeyCallbacks['k']).toBeDefined();
       expect(global.hotkeyCallbacks['up']).toBeDefined();
       expect(global.hotkeyCallbacks['down']).toBeDefined();
       expect(global.hotkeyCallbacks['f']).toBeDefined();
@@ -395,9 +372,9 @@ describe('getKeyboardShortcuts', () => {
   it('should include play/pause shortcuts', () => {
     const shortcuts = getKeyboardShortcuts();
 
-    const playPause = shortcuts.find((s) => s.key === 'Space / K');
+    const playPause = shortcuts.find((s) => s.key === 'Space');
     expect(playPause).toBeDefined();
-    expect(playPause.description).toContain('Play');
+    expect(playPause.description).toBe('shortcutPlayPause');
     expect(playPause.category).toBe('Playback');
   });
 
@@ -406,27 +383,23 @@ describe('getKeyboardShortcuts', () => {
 
     const seekForward = shortcuts.find((s) => s.key === '→');
     expect(seekForward).toBeDefined();
-    expect(seekForward.description).toContain('forward');
+    expect(seekForward.description).toBe('shortcutSeekForward');
 
     const seekBackward = shortcuts.find((s) => s.key === '←');
     expect(seekBackward).toBeDefined();
-    expect(seekBackward.description).toContain('backward');
+    expect(seekBackward.description).toBe('shortcutSeekBackward');
+  });
 
-    const seekForward5 = shortcuts.find((s) => s.key === 'Shift + →');
-    expect(seekForward5).toBeDefined();
-    expect(seekForward5.description).toContain('5 seconds');
+  it('should include media navigation shortcuts', () => {
+    const shortcuts = getKeyboardShortcuts();
 
-    const seekBackward5 = shortcuts.find((s) => s.key === 'Shift + ←');
-    expect(seekBackward5).toBeDefined();
-    expect(seekBackward5.description).toContain('5 seconds');
+    const nextMedia = shortcuts.find((s) => s.key === 'J');
+    expect(nextMedia).toBeDefined();
+    expect(nextMedia.description).toBe('shortcutNextMedia');
 
-    const seekForwardJ = shortcuts.find((s) => s.key === 'J');
-    expect(seekForwardJ).toBeDefined();
-    expect(seekForwardJ.description).toContain('10 seconds');
-
-    const seekForwardL = shortcuts.find((s) => s.key === 'L');
-    expect(seekForwardL).toBeDefined();
-    expect(seekForwardL.description).toContain('10 seconds');
+    const prevMedia = shortcuts.find((s) => s.key === 'K');
+    expect(prevMedia).toBeDefined();
+    expect(prevMedia.description).toBe('shortcutPrevMedia');
   });
 
   it('should include speed control shortcuts', () => {
@@ -434,11 +407,11 @@ describe('getKeyboardShortcuts', () => {
 
     const speedIncrease = shortcuts.find((s) => s.key === '↑');
     expect(speedIncrease).toBeDefined();
-    expect(speedIncrease.description).toContain('Increase');
+    expect(speedIncrease.description).toBe('shortcutSpeedUp');
 
     const speedDecrease = shortcuts.find((s) => s.key === '↓');
     expect(speedDecrease).toBeDefined();
-    expect(speedDecrease.description).toContain('Decrease');
+    expect(speedDecrease.description).toBe('shortcutSpeedDown');
   });
 
   it('should include fullscreen shortcut', () => {
@@ -446,7 +419,7 @@ describe('getKeyboardShortcuts', () => {
 
     const fullscreen = shortcuts.find((s) => s.key === 'F');
     expect(fullscreen).toBeDefined();
-    expect(fullscreen.description).toContain('fullscreen');
+    expect(fullscreen.description).toBe('shortcutFullscreen');
     expect(fullscreen.category).toBe('Display');
   });
 
@@ -455,15 +428,15 @@ describe('getKeyboardShortcuts', () => {
 
     const help = shortcuts.find((s) => s.key === '?');
     expect(help).toBeDefined();
-    expect(help.description).toContain('shortcuts');
+    expect(help.description).toBe('shortcutHelp');
     expect(help.category).toBe('Help');
   });
 
   it('should return expected number of shortcuts', () => {
     const shortcuts = getKeyboardShortcuts();
 
-    // Space/K, arrows (4), J, L, up, down, F, ?
-    expect(shortcuts.length).toBe(11);
+    // Space, arrows (2), J, K, up, down, F, ?
+    expect(shortcuts.length).toBe(9);
   });
 
   it('should categorize shortcuts correctly', () => {
@@ -473,7 +446,7 @@ describe('getKeyboardShortcuts', () => {
     const displayShortcuts = shortcuts.filter((s) => s.category === 'Display');
     const helpShortcuts = shortcuts.filter((s) => s.category === 'Help');
 
-    expect(playbackShortcuts.length).toBe(9);
+    expect(playbackShortcuts.length).toBe(7);
     expect(displayShortcuts.length).toBe(1);
     expect(helpShortcuts.length).toBe(1);
   });

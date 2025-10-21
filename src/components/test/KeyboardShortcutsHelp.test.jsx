@@ -35,7 +35,7 @@ describe('KeyboardShortcutsHelp', () => {
 
   it('displays shortcut keys in kbd elements', () => {
     renderWithProviders(<KeyboardShortcutsHelp {...defaultProps} />);
-    expect(screen.getByText('Space / K')).toBeTruthy();
+    expect(screen.getByText('Space')).toBeTruthy();
   });
 
   it('displays toggle help instruction in footer', () => {
@@ -66,13 +66,13 @@ describe('KeyboardShortcutsHelp', () => {
     renderWithProviders(<KeyboardShortcutsHelp {...defaultProps} />);
     // Check for actual shortcuts
     expect(screen.getByText('Play / Pause')).toBeTruthy();
-    expect(screen.getByText('Seek backward 1 second')).toBeTruthy();
+    expect(screen.getByText('Seek backward 10 seconds')).toBeTruthy();
   });
 
   it('renders individual shortcut items', () => {
     renderWithProviders(<KeyboardShortcutsHelp {...defaultProps} />);
     // Check for key combinations and their descriptions
-    expect(screen.getByText('Shift + ←')).toBeTruthy();
-    expect(screen.getByText('Seek backward 5 seconds')).toBeTruthy();
+    expect(screen.getByText('J')).toBeTruthy();
+    expect(screen.getByText('Jump to next media (audio or image)')).toBeTruthy();
   });
 });
