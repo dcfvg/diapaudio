@@ -148,6 +148,9 @@ function Dropzone({
           <LanguageSelector />
         </div>
         <div className="dropzone__hero">
+          <div className="dropzone__logo-wrap" aria-hidden="true">
+            <img src="/logo.svg" alt="" className="dropzone__logo dropzone__logo--large" />
+          </div>
           <h1 className="dropzone__title">{t("appTitle")}</h1>
           <p className="dropzone__lead">{t("tagline")}</p>
         </div>

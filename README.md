@@ -22,6 +22,30 @@ The app will generate a synchronized slideshow you can play, navigate, and expor
 
 **Note:** ZIP files with any compression method are fully supported thanks to [zip.js](https://gildas-lormeau.github.io/zip.js/).
 
+## Install as an app (PWA)
+
+diapaudio is a Progressive Web App. You can install it on desktop and mobile for an app-like experience (standalone window, offline caching, auto-updates).
+
+### Desktop (Windows, macOS, Linux)
+
+- Chrome/Edge: Open the site, then look for the "Install" icon in the address bar, or open the browser menu > Install app.
+- Firefox: Limited PWA install support on desktop. You can still pin a shortcut.
+
+### Android (Chrome, Edge, Samsung Internet)
+
+- Open the site, then tap the menu ••• > Add to Home screen (or Install app).
+
+### iOS/iPadOS (Safari)
+
+- Open the site in Safari, tap the Share icon, then "Add to Home Screen".
+- Note: iOS requires PNG icons for Home Screen. This project ships an SVG icon by default. If you want glossy Home Screen icons on iOS, add PNG icons (192×192 and 512×512) under `public/icons/` and reference them in `public/manifest.webmanifest` and `<link rel="apple-touch-icon" ...>` in `index.html`.
+
+### Offline and updates
+
+- The app ships with an offline-capable service worker. It pre-caches the app shell (index.html, manifest, icons) and uses a cache-first strategy for same-origin assets. After your first visit online, the app will work fully offline.
+- The service worker auto-updates on new deployments; the app refreshes on next visit.
+
+
 ### Timestamp Detection
 
 diapaudio extracts timestamps from your media files using multiple methods:
@@ -205,6 +229,14 @@ npm run test:coverage
 # Run all checks (lint + test + build) - useful before committing
 npm run check
 ```
+
+#### PWA in development
+
+- The install prompt typically appears only on a production build served over HTTP(S). The development server does not register the service worker.
+- To test installability locally:
+   - Build: `npm run build`
+   - Preview: `npm run preview` (serves the production build)
+- The service worker uses runtime caching. Libraries and lazy-loaded chunks are cached when first used, so subsequent sessions work offline. For deterministic pre-caching of all hashed chunks, consider `vite-plugin-pwa` or Workbox with a precache manifest.
 
 #### Development Workflow
 

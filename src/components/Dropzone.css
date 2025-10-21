@@ -61,6 +61,27 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  align-items: center;
+  text-align: center;
+}
+
+.dropzone__logo-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: var(--space-sm);
+}
+
+.dropzone__logo {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+}
+
+.dropzone__logo--large {
+  width: clamp(72px, 10vw, 96px);
+  height: clamp(72px, 10vw, 96px);
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.4));
 }
 
 .dropzone__title {
@@ -77,6 +98,7 @@
   line-height: 1.6;
   color: var(--text-secondary);
   max-width: 46ch;
+  text-align: center;
 }
 
 .dropzone__steps {
@@ -91,16 +113,28 @@
 .dropzone__step {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.05);
+  text-align: center;
 }
 
 .dropzone__step:nth-child(3) {
   grid-column: 1 / -1;
+  justify-self: center;
+  align-items: center;
+  text-align: center;
+}
+
+.dropzone__step:nth-child(3) .dropzone__step-summary {
+  text-align: center;
+}
+
+.dropzone__step:nth-child(3) .dropzone__buttons {
+  justify-content: center;
 }
 
 .dropzone__step-icon {
@@ -126,6 +160,7 @@
   color: var(--text-secondary);
   line-height: 1.5;
   font-size: 0.95rem;
+  text-align: center;
 }
 
 .dropzone__step-summary strong {
@@ -164,6 +199,7 @@
   gap: var(--space-sm);
   flex-wrap: wrap;
   width: 100%;
+  justify-content: center;
 }
 
 .dropzone__browse {
@@ -196,6 +232,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+  align-items: center;
 }
 
 .dropzone__note {
@@ -203,6 +240,8 @@
   font-size: 0.95rem;
   line-height: 1.6;
   color: var(--text-secondary);
+  text-align: center;
+  max-width: 70ch;
 }
 
 .dropzone__note a {
@@ -254,6 +293,7 @@
 
   .dropzone__step:nth-child(3) {
     grid-column: 1;
+    justify-self: stretch;
   }
 
   .dropzone__cta {

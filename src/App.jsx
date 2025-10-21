@@ -959,7 +959,7 @@ function AppShell() {
             >
               <div className={mediaData ? "timeline" : "timeline hidden"} id="timeline">
                 <div className="timeline__toolbar">
-                  <div className="timeline__controls-left">
+                    <div className="timeline__controls-left">
                     <button
                       type="button"
                       className="button-primary button-primary--icon"

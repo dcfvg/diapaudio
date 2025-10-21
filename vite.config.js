@@ -1,8 +1,48 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: "autoUpdate",
+      includeAssets: [
+        // Ensure favicon and any static assets are available to the SW
+        "favicon.svg",
+      ],
+      manifest: {
+        name: "diapaudio",
+        short_name: "diapaudio",
+        description: "Playback photos synced with recordings of that day.",
+        start_url: ".",
+        scope: ".",
+        display: "standalone",
+        theme_color: "#0f172a",
+        background_color: "#ffffff",
+        lang: "en",
+        icons: [
+          // SVG icon works in modern browsers; for iOS add PNG icons later
+          {
+            src: "favicon.svg",
+            sizes: "any",
+            type: "image/svg+xml",
+            purpose: "any maskable",
+          },
+        ],
+      },
+      workbox: {
+        globPatterns: [
+          "**/*.{js,css,html,svg,png,ico,webmanifest}",
+        ],
+        // Use a relative fallback so it works with non-root base paths (e.g., GitHub Pages)
+        navigateFallback: "index.html",
+      },
+      devOptions: {
+        enabled: false, // set to true to test PWA in dev
+      },
+    }),
+  ],
   // Set base path for GitHub Pages when publishing to /<repo>/
   // Use VITE_BASE env to override in CI. Defaults to "/" for local dev,
   // and "/diapaudio/" when process.env.GHPAGES is set (CI workflow below)

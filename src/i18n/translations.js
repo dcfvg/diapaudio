@@ -58,7 +58,7 @@ export const translations = {
     buttonFiles: "Choose files",
 
     // Notes
-    notePrivacy: "Nothing leaves your computer — no uploads, no servers, just your session. For detailed instructions and source code, see the <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
+    notePrivacy: "Nothing leaves your computer — no uploads, no servers, just your session.<br/>For detailed instructions and source code, see the <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
 
     // Loader
     loadingFiles: "Loading files...",
@@ -189,7 +189,7 @@ export const translations = {
 
     // Notes
     notePrivacy:
-      "Rien ne quitte votre ordinateur — pas de téléversement, pas de serveur, juste votre session. Pour des instructions détaillées et le code source, consultez le <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
+      "Rien ne quitte votre ordinateur — pas de téléversement, pas de serveur, juste votre session. <br/>Pour des instructions détaillées et le code source, consultez le <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
 
     // Loader
     loadingFiles: "Chargement des fichiers...",
@@ -322,7 +322,7 @@ export const translations = {
     buttonFiles: "Elegir archivos",
 
     // Notes
-    notePrivacy: "Nada sale de tu computadora — sin cargas, sin servidores, solo tu sesión. Para instrucciones detalladas y código fuente, consulta el <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
+    notePrivacy: "Nada sale de tu computadora — sin cargas, sin servidores, solo tu sesión. <br/> Para instrucciones detalladas y código fuente, consulta el <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
 
     // Loader
     loadingFiles: "Cargando archivos...",

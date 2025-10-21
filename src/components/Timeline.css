@@ -8,6 +8,7 @@
   box-sizing: border-box;
 }
 
+
 .timeline__notices-button {
   display: inline-flex;
   align-items: center;
@@ -513,6 +514,7 @@
   color: #e0e0e0;
   padding: 0.2rem 0.55rem;
   border-radius: var(--radius-pill);
+  background-color: rgba(0, 0, 0, 0.785);
   margin-top: 0.3rem;
 }
 
