@@ -160,7 +160,7 @@ export default function TimelineSettingsPanel({
           <span className="timeline-settings__hint">Align image times to nearest grid line for tighter sync.</span>
         </div>
 
-        <div className="timeline-settings__group timeline-settings__group--row">
+        <div className="timeline-settings__group">
           <label className="timeline-settings__toggle" title={t("tooltipAutoSkip")}>
             <input
               type="checkbox"
@@ -171,14 +171,14 @@ export default function TimelineSettingsPanel({
           </label>
         </div>
 
-        <div className="timeline-settings__group timeline-settings__group--row">
-          <label className="timeline-settings__toggle" title="Show time of day clock overlay">
+        <div className="timeline-settings__group">
+          <label className="timeline-settings__toggle" title={t("tooltipShowClock")}>
             <input
               type="checkbox"
               checked={showClock}
               onChange={(event) => onToggleShowClock(event.target.checked)}
             />
-            <span>Show clock</span>
+            <span>{t("showClockLabel")}</span>
           </label>
         </div>
 

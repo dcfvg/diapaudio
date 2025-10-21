@@ -114,7 +114,9 @@ export const translations = {
     tooltipSpeed: "Adjust playback speed - slower or faster than real-time",
     tooltipSpeedSelect: "Playback speed multiplier",
   tooltipAutoSkip: "Automatically skip periods with no audio and no photos",
-  tooltipAutoSkipCheckbox: "Enable/disable auto-skip of silent periods",
+  tooltipAutoSkipCheckbox: "Auto-skip of silent periods",
+    tooltipShowClock: "Show time of day clock overlay during playback",
+    showClockLabel: "Show clock",
     tooltipExportXML: "Export timeline as Final Cut Pro XML for video editing",
     tooltipExportZIP: "Download all media files as a ZIP archive",
 
@@ -246,7 +248,9 @@ export const translations = {
     tooltipSpeed: "Ajuster la vitesse de lecture - plus lente ou plus rapide que le temps réel",
     tooltipSpeedSelect: "Multiplicateur de vitesse de lecture",
   tooltipAutoSkip: "Sauter automatiquement les périodes sans audio et sans photos",
-  tooltipAutoSkipCheckbox: "Activer/désactiver le saut automatique des périodes silencieuses",
+  tooltipAutoSkipCheckbox: "Saut automatique des périodes silencieuses",
+    tooltipShowClock: "Afficher l'horloge de l'heure du jour pendant la lecture",
+    showClockLabel: "Afficher l'horloge",
     tooltipExportXML: "Exporter la chronologie en XML Final Cut Pro pour le montage vidéo",
     tooltipExportZIP: "Télécharger tous les fichiers médias dans une archive ZIP",
 
@@ -380,7 +384,9 @@ export const translations = {
     tooltipSpeed: "Ajustar velocidad de reproducción - más lenta o más rápida que tiempo real",
     tooltipSpeedSelect: "Multiplicador de velocidad de reproducción",
   tooltipAutoSkip: "Saltar automáticamente períodos sin audio y sin fotos",
-  tooltipAutoSkipCheckbox: "Activar/desactivar salto automático de períodos silenciosos",
+  tooltipAutoSkipCheckbox: "Salto automático de períodos silenciosos",
+    tooltipShowClock: "Mostrar reloj de hora del día durante la reproducción",
+    showClockLabel: "Mostrar reloj",
     tooltipExportXML: "Exportar línea de tiempo como XML de Final Cut Pro para edición de video",
     tooltipExportZIP: "Descargar todos los archivos multimedia como archivo ZIP",
 
