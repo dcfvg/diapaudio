@@ -20,6 +20,7 @@ import {
 } from "./media/constants.js";
 import ProgressModal from "./components/ProgressModal.jsx";
 import ErrorModal from "./components/ErrorModal.jsx";
+import * as logger from "./utils/logger.js";
 
 // Lazy-load heavy components only needed after media is loaded
 const Slideshow = lazy(() => import("./components/Slideshow.jsx"));
@@ -29,22 +30,13 @@ const TimelineSettingsPanel = lazy(() => import("./components/TimelineSettingsPa
 const KeyboardShortcutsHelp = lazy(() => import("./components/KeyboardShortcutsHelp.jsx"));
 
 // Lazy-load export functions (only needed on user action)
-const exporters = {
-  _module: null,
-  async load() {
-    if (!this._module) {
-      this._module = await import("./media/exporters.js");
-    }
-    return this._module;
-  },
-  async exportFinalCutProXml(...args) {
-    const mod = await this.load();
-    return mod.exportFinalCutProXml(...args);
-  },
-  async exportZipArchive(...args) {
-    const mod = await this.load();
-    return mod.exportZipArchive(...args);
-  },
+// Using a cached promise to ensure module is only loaded once
+let exportersModulePromise = null;
+const getExportersModule = () => {
+  if (!exportersModulePromise) {
+    exportersModulePromise = import("./media/exporters.js");
+  }
+  return exportersModulePromise;
 };
 
 export default function App() {
@@ -922,9 +914,10 @@ function AppShell() {
     }
     setSettingsOpen(false);
     try {
-      await exporters.exportFinalCutProXml({ mediaData });
+      const { exportFinalCutProXml } = await getExportersModule();
+      await exportFinalCutProXml({ mediaData });
     } catch (error) {
-      console.error("Failed to export XML:", error);
+      logger.error("Failed to export XML:", error);
       setError(error);
     }
   }, [mediaData, setError, setSettingsOpen, t]);
@@ -938,7 +931,8 @@ function AppShell() {
     setZipExporting(true);
     setZipProgress({ percent: 0, status: t("processingFiles"), details: "" });
     try {
-      await exporters.exportZipArchive({
+      const { exportZipArchive } = await getExportersModule();
+      await exportZipArchive({
         mediaData,
         delaySeconds,
         onProgress: (percent, statusKey, details) => {
@@ -950,7 +944,7 @@ function AppShell() {
         },
       });
     } catch (error) {
-      console.error("Failed to export ZIP:", error);
+      logger.error("Failed to export ZIP:", error);
       setError(error);
     } finally {
       setZipExporting(false);

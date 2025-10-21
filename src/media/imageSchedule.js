@@ -7,6 +7,7 @@ import {
   MIN_COMPOSITION_CHANGE_INTERVAL_MS,
 } from "./constants.js";
 import { toTimestamp } from "../utils/dateUtils.js";
+import { clamp } from "../utils/numberUtils.js";
 
 function getImageStartMs(image) {
   if (!image) return null;
@@ -25,10 +26,7 @@ function getImageStartMs(image) {
   return null;
 }
 
-function clampDuration(value, min, max) {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(Math.max(value, min), max);
-}
+
 
 function cloneSegment(segment) {
   return {
@@ -228,7 +226,7 @@ export function computeImageSchedule(images = [], options = {}) {
       // No next image: extend by full Image Hold duration beyond Image Display
       const holdExtension = Number.isFinite(holdMs) && holdMs >= 0 ? holdMs : 0;
       const extendedEnd = displayEnd + holdExtension;
-      end = clampDuration(extendedEnd, displayEnd, extendedEnd);
+      end = clamp(extendedEnd, displayEnd, extendedEnd);
     }
 
     metadata[current.index] = {

@@ -1,4 +1,5 @@
 import { formatTrackLabel } from "./fileUtils.js";
+import * as logger from "../utils/logger.js";
 
 export function createAudioTrack({ url, originalName, index, fileTimestamp = null }) {
   return {
@@ -36,7 +37,7 @@ export async function loadAllAudioDurations(tracks) {
 
           const onError = (event) => {
             cleanup();
-            console.error(`Failed to load duration for ${track.label}:`, event?.error || event);
+            logger.error(`Failed to load duration for ${track.label}:`, event?.error || event);
             track.duration = null;
             resolve();
           };

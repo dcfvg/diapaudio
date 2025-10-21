@@ -1,6 +1,7 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { resources, translations } from "./translations";
+import * as logger from "../utils/logger.js";
 
 const STORAGE_KEY = "diapaudio-language";
 const isBrowser = typeof window !== "undefined";
@@ -45,7 +46,7 @@ i18n
     returnObjects: true,
   })
   .catch((error) => {
-    console.error("Failed to initialise i18n", error);
+    logger.error("Failed to initialise i18n", error);
   });
 
 i18n.on("languageChanged", (language) => {

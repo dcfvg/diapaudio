@@ -1,6 +1,5 @@
 import { useCallback, useRef } from "react";
-
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+import { clamp } from "../utils/numberUtils.js";
 
 // Minimum view duration (1 second)
 const MIN_DURATION_MS = 1000;

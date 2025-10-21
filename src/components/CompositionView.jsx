@@ -1,5 +1,6 @@
 import { forwardRef, memo, useMemo, useRef } from "react";
 import { MAX_VISIBLE_IMAGES } from "../media/constants.js";
+import { IMAGE_TRANSITION_FADE_MS } from "../constants/ui.js";
 import TransitionImage from "./TransitionImage.jsx";
 
 /**
@@ -17,7 +18,7 @@ const CompositionView = forwardRef(function CompositionView(
     imageClassName = "slideshow__image",
     visibleClassName = "slideshow__image--visible",
     placeholderClassName = "slideshow__placeholder",
-    imageTransitionDelayMs = 750,
+    imageTransitionDelayMs = IMAGE_TRANSITION_FADE_MS,
     imageFadingClassName = "slideshow__image--fading",
     getImageKey = (image, index) => image?.url || image?.name || index,
     ...rest

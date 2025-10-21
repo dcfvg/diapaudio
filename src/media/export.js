@@ -1,6 +1,7 @@
 import { BlobWriter, ZipWriter, TextReader, BlobReader } from "@zip.js/zip.js";
 import { formatDelay } from "./delay.js";
 import { formatTimestampForFilename } from "../utils/dateUtils.js";
+import * as logger from "../utils/logger.js";
 
 // formatTimestampForFilename now imported from dateUtils
 
@@ -63,7 +64,7 @@ export async function exportZipArchive(mediaData, delaySeconds, onProgress) {
 
           processedFiles++;
         } catch (err) {
-          console.error(`Failed to add audio file ${track.originalName}:`, err);
+          logger.error(`Failed to add audio file ${track.originalName}:`, err);
         }
       }
     }
@@ -83,7 +84,7 @@ export async function exportZipArchive(mediaData, delaySeconds, onProgress) {
 
         processedFiles++;
       } catch (err) {
-        console.error(`Failed to add image file ${image.name}:`, err);
+        logger.error(`Failed to add image file ${image.name}:`, err);
       }
     }
 
@@ -102,7 +103,7 @@ export async function exportZipArchive(mediaData, delaySeconds, onProgress) {
 
     return zipFilename;
   } catch (error) {
-    console.error("Error creating ZIP archive:", error);
+    logger.error("Error creating ZIP archive:", error);
     throw error;
   }
 }

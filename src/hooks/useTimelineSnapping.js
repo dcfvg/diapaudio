@@ -1,8 +1,7 @@
 import { useCallback } from "react";
 import { SEEK_SNAP_THRESHOLD_PX } from "../media/constants.js";
 import { cleanTrackNameForDisplay } from "../media/fileUtils.js";
-
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+import { clamp } from "../utils/numberUtils.js";
 
 /**
  * Hook for snapping timeline interactions to media boundaries (images, audio tracks)

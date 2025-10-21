@@ -18,10 +18,8 @@ import SlideshowPlaceholder, {
   resolvePlaceholderSources,
   buildPlaceholderSignature,
 } from "./SlideshowPlaceholder.jsx";
+import { EMPTY_ARRAY, DEFAULT_SLOTS } from "../constants/common.js";
 import "./Slideshow.css";
-
-const EMPTY_ARRAY = Object.freeze([]);
-const DEFAULT_SLOTS = Object.freeze([null]);
 
 function Slideshow() {
   const mediaData = useMediaStore((state) => state.mediaData);

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { SEEK_DEBOUNCE_MS } from "../constants/playback.js";
 import { useSettingsStore } from "./useSettingsStore.js";
+import * as logger from "../utils/logger.js";
 
 function getEarliestMediaTime(mediaData) {
   let earliest = null;
@@ -208,7 +209,7 @@ const playbackStoreImpl = (set, get) => ({
       } catch (error) {
         set({ _playPromiseRef: null, playing: false });
         if (error.name !== "AbortError") {
-          console.warn("Playback resume failed:", error);
+          logger.warn("Playback resume failed:", error);
         }
       }
       return;
@@ -224,7 +225,7 @@ const playbackStoreImpl = (set, get) => ({
       });
     } catch (error) {
       if (error?.name !== "AbortError") {
-        console.warn("Playback start failed:", error);
+        logger.warn("Playback start failed:", error);
       }
     }
   },
@@ -363,7 +364,7 @@ const playbackStoreImpl = (set, get) => ({
         set({ _playPromiseRef: null });
         // Only log if it's not an AbortError
         if (error.name !== "AbortError") {
-          console.warn("Unable to start playback:", error);
+          logger.warn("Unable to start playback:", error);
         }
         set({ playing: false });
       }

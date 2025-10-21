@@ -14,6 +14,11 @@ import {
   MAX_COMPOSITION_CHANGE_INTERVAL_MS,
   MIN_COMPOSITION_CHANGE_INTERVAL_MS,
 } from "../media/constants.js";
+import {
+  TIMELINE_AUTO_SCROLL_DELAY_MS,
+  TIMELINE_MIN_VIEW_WINDOW_MS,
+  TIMELINE_HOUR_THRESHOLD_MS,
+} from "../constants/ui.js";
 import { computeImageSchedule } from "../media/imageSchedule.js";
 import { cleanTrackNameForDisplay } from "../media/fileUtils.js";
 import CompositionView from "./CompositionView.jsx";
@@ -25,10 +30,10 @@ import { useTimelineSnapping } from "../hooks/useTimelineSnapping.js";
 import { useTimelineInteraction } from "../hooks/useTimelineInteraction.js";
 import { useBrushControl } from "../hooks/useBrushControl.js";
 import { TICK_STEPS_MS } from "../constants/timeline";
+import { EMPTY_ARRAY } from "../constants/common.js";
+import { clamp } from "../utils/numberUtils.js";
 
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const isTrackRangeLoaded = (range, activeIndex) => range.index === activeIndex && range.track?.url;
-const EMPTY_ARRAY = Object.freeze([]);
 
 /**
  * Filter track ranges that are visible in the current viewport
@@ -399,8 +404,6 @@ function Timeline() {
   });
 
   // Auto-scroll timeline when playing - track last user interaction
-  const AUTO_SCROLL_DELAY_MS = 3000; // Wait 3s after last user interaction
-
   useEffect(() => {
     if (
       !playing ||
@@ -420,7 +423,7 @@ function Timeline() {
 
     // Check if enough time has passed since last user interaction
     const timeSinceInteraction = Date.now() - lastInteractionRef.current;
-    const canAutoScroll = timeSinceInteraction > AUTO_SCROLL_DELAY_MS;
+    const canAutoScroll = timeSinceInteraction > TIMELINE_AUTO_SCROLL_DELAY_MS;
 
     // Only auto-scroll if enough time has passed since last interaction
     if (!canAutoScroll) {
@@ -486,7 +489,7 @@ function Timeline() {
       const zoom = event.deltaY > 0 ? step : 1 / step;
       const newDuration = clamp(
         Math.round(currentDuration * zoom),
-        500, // minimum 0.5s window
+        TIMELINE_MIN_VIEW_WINDOW_MS, // minimum 0.5s window
         Math.max(summaryEndMs - summaryStartMs, 1)
       );
 
@@ -570,7 +573,7 @@ function Timeline() {
           {ticks.map((tick) => {
             const date = new Date(tick);
             // Show seconds only if view duration is less than 1 hour
-            const showSeconds = viewDurationMs && viewDurationMs < 60 * 60 * 1000;
+            const showSeconds = viewDurationMs && viewDurationMs < TIMELINE_HOUR_THRESHOLD_MS;
             const label = showSeconds
               ? formatClockWithSeconds(date)
               : formatClock(date);

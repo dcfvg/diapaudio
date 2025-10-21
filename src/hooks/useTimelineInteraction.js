@@ -1,6 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+import { clamp } from "../utils/numberUtils.js";
 
 /**
  * Hook for managing timeline pointer interactions (hover, scrubbing, seeking)

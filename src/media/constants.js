@@ -27,7 +27,8 @@ export const IMAGE_MIME_BY_EXTENSION = new Map([
 export const MIN_IMAGE_DISPLAY_DEFAULT_MS = 6_000;
 // Minimum allowed visible duration for a single image (milliseconds)
 export const MIN_IMAGE_DISPLAY_MIN_MS = 1_000;
-// Backwards-compatible alias used by legacy codepaths (equals default duration)
+// Alias for MIN_IMAGE_DISPLAY_DEFAULT_MS - used in legacy code paths and tests
+// Kept for backward compatibility with existing calculations
 export const MIN_IMAGE_DISPLAY_DURATION_MS = MIN_IMAGE_DISPLAY_DEFAULT_MS;
 // Default image hold extension when no next image (milliseconds)
 export const DEFAULT_IMAGE_HOLD_MS = 45_000;

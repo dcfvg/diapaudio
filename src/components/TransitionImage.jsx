@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState, useCallback } from "react";
+import { IMAGE_TRANSITION_FADE_MS } from "../constants/ui.js";
 
-const DEFAULT_FADE_MS = 750;
+const DEFAULT_FADE_MS = IMAGE_TRANSITION_FADE_MS;
 
 const TransitionImage = memo(function TransitionImage({
   image = null,

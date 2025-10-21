@@ -11,6 +11,7 @@ import { computeImageSchedule } from "./imageSchedule.js";
 import { formatDelay } from "./delay.js";
 import { useSettingsStore } from "../state/useSettingsStore.js";
 import { toTimestamp, formatTimestampForFilename } from "../utils/dateUtils.js";
+import * as logger from "../utils/logger.js";
 
 const FRAME_RATE = 30;
 const TIMEBASE = 30;
@@ -475,7 +476,7 @@ export async function exportZipArchive({ mediaData, delaySeconds = 0, onProgress
       processedItems++;
       reportProgress(`Added audio ${i + 1}/${audioTracks.length}: ${filename}`);
     } catch (error) {
-      console.warn("Skipped audio track during export:", error);
+      logger.warn("Skipped audio track during export:", error);
       processedItems++;
       reportProgress(`Skipped audio ${i + 1}/${audioTracks.length}`);
     }
@@ -494,7 +495,7 @@ export async function exportZipArchive({ mediaData, delaySeconds = 0, onProgress
       processedItems++;
       reportProgress(`Added image ${i + 1}/${sortedImages.length}`);
     } catch (error) {
-      console.warn("Skipped image during export:", error);
+      logger.warn("Skipped image during export:", error);
       processedItems++;
       reportProgress(`Skipped image ${i + 1}/${sortedImages.length}`);
     }

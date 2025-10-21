@@ -2,12 +2,11 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import ProgressManager from "../media/progress.js";
 import { getVisibleImagesAtTime } from "../media/images.js";
+import { getImageHoldMs } from "../media/imageSettings.js";
 import { useSettingsStore } from "./useSettingsStore.js";
 import {
   MIN_IMAGE_DISPLAY_DEFAULT_MS,
   MIN_IMAGE_DISPLAY_MIN_MS,
-  DEFAULT_IMAGE_HOLD_MS,
-  IMAGE_HOLD_MAX_MS,
   MAX_VISIBLE_IMAGES,
   MAX_COMPOSITION_CHANGE_INTERVAL_MS,
   MIN_COMPOSITION_CHANGE_INTERVAL_MS,
@@ -72,7 +71,6 @@ const mediaStoreImpl = (set, get) => ({
     const { mediaData } = get();
     const settings = useSettingsStore.getState();
     const displaySeconds = Number(settings?.imageDisplaySeconds);
-    const holdSeconds = Number(settings?.imageHoldSeconds);
     const speed = Number(settings?.speed);
     
     const defaultDisplaySeconds = MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000;
@@ -85,13 +83,9 @@ const mediaStoreImpl = (set, get) => ({
       return Math.max(MIN_IMAGE_DISPLAY_MIN_MS, scaled);
     })();
     
-    // Explicitly handle holdSeconds = 0 to avoid any falsy value issues
-    const resolvedHold = holdSeconds === 0
-      ? 0
-      : (Number.isFinite(holdSeconds) && holdSeconds >= 0
-          ? Math.min(holdSeconds * 1000, IMAGE_HOLD_MAX_MS)
-          : DEFAULT_IMAGE_HOLD_MS);
-    const scaledHold = Number.isFinite(speed) && speed > 0 ? Math.round(resolvedHold * speed) : resolvedHold;
+    // Use shared helper for hold duration calculation
+    const holdMs = getImageHoldMs({ imageHoldSeconds: settings?.imageHoldSeconds });
+    const scaledHold = Number.isFinite(speed) && speed > 0 ? Math.round(holdMs * speed) : holdMs;
     
     const intervalSeconds = Number(settings?.compositionIntervalSeconds);
     const resolvedInterval = Number.isFinite(intervalSeconds)

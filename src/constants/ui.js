@@ -3,7 +3,20 @@
  */
 
 // HUD auto-hide timeout (ms)
-export const HUD_INACTIVITY_TIMEOUT_MS = 3500;
+// HUD inactivity timeout (milliseconds)
+export const HUD_INACTIVITY_TIMEOUT_MS = 3000;
+
+// Image transition/fade duration (milliseconds)
+export const IMAGE_TRANSITION_FADE_MS = 750;
+
+// Timeline auto-scroll delay after user interaction (milliseconds)
+export const TIMELINE_AUTO_SCROLL_DELAY_MS = 3000;
+
+// Minimum timeline view window (milliseconds)
+export const TIMELINE_MIN_VIEW_WINDOW_MS = 500;
+
+// Hour threshold for displaying seconds in timeline (milliseconds)
+export const TIMELINE_HOUR_THRESHOLD_MS = 60 * 60 * 1000;
 
 // Animation durations
 export const ANIMATION_DURATIONS = {
