@@ -120,6 +120,17 @@ export const translations = {
     tooltipExportXML: "Export timeline as Final Cut Pro XML for video editing",
     tooltipExportZIP: "Download all media files as a ZIP archive",
 
+    // Keyboard shortcuts
+    shortcutPlayPause: "Play / Pause",
+    shortcutSeekBackward: "Seek backward 10 seconds",
+    shortcutSeekForward: "Seek forward 10 seconds",
+    shortcutNextMedia: "Jump to next media (audio or image)",
+    shortcutPrevMedia: "Jump to previous media (audio or image)",
+    shortcutSpeedUp: "Increase playback speed",
+    shortcutSpeedDown: "Decrease playback speed",
+    shortcutFullscreen: "Toggle fullscreen",
+    shortcutHelp: "Show keyboard shortcuts",
+
     // Language selector
     languageLabel: "Language",
   },
@@ -253,6 +264,17 @@ export const translations = {
     showClockLabel: "Afficher l'horloge",
     tooltipExportXML: "Exporter la chronologie en XML Final Cut Pro pour le montage vidéo",
     tooltipExportZIP: "Télécharger tous les fichiers médias dans une archive ZIP",
+
+    // Keyboard shortcuts
+    shortcutPlayPause: "Lecture / Pause",
+    shortcutSeekBackward: "Reculer de 10 secondes",
+    shortcutSeekForward: "Avancer de 10 secondes",
+    shortcutNextMedia: "Aller au média suivant (audio ou image)",
+    shortcutPrevMedia: "Aller au média précédent (audio ou image)",
+    shortcutSpeedUp: "Augmenter la vitesse de lecture",
+    shortcutSpeedDown: "Diminuer la vitesse de lecture",
+    shortcutFullscreen: "Basculer en plein écran",
+    shortcutHelp: "Afficher les raccourcis clavier",
 
     // Language selector
     languageLabel: "Langue",
@@ -389,6 +411,17 @@ export const translations = {
     showClockLabel: "Mostrar reloj",
     tooltipExportXML: "Exportar línea de tiempo como XML de Final Cut Pro para edición de video",
     tooltipExportZIP: "Descargar todos los archivos multimedia como archivo ZIP",
+
+    // Keyboard shortcuts
+    shortcutPlayPause: "Reproducir / Pausar",
+    shortcutSeekBackward: "Retroceder 10 segundos",
+    shortcutSeekForward: "Avanzar 10 segundos",
+    shortcutNextMedia: "Ir al siguiente medio (audio o imagen)",
+    shortcutPrevMedia: "Ir al medio anterior (audio o imagen)",
+    shortcutSpeedUp: "Aumentar velocidad de reproducción",
+    shortcutSpeedDown: "Disminuir velocidad de reproducción",
+    shortcutFullscreen: "Alternar pantalla completa",
+    shortcutHelp: "Mostrar atajos de teclado",
 
     // Language selector
     languageLabel: "Idioma",

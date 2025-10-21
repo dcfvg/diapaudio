@@ -602,6 +602,98 @@ function AppShell() {
     [mediaData, absoluteTime, seekToAbsoluteAction, playing]
   );
 
+  const handleNextMedia = useCallback(() => {
+    if (!mediaData) return;
+    const currentTime = Number.isFinite(absoluteTime)
+      ? absoluteTime
+      : mediaData?.timeline?.startMs;
+    if (!Number.isFinite(currentTime)) return;
+
+    // Collect all media events (audio starts and images)
+    const events = [];
+
+    // Add audio track start times
+    (mediaData.audioTracks || []).forEach((track) => {
+      const startTime = track?.adjustedStartTime instanceof Date 
+        ? toTimestamp(track.adjustedStartTime) 
+        : null;
+      if (Number.isFinite(startTime)) {
+        events.push(startTime);
+      }
+    });
+
+    // Add image times
+    (mediaData.images || []).forEach((img) => {
+      const imgTime = img?.adjustedTimestamp instanceof Date
+        ? toTimestamp(img.adjustedTimestamp)
+        : img?.originalTimestamp instanceof Date
+          ? toTimestamp(img.originalTimestamp)
+          : img?.timestamp instanceof Date
+            ? toTimestamp(img.timestamp)
+            : Number.isFinite(img?.timeMs)
+              ? img.timeMs
+              : null;
+      if (Number.isFinite(imgTime)) {
+        events.push(imgTime);
+      }
+    });
+
+    // Find next event after current time
+    const nextEvent = events
+      .filter((t) => t > currentTime + 100) // 100ms threshold to avoid same event
+      .sort((a, b) => a - b)[0];
+
+    if (Number.isFinite(nextEvent)) {
+      seekToAbsoluteAction(mediaData, nextEvent, { autoplay: playing });
+    }
+  }, [mediaData, absoluteTime, seekToAbsoluteAction, playing]);
+
+  const handlePrevMedia = useCallback(() => {
+    if (!mediaData) return;
+    const currentTime = Number.isFinite(absoluteTime)
+      ? absoluteTime
+      : mediaData?.timeline?.startMs;
+    if (!Number.isFinite(currentTime)) return;
+
+    // Collect all media events (audio starts and images)
+    const events = [];
+
+    // Add audio track start times
+    (mediaData.audioTracks || []).forEach((track) => {
+      const startTime = track?.adjustedStartTime instanceof Date 
+        ? toTimestamp(track.adjustedStartTime) 
+        : null;
+      if (Number.isFinite(startTime)) {
+        events.push(startTime);
+      }
+    });
+
+    // Add image times
+    (mediaData.images || []).forEach((img) => {
+      const imgTime = img?.adjustedTimestamp instanceof Date
+        ? toTimestamp(img.adjustedTimestamp)
+        : img?.originalTimestamp instanceof Date
+          ? toTimestamp(img.originalTimestamp)
+          : img?.timestamp instanceof Date
+            ? toTimestamp(img.timestamp)
+            : Number.isFinite(img?.timeMs)
+              ? img.timeMs
+              : null;
+      if (Number.isFinite(imgTime)) {
+        events.push(imgTime);
+      }
+    });
+
+    // Find previous event before current time
+    const prevEvent = events
+      .filter((t) => t < currentTime - 100) // 100ms threshold to avoid same event
+      .sort((a, b) => b - a)[0];
+
+    if (Number.isFinite(prevEvent)) {
+      seekToAbsoluteAction(mediaData, prevEvent, { autoplay: playing });
+    }
+  }, [mediaData, absoluteTime, seekToAbsoluteAction, playing]);
+
   const handleSpeedIncrease = useCallback(() => {
     const currentIndex = SPEED_OPTIONS.indexOf(speed);
     if (currentIndex < SPEED_OPTIONS.length - 1) {
@@ -676,6 +768,8 @@ function AppShell() {
     onPlayPause: mediaData ? togglePlayback : undefined,
     onSeekForward: handleSeekForward,
     onSeekBackward: handleSeekBackward,
+    onNextMedia: handleNextMedia,
+    onPrevMedia: handlePrevMedia,
     onSpeedIncrease: handleSpeedIncrease,
     onSpeedDecrease: handleSpeedDecrease,
     onToggleFullscreen: handleToggleFullscreen,

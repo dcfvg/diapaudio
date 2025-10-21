@@ -6,6 +6,8 @@ import { useHotkeys } from "react-hotkeys-hook";
  * @param {Function} options.onPlayPause - Toggle play/pause
  * @param {Function} options.onSeekForward - Seek forward in timeline
  * @param {Function} options.onSeekBackward - Seek backward in timeline
+ * @param {Function} options.onNextMedia - Jump to next media event
+ * @param {Function} options.onPrevMedia - Jump to previous media event
  * @param {Function} options.onSpeedIncrease - Increase playback speed
  * @param {Function} options.onSpeedDecrease - Decrease playback speed
  * @param {Function} options.onToggleFullscreen - Toggle fullscreen mode
@@ -16,6 +18,8 @@ export function useKeyboardShortcuts({
   onPlayPause,
   onSeekForward,
   onSeekBackward,
+  onNextMedia,
+  onPrevMedia,
   onSpeedIncrease,
   onSpeedDecrease,
   onToggleFullscreen,
@@ -36,12 +40,12 @@ export function useKeyboardShortcuts({
     [onPlayPause, disabled]
   );
 
-  // Left Arrow - Seek backward (1 second)
+  // Left Arrow - Seek backward (10 seconds)
   useHotkeys(
     "left",
     (event) => {
       event.preventDefault();
-      onSeekBackward?.(1000);
+      onSeekBackward?.(10000);
     },
     {
       enabled: !disabled && !!onSeekBackward,
@@ -50,40 +54,12 @@ export function useKeyboardShortcuts({
     [onSeekBackward, disabled]
   );
 
-  // Right Arrow - Seek forward (1 second)
+  // Right Arrow - Seek forward (10 seconds)
   useHotkeys(
     "right",
     (event) => {
       event.preventDefault();
-      onSeekForward?.(1000);
-    },
-    {
-      enabled: !disabled && !!onSeekForward,
-      enableOnFormTags: false,
-    },
-    [onSeekForward, disabled]
-  );
-
-  // Shift + Left Arrow - Seek backward (5 seconds)
-  useHotkeys(
-    "shift+left",
-    (event) => {
-      event.preventDefault();
-      onSeekBackward?.(5000);
-    },
-    {
-      enabled: !disabled && !!onSeekBackward,
-      enableOnFormTags: false,
-    },
-    [onSeekBackward, disabled]
-  );
-
-  // Shift + Right Arrow - Seek forward (5 seconds)
-  useHotkeys(
-    "shift+right",
-    (event) => {
-      event.preventDefault();
-      onSeekForward?.(5000);
+      onSeekForward?.(10000);
     },
     {
       enabled: !disabled && !!onSeekForward,
@@ -148,46 +124,32 @@ export function useKeyboardShortcuts({
     [onShowHelp, disabled]
   );
 
-  // K - Alternative play/pause (common in video players)
-  useHotkeys(
-    "k",
-    (event) => {
-      event.preventDefault();
-      onPlayPause?.();
-    },
-    {
-      enabled: !disabled && !!onPlayPause,
-      enableOnFormTags: false,
-    },
-    [onPlayPause, disabled]
-  );
-
-  // J - Seek backward 10 seconds (YouTube-style)
+  // J - Jump to next media (audio start or image)
   useHotkeys(
     "j",
     (event) => {
       event.preventDefault();
-      onSeekBackward?.(10000);
+      onNextMedia?.();
     },
     {
-      enabled: !disabled && !!onSeekBackward,
+      enabled: !disabled && !!onNextMedia,
       enableOnFormTags: false,
     },
-    [onSeekBackward, disabled]
+    [onNextMedia, disabled]
   );
 
-  // L - Seek forward 10 seconds (YouTube-style)
+  // K - Jump to previous media (audio start or image)
   useHotkeys(
-    "l",
+    "k",
     (event) => {
       event.preventDefault();
-      onSeekForward?.(10000);
+      onPrevMedia?.();
     },
     {
-      enabled: !disabled && !!onSeekForward,
+      enabled: !disabled && !!onPrevMedia,
       enableOnFormTags: false,
     },
-    [onSeekForward, disabled]
+    [onPrevMedia, disabled]
   );
 }
 
@@ -198,58 +160,48 @@ export function useKeyboardShortcuts({
 export function getKeyboardShortcuts() {
   return [
     {
-      key: "Space / K",
-      description: "Play / Pause",
+      key: "Space",
+      description: "shortcutPlayPause",
       category: "Playback",
     },
     {
       key: "←",
-      description: "Seek backward 1 second",
+      description: "shortcutSeekBackward",
       category: "Playback",
     },
     {
       key: "→",
-      description: "Seek forward 1 second",
-      category: "Playback",
-    },
-    {
-      key: "Shift + ←",
-      description: "Seek backward 5 seconds",
-      category: "Playback",
-    },
-    {
-      key: "Shift + →",
-      description: "Seek forward 5 seconds",
+      description: "shortcutSeekForward",
       category: "Playback",
     },
     {
       key: "J",
-      description: "Seek backward 10 seconds",
+      description: "shortcutNextMedia",
       category: "Playback",
     },
     {
-      key: "L",
-      description: "Seek forward 10 seconds",
+      key: "K",
+      description: "shortcutPrevMedia",
       category: "Playback",
     },
     {
       key: "↑",
-      description: "Increase playback speed",
+      description: "shortcutSpeedUp",
       category: "Playback",
     },
     {
       key: "↓",
-      description: "Decrease playback speed",
+      description: "shortcutSpeedDown",
       category: "Playback",
     },
     {
       key: "F",
-      description: "Toggle fullscreen",
+      description: "shortcutFullscreen",
       category: "Display",
     },
     {
       key: "?",
-      description: "Show keyboard shortcuts",
+      description: "shortcutHelp",
       category: "Help",
     },
   ];

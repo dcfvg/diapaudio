@@ -1,10 +1,12 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { getKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import Modal from "./Modal.jsx";
 import Icon from "./Icon.jsx";
 import "./KeyboardShortcutsHelp.css";
 
 const KeyboardShortcutsHelp = memo(function KeyboardShortcutsHelp({ open, onClose }) {
+  const { t } = useTranslation();
   const shortcuts = getKeyboardShortcuts();
   const categories = [...new Set(shortcuts.map((s) => s.category))];
 
@@ -26,7 +28,7 @@ const KeyboardShortcutsHelp = memo(function KeyboardShortcutsHelp({ open, onClos
                 .map((shortcut, index) => (
                   <div key={index} className="keyboard-shortcut-item">
                     <kbd className="keyboard-shortcut-key">{shortcut.key}</kbd>
-                    <span className="keyboard-shortcut-description">{shortcut.description}</span>
+                    <span className="keyboard-shortcut-description">{t(shortcut.description)}</span>
                   </div>
                 ))}
             </div>
