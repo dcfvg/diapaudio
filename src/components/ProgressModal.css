@@ -1,0 +1,46 @@
+.modal-overlay--progress .modal {
+  text-align: left;
+}
+
+.progress-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.progress-modal__bar {
+  position: relative;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.progress-modal__bar-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(191, 169, 138, 0.2), rgba(191, 169, 138, 0.75));
+  transition: width 0.25s ease;
+}
+
+.progress-modal__bar-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: white;
+}
+
+.progress-modal__details {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+}

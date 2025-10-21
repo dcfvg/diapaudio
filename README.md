@@ -8,7 +8,7 @@ Playback photos synced with recordings of that day.
 
 ## What is it?
 
-diapaudio is a web-based tool that synchronizes your photos with audio recordings based on timestamps. Simply drop a folder or ZIP file containing your images and an audio file, and the app will automatically align them chronologically.
+diapaudio is a modern web-based tool built with React that synchronizes your photos with audio recordings based on timestamps. Simply drop a folder or ZIP file containing your images and an audio file, and the app will automatically align them chronologically.
 
 ## How to use
 
@@ -17,6 +17,8 @@ diapaudio is a web-based tool that synchronizes your photos with audio recording
 3. **Drop the folder or ZIP** - Drag and drop the entire folder or a ZIP archive into the browser window
 
 The app will generate a synchronized slideshow you can play, navigate, and export.
+
+**Tip:** Keeping your recorder, camera, and phone on the same time makes syncing effortless.
 
 **Note:** ZIP files with any compression method are fully supported thanks to [zip.js](https://gildas-lormeau.github.io/zip.js/).
 
@@ -92,14 +94,33 @@ This tells diapaudio to account for the 23 minutes and 45 seconds offset between
 
 ## Features
 
-- Automatic timestamp-based synchronization
-- Intelligent timestamp extraction from filenames and EXIF/audio metadata
+### Core Features
+- **Automatic timestamp-based synchronization** - Intelligent alignment of images with audio based on timestamps
+- **Intelligent timestamp extraction** - Supports both filename parsing and EXIF/audio metadata extraction
 - **ZIP file support** - Drop ZIP archives instead of folders for easier sharing
-- Audio playback with visual timeline
-- Keyboard shortcuts for navigation
-- Real-time preview
-- XML export for video editing software
-- No server required - runs entirely in your browser
+- **Multi-language support** - English, French, and Spanish interfaces via react-i18next
+- **No server required** - Runs entirely in your browser with client-side processing
+
+### Playback & Navigation
+- **Audio playback with visual timeline** - Interactive waveform-style timeline
+- **Comprehensive keyboard shortcuts** - YouTube-style controls (Space, K, J, L, arrows)
+- **Variable playback speed** - Adjust audio speed on the fly
+- **Auto-skip silent sections** - Optional automatic skipping of silence
+- **Auto-skip voids** - Jump over gaps with no images
+- **Real-time preview** - See images sync with audio as you play
+- **Fullscreen mode** - Immersive viewing experience
+
+### Timeline Controls
+- **Snap to grid** - Align image times to grid lines for tighter sync (configurable grid interval)
+- **Adjustable delay** - Fine-tune synchronization with HH:MM:SS offset
+- **Minimum image display time** - Configure how long each image shows (default: variable, minimum 1s)
+- **Image hold time** - Set how long images persist after their timestamp (default: 15s, 0-180s range)
+- **Interactive timeline editing** - Drag and adjust timings directly on the timeline
+- **Visual clock overlay** - Optional time-of-day display (analog or digital)
+
+### Export Options
+- **XML export for video editing** - FCPXML format compatible with Final Cut Pro, Premiere Pro, DaVinci Resolve
+- **ZIP package export** - Export your complete project with images, audio, and settings for sharing
 
 ## Export to Video Editing Software
 
@@ -120,3 +141,109 @@ Simply click the **Export** button after loading your files, and import the gene
 ## License
 
 This project is licensed under the GNU General Public License v3.0. See `LICENSE` for the full terms.
+
+## Development
+
+### Technology Stack
+
+- **React 18** - Modern component-based UI framework
+- **Vite** - Lightning-fast build tool and dev server
+- **Zustand** - Lightweight, flexible state management
+- **react-i18next** - Internationalization support (English, French, Spanish)
+- **react-hotkeys-hook** - Comprehensive keyboard shortcuts
+- **react-dropzone** - Drag-and-drop file handling
+- **date-fns** - Modern date/time manipulation
+- **@zip.js/zip.js** - Robust ZIP file extraction
+- **Vitest** - Fast unit testing with hot module replacement
+- **Testing Library** - Best-practice React component testing
+
+### Quick Start for Developers
+
+#### Installation
+
+Clone the repository and install dependencies:
+
+```zsh
+git clone https://github.com/dcfvg/diapaudio.git
+cd diapaudio
+npm install
+```
+
+#### Development Commands
+
+```zsh
+# Start development server with hot reload (default port: 5173)
+npm run dev
+
+# Build for production (outputs to dist/)
+npm run build
+
+# Preview production build locally
+npm run preview
+
+# Run linter to check for code issues
+npm run lint
+
+# Run linter and auto-fix issues
+npm run lint:fix
+
+# Format code with Prettier
+npm run format
+
+# Check code formatting without modifying files
+npm run format:check
+
+# Run all tests once
+npm run test
+
+# Run tests in watch mode (re-runs on file changes)
+npm run test:watch
+
+# Generate test coverage report (outputs to coverage/)
+npm run test:coverage
+
+# Run all checks (lint + test + build) - useful before committing
+npm run check
+```
+
+#### Development Workflow
+
+1. Start the dev server: `npm run dev`
+2. Open your browser to the displayed URL (usually http://localhost:5173)
+3. Make changes to files in `src/` - the page will hot-reload automatically
+4. Run `npm run check` before committing to ensure everything passes
+
+### Testing
+
+This project uses Vitest and Testing Library for unit and component tests.
+
+Install dependencies (first time):
+
+```zsh
+npm install
+```
+
+Run tests once:
+
+```zsh
+npm run test
+```
+
+Watch mode:
+
+```zsh
+npm run test:watch
+```
+
+Coverage report (text + HTML in coverage/):
+
+```zsh
+npm run test:coverage
+```
+
+Notes:
+
+- JSDOM is configured via `vite.config.js` under `test.environment`.
+- Global setup lives in `src/test/setupTests.js` (resets Zustand stores and sets i18n to English).
+- Use helpers from `src/test/test-utils.js` for rendering React components.
+- Place tests as `*.test.js|jsx` under `src/`.

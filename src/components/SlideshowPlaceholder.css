@@ -1,0 +1,24 @@
+.slideshow__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  pointer-events: none;
+}
+
+.slideshow__placeholder--hybrid {
+  overflow: hidden;
+}
+
+.slideshow__placeholder-image {
+  position: absolute;
+  width: 60%;
+  height: 60%;
+  object-fit: cover;
+  opacity: 1;
+  filter: blur(80px);
+  pointer-events: none;
+  border-radius: 1000px;
+}

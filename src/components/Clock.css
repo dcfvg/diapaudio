@@ -1,0 +1,131 @@
+.viewer__clock {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  background: transparent;
+  padding: 0;
+  border-radius: 8px;
+  z-index: 1000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  pointer-events: auto;
+  height: calc(4vw - 1rem);
+}
+
+.clock-analog {
+  display: block;
+  background: transparent;
+  padding: 0;
+  margin-bottom: 0.5rem;
+  border-radius: 8px;
+  transition: background 0.2s ease;
+  width: calc(4vw - 2rem);
+  height: calc(4vw - 2rem);
+  box-sizing: border-box;
+}
+
+.clock-analog:hover {
+  background: rgba(0, 0, 0, 0.95);
+}
+
+.clock-analog.hidden {
+  display: none;
+}
+
+.clock-analog-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  font-size: 0.55rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.clock-analog-time {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  letter-spacing: 0.02em;
+}
+
+.clock-analog-separator {
+  opacity: 0.6;
+  margin: 0 0.2rem;
+}
+
+.clock-analog-date {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.clock-digital-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.5rem;
+}
+
+.clock-digital-time {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  letter-spacing: 0.02em;
+}
+
+.clock-digital-separator {
+  opacity: 0.6;
+  margin: 0 0.2rem;
+}
+
+.clock-digital-date {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.clock-svg {
+  width: calc(4vw - 1rem);
+  height: calc(4vw - 1rem);
+}
+
+.clock-face {
+  fill: var(--bg-primary);
+  stroke: var(--border-color);
+  stroke-width: 1;
+}
+
+.clock-tick {
+  stroke: var(--border-color-hover);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.clock-hour-hand {
+  stroke: var(--text-primary);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.clock-minute-hand {
+  stroke: var(--text-primary);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.clock-second-hand {
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+
+.clock-center {
+  fill: var(--text-primary);
+}
+

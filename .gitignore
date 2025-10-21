@@ -1,2 +1,9 @@
 test-folder/
 .DS_Store
+node_modules/
+legacy/
+dist/
+todo.md
+TODO_NEXT.md
+.vscode/
+coverage/
