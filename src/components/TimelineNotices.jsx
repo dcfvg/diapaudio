@@ -1,4 +1,4 @@
-import { useEffect, useMemo, memo } from "react";
+import { useMemo, memo } from "react";
 import { useMediaStore } from "../state/useMediaStore.js";
 import Modal from "./Modal.jsx";
 import Icon from "./Icon.jsx";
@@ -12,12 +12,6 @@ function TimelineNotices({ open, onClose }) {
     () => (Array.isArray(anomalies) ? anomalies.filter(Boolean) : []),
     [anomalies]
   );
-
-  useEffect(() => {
-    if (!open && notices.length && onClose) {
-      // Auto-close handled by parent; nothing additional needed here.
-    }
-  }, [open, notices.length, onClose]);
 
   if (!notices.length) return null;
 

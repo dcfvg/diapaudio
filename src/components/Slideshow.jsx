@@ -3,16 +3,14 @@ import { useMediaStore } from "../state/useMediaStore.js";
 import { useSettingsStore } from "../state/useSettingsStore.js";
 import { usePlaybackStore } from "../state/usePlaybackStore.js";
 import { computeImageSchedule } from "../media/imageSchedule.js";
-import {
-  MAX_VISIBLE_IMAGES,
-  MIN_IMAGE_DISPLAY_DEFAULT_MS,
-  MIN_IMAGE_DISPLAY_MIN_MS,
-  DEFAULT_IMAGE_HOLD_MS,
-  IMAGE_HOLD_MAX_MS,
-  MAX_COMPOSITION_CHANGE_INTERVAL_MS,
-  MIN_COMPOSITION_CHANGE_INTERVAL_MS,
-} from "../media/constants.js";
+import { MAX_VISIBLE_IMAGES } from "../media/constants.js";
 import { hasAudioCoverage } from "../media/images.js";
+import {
+  computeMinVisibleMs,
+  computeScaledHoldMs,
+  computeCompositionIntervalMs,
+  computeSnapGridMs,
+} from "../state/helpers/settingsHelpers.js";
 import CompositionView from "./CompositionView.jsx";
 import SlideshowPlaceholder, {
   resolvePlaceholderSources,
@@ -58,41 +56,28 @@ function Slideshow() {
   }, [absoluteTime, timelineStart]);
 
   const displaySeconds = Number(imageDisplaySeconds);
-  const minVisibleMs = useMemo(() => {
-    const defaultSeconds = MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000;
-    const seconds = Number.isFinite(displaySeconds) && displaySeconds > 0
-      ? displaySeconds
-      : defaultSeconds;
-    const s = Number(speed) > 0 ? Number(speed) : 1;
-    const scaled = Math.round(seconds * 1000 * s);
-    return Math.max(MIN_IMAGE_DISPLAY_MIN_MS, scaled);
-  }, [displaySeconds, speed]);
+  const speedValue = Number(speed);
+  
+  const minVisibleMs = useMemo(() => 
+    computeMinVisibleMs(displaySeconds, speedValue),
+    [displaySeconds, speedValue]
+  );
 
   const holdSeconds = Number(imageHoldSeconds);
-  const imageHoldMs = useMemo(() => {
-    // Explicitly handle 0 to avoid any falsy value issues
-    if (holdSeconds === 0) {
-      return 0;
-    }
-    if (!Number.isFinite(holdSeconds) || holdSeconds < 0) {
-      return DEFAULT_IMAGE_HOLD_MS;
-    }
-    const clampedSeconds = Math.min(holdSeconds, IMAGE_HOLD_MAX_MS / 1000);
-    const baseHoldMs = Math.max(clampedSeconds * 1000, 0);
-    const s = Number(speed) > 0 ? Number(speed) : 1;
-    // Scale hold by speed so on-screen time remains constant across speeds
-    return Math.round(baseHoldMs * s);
-  }, [holdSeconds, speed]);
+  const imageHoldMs = useMemo(() => 
+    computeScaledHoldMs(holdSeconds, speedValue),
+    [holdSeconds, speedValue]
+  );
 
-  const compositionIntervalMs = useMemo(() => {
-    const seconds = Number(compositionIntervalSeconds);
-    if (!Number.isFinite(seconds) || seconds <= 0) {
-      return MAX_COMPOSITION_CHANGE_INTERVAL_MS;
-    }
-    const ms = seconds * 1000;
-    // Only enforce a minimum; no upper cap
-    return Math.max(ms, MIN_COMPOSITION_CHANGE_INTERVAL_MS);
-  }, [compositionIntervalSeconds]);
+  const compositionIntervalMs = useMemo(() =>
+    computeCompositionIntervalMs(compositionIntervalSeconds),
+    [compositionIntervalSeconds]
+  );
+  
+  const snapGridMs = useMemo(() =>
+    computeSnapGridMs(snapGridSeconds),
+    [snapGridSeconds]
+  );
 
   const schedule = useMemo(
     () =>
@@ -102,12 +87,9 @@ function Slideshow() {
         maxSlots: MAX_VISIBLE_IMAGES,
         compositionIntervalMs,
         snapToGrid: Boolean(snapToGrid),
-        snapGridMs: (() => {
-          const sec = Number(snapGridSeconds);
-          return Number.isFinite(sec) && sec > 0 ? Math.round(sec * 1000) : null;
-        })(),
+        snapGridMs,
       }),
-    [mediaData?.images, minVisibleMs, imageHoldMs, compositionIntervalMs, snapToGrid, snapGridSeconds]
+    [mediaData?.images, minVisibleMs, imageHoldMs, compositionIntervalMs, snapToGrid, snapGridMs]
   );
 
   const scheduleMetadata = useMemo(() => schedule?.metadata || EMPTY_ARRAY, [schedule]);

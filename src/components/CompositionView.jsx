@@ -151,6 +151,9 @@ const CompositionView = forwardRef(function CompositionView(
 
 // Custom comparison to prevent re-renders when slots array reference changes but content is the same
 const areEqual = (prevProps, nextProps) => {
+  // Fast path: check if we can skip all comparisons
+  if (prevProps === nextProps) return true;
+  
   if (prevProps.layoutSize !== nextProps.layoutSize) return false;
   if (prevProps.className !== nextProps.className) return false;
   if (prevProps.fillPlaceholders !== nextProps.fillPlaceholders) return false;
@@ -158,7 +161,10 @@ const areEqual = (prevProps, nextProps) => {
   if (prevProps.imageTransitionDelayMs !== nextProps.imageTransitionDelayMs) return false;
   if (prevProps.imageFadingClassName !== nextProps.imageFadingClassName) return false;
 
-  // Deep compare slots array
+  // Fast path: if slots array references are the same, content is identical
+  if (prevProps.slots === nextProps.slots) return true;
+  
+  // Deep compare slots array when references differ
   if (prevProps.slots?.length !== nextProps.slots?.length) return false;
   if (!prevProps.slots && !nextProps.slots) return true;
   if (!prevProps.slots || !nextProps.slots) return false;

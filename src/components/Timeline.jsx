@@ -5,20 +5,18 @@ import { useSettingsStore } from "../state/useSettingsStore.js";
 import { usePlaybackStore } from "../state/usePlaybackStore.js";
 import { formatClockWithSeconds, formatDateAndTime, formatClock } from "../utils/dateUtils.js";
 import { formatTime } from "../media/formatters.js";
-import {
-  MIN_IMAGE_DISPLAY_DEFAULT_MS,
-  MIN_IMAGE_DISPLAY_MIN_MS,
-  DEFAULT_IMAGE_HOLD_MS,
-  IMAGE_HOLD_MAX_MS,
-  MAX_VISIBLE_IMAGES,
-  MAX_COMPOSITION_CHANGE_INTERVAL_MS,
-  MIN_COMPOSITION_CHANGE_INTERVAL_MS,
-} from "../media/constants.js";
+import { MAX_VISIBLE_IMAGES } from "../media/constants.js";
 import {
   TIMELINE_AUTO_SCROLL_DELAY_MS,
   TIMELINE_MIN_VIEW_WINDOW_MS,
   TIMELINE_HOUR_THRESHOLD_MS,
 } from "../constants/ui.js";
+import {
+  computeMinVisibleMs,
+  computeScaledHoldMs,
+  computeCompositionIntervalMs,
+  computeSnapGridMs,
+} from "../state/helpers/settingsHelpers.js";
 import { computeImageSchedule } from "../media/imageSchedule.js";
 import { cleanTrackNameForDisplay } from "../media/fileUtils.js";
 import CompositionView from "./CompositionView.jsx";
@@ -107,35 +105,29 @@ function Timeline() {
   );
 
   // Resolve image display, hold and composition interval from settings
-  const minVisibleMs = useMemo(() => {
-    const displaySeconds = Number(imageDisplaySeconds);
-    const defaultSeconds = MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000;
-    const seconds = Number.isFinite(displaySeconds) && displaySeconds > 0
-      ? displaySeconds
-      : defaultSeconds;
-    const s = Number(speed) > 0 ? Number(speed) : 1;
-    const scaled = Math.round(seconds * 1000 * s);
-    return Math.max(MIN_IMAGE_DISPLAY_MIN_MS, scaled);
-  }, [imageDisplaySeconds, speed]);
+  const displaySeconds = Number(imageDisplaySeconds);
+  const speedValue = Number(speed);
+  const holdSecondsValue = Number(imageHoldSeconds);
+  
+  const minVisibleMs = useMemo(() =>
+    computeMinVisibleMs(displaySeconds, speedValue),
+    [displaySeconds, speedValue]
+  );
 
-  const imageHoldMs = useMemo(() => {
-    const seconds = Number(imageHoldSeconds);
-    // Explicitly handle 0 to avoid any falsy value issues
-    if (seconds === 0) {
-      return 0;
-    }
-    if (!Number.isFinite(seconds)) return DEFAULT_IMAGE_HOLD_MS;
-    const base = clamp(seconds * 1000, 0, IMAGE_HOLD_MAX_MS);
-    const s = Number(speed) > 0 ? Number(speed) : 1;
-    return Math.round(base * s);
-  }, [imageHoldSeconds, speed]);
+  const imageHoldMs = useMemo(() =>
+    computeScaledHoldMs(holdSecondsValue, speedValue),
+    [holdSecondsValue, speedValue]
+  );
 
-  const compositionIntervalMs = useMemo(() => {
-    const sec = Number(compositionIntervalSeconds);
-    if (!Number.isFinite(sec)) return MAX_COMPOSITION_CHANGE_INTERVAL_MS;
-    // No upper cap; enforce minimum only
-    return Math.max(sec * 1000, MIN_COMPOSITION_CHANGE_INTERVAL_MS);
-  }, [compositionIntervalSeconds]);
+  const compositionIntervalMs = useMemo(() =>
+    computeCompositionIntervalMs(compositionIntervalSeconds),
+    [compositionIntervalSeconds]
+  );
+  
+  const snapGridMs = useMemo(() =>
+    computeSnapGridMs(snapGridSeconds),
+    [snapGridSeconds]
+  );
 
   const schedule = useMemo(
     () =>
@@ -145,12 +137,9 @@ function Timeline() {
         maxSlots: MAX_VISIBLE_IMAGES,
         compositionIntervalMs,
         snapToGrid: Boolean(snapToGrid),
-        snapGridMs: (() => {
-          const sec = Number(snapGridSeconds);
-          return Number.isFinite(sec) && sec > 0 ? Math.round(sec * 1000) : null;
-        })(),
+        snapGridMs,
       }),
-    [mediaData?.images, minVisibleMs, imageHoldMs, compositionIntervalMs, snapToGrid, snapGridSeconds]
+    [mediaData?.images, minVisibleMs, imageHoldMs, compositionIntervalMs, snapToGrid, snapGridMs]
   );
 
   const scheduleMetadata = schedule?.metadata || EMPTY_ARRAY;
@@ -163,12 +152,9 @@ function Timeline() {
       ...baseTimeline,
       imageSegments: scheduleSegments,
       snapToGrid: Boolean(snapToGrid),
-      snapGridMs: (() => {
-        const sec = Number(snapGridSeconds);
-        return Number.isFinite(sec) && sec > 0 ? Math.round(sec * 1000) : null;
-      })(),
+      snapGridMs,
     };
-  }, [baseTimeline, scheduleSegments, snapToGrid, snapGridSeconds]);
+  }, [baseTimeline, scheduleSegments, snapToGrid, snapGridMs]);
 
   const scheduledEntries = useMemo(() => {
     const metadata = scheduleMetadata;

@@ -2,21 +2,15 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import ProgressManager from "../media/progress.js";
 import { getVisibleImagesAtTime } from "../media/images.js";
-import { getImageHoldMs } from "../media/imageSettings.js";
 import { useSettingsStore } from "./useSettingsStore.js";
-import {
-  MIN_IMAGE_DISPLAY_DEFAULT_MS,
-  MIN_IMAGE_DISPLAY_MIN_MS,
-  MAX_VISIBLE_IMAGES,
-  MAX_COMPOSITION_CHANGE_INTERVAL_MS,
-  MIN_COMPOSITION_CHANGE_INTERVAL_MS,
-} from "../media/constants.js";
+import { MAX_VISIBLE_IMAGES } from "../media/constants.js";
 import createProgressSlice from "./slices/progressSlice.js";
 import createMediaSlice from "./slices/mediaSlice.js";
 import createDragDropSlice from "./slices/dragDropSlice.js";
 
 // Helper functions moved to helpers
 import { deriveMediaWithDelay, extractTimelineView, buildMediaData as buildMediaDataHelper } from "./helpers/mediaHelpers.js";
+import { resolveImageScheduleSettings } from "./helpers/settingsHelpers.js";
 
 const initialState = {
   mediaData: null,
@@ -70,39 +64,19 @@ const mediaStoreImpl = (set, get) => ({
   getVisibleImages: (absoluteMs, options = {}) => {
     const { mediaData } = get();
     const settings = useSettingsStore.getState();
-    const displaySeconds = Number(settings?.imageDisplaySeconds);
-    const speed = Number(settings?.speed);
     
-    const defaultDisplaySeconds = MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000;
-    const minVisibleMs = (() => {
-      const seconds = Number.isFinite(displaySeconds) && displaySeconds > 0
-        ? displaySeconds
-        : defaultDisplaySeconds;
-      const s = Number.isFinite(speed) && speed > 0 ? speed : 1;
-      const scaled = Math.round(seconds * 1000 * s);
-      return Math.max(MIN_IMAGE_DISPLAY_MIN_MS, scaled);
-    })();
-    
-    // Use shared helper for hold duration calculation
-    const holdMs = getImageHoldMs({ imageHoldSeconds: settings?.imageHoldSeconds });
-    const scaledHold = Number.isFinite(speed) && speed > 0 ? Math.round(holdMs * speed) : holdMs;
-    
-    const intervalSeconds = Number(settings?.compositionIntervalSeconds);
-    const resolvedInterval = Number.isFinite(intervalSeconds)
-      ? Math.max(intervalSeconds * 1000, MIN_COMPOSITION_CHANGE_INTERVAL_MS)
-      : MAX_COMPOSITION_CHANGE_INTERVAL_MS;
+    // Use helper to resolve all schedule settings with proper speed scaling
+    const { minVisibleMs, holdMs, compositionIntervalMs, snapToGrid, snapGridMs } = 
+      resolveImageScheduleSettings(settings);
 
     const result = getVisibleImagesAtTime(mediaData, absoluteMs, {
       skipSilence: options.skipSilence,
-      holdMs: scaledHold,
+      holdMs,
       minVisibleMs,
       maxSlots: MAX_VISIBLE_IMAGES,
-      compositionIntervalMs: resolvedInterval,
-      snapToGrid: Boolean(settings?.snapToGrid),
-      snapGridMs: (() => {
-        const sec = Number(settings?.snapGridSeconds);
-        return Number.isFinite(sec) && sec > 0 ? Math.round(sec * 1000) : null;
-      })(),
+      compositionIntervalMs,
+      snapToGrid,
+      snapGridMs,
       returnDetails: options.returnDetails,
     });
 

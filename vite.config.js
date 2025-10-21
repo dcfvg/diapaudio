@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig({
   plugins: [
@@ -41,6 +42,14 @@ export default defineConfig({
       devOptions: {
         enabled: false, // set to true to test PWA in dev
       },
+    }),
+    // Bundle analyzer - generates stats.html in dist/ after build
+    visualizer({
+      filename: "./dist/stats.html",
+      open: false, // set to true to open in browser after build
+      gzipSize: true,
+      brotliSize: true,
+      template: "treemap", // treemap, sunburst, network
     }),
   ],
   // Set base path for GitHub Pages when publishing to /<repo>/
