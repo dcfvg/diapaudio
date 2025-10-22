@@ -22,30 +22,6 @@ The app will generate a synchronized slideshow you can play, navigate, and expor
 
 **Note:** ZIP files with any compression method are fully supported thanks to [zip.js](https://gildas-lormeau.github.io/zip.js/).
 
-## Install as an app (PWA)
-
-diapaudio is a Progressive Web App. You can install it on desktop and mobile for an app-like experience (standalone window, offline caching, auto-updates).
-
-### Desktop (Windows, macOS, Linux)
-
-- Chrome/Edge: Open the site, then look for the "Install" icon in the address bar, or open the browser menu > Install app.
-- Firefox: Limited PWA install support on desktop. You can still pin a shortcut.
-
-### Android (Chrome, Edge, Samsung Internet)
-
-- Open the site, then tap the menu ••• > Add to Home screen (or Install app).
-
-### iOS/iPadOS (Safari)
-
-- Open the site in Safari, tap the Share icon, then "Add to Home Screen".
-- Note: iOS requires PNG icons for Home Screen. This project ships an SVG icon by default. If you want glossy Home Screen icons on iOS, add PNG icons (192×192 and 512×512) under `public/icons/` and reference them in `public/manifest.webmanifest` and `<link rel="apple-touch-icon" ...>` in `index.html`.
-
-### Offline and updates
-
-- The app ships with an offline-capable service worker. It pre-caches the app shell (index.html, manifest, icons) and uses a cache-first strategy for same-origin assets. After your first visit online, the app will work fully offline.
-- The service worker auto-updates on new deployments; the app refreshes on next visit.
-
-
 ### Timestamp Detection
 
 diapaudio extracts timestamps from your media files using multiple methods:
@@ -145,6 +121,15 @@ This tells diapaudio to account for the 23 minutes and 45 seconds offset between
 ### Export Options
 - **XML export for video editing** - FCPXML format compatible with Final Cut Pro, Premiere Pro, DaVinci Resolve
 - **ZIP package export** - Export your complete project with images, audio, and settings for sharing
+
+### Progressive Web App (PWA)
+- **Install as native app** - Install on desktop and mobile for an app-like experience
+- **Offline support** - Works fully offline after first visit with service worker caching
+- **Auto-updates** - Service worker automatically updates on new deployments
+- **Cross-platform installation**:
+  - **Desktop** (Windows, macOS, Linux): Chrome/Edge - look for "Install" icon in address bar or browser menu > Install app
+  - **Android** (Chrome, Edge, Samsung Internet): Menu ••• > Add to Home screen (or Install app)
+  - **iOS/iPadOS** (Safari): Share icon > "Add to Home Screen" (Note: iOS requires PNG icons; this project ships SVG by default. For glossy Home Screen icons, add 192×192 and 512×512 PNG icons in `public/icons/` and reference in `manifest.webmanifest` and `index.html`)
 
 ## Export to Video Editing Software
 
