@@ -95,8 +95,12 @@ function Slideshow() {
   const scheduleMetadata = useMemo(() => schedule?.metadata || EMPTY_ARRAY, [schedule]);
 
   const inAudioCoverage = useMemo(() => {
-    if (!hasAudio || !Number.isFinite(resolvedAbsolute)) {
+    if (!Number.isFinite(resolvedAbsolute)) {
       return true;
+    }
+    // If no audio exists, consider we're never in audio coverage
+    if (!hasAudio) {
+      return false;
     }
     return hasAudioCoverage(mediaData, resolvedAbsolute);
   }, [hasAudio, mediaData, resolvedAbsolute]);
@@ -106,10 +110,6 @@ function Slideshow() {
       return null;
     }
     if (!Number.isFinite(resolvedAbsolute)) {
-      return null;
-    }
-
-    if (skipSilence && hasAudio && !inAudioCoverage) {
       return null;
     }
 
@@ -123,6 +123,12 @@ function Slideshow() {
           resolvedAbsolute >= meta.startMs &&
           resolvedAbsolute < meta.endMs
       );
+
+    // When skipSilence is enabled, only skip if BOTH no audio AND no images
+    // This creates true "silent periods" where nothing is happening
+    if (skipSilence && !inAudioCoverage && !activeMeta.length) {
+      return null;
+    }
 
     if (!activeMeta.length) {
       return null;
@@ -161,7 +167,7 @@ function Slideshow() {
       displayImages: activeImages,
       primaryImage: primary,
     };
-  }, [mediaData, scheduleMetadata, resolvedAbsolute, skipSilence, hasAudio, inAudioCoverage]);
+  }, [mediaData, scheduleMetadata, resolvedAbsolute, skipSilence, inAudioCoverage]);
 
   const layoutSize = compositionState?.layoutSize ?? 1;
   const slots = compositionState?.slots ?? DEFAULT_SLOTS;

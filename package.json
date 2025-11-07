@@ -11,9 +11,9 @@
     "lint:fix": "eslint src --fix --max-warnings=0",
     "format": "prettier --write \"src/**/*.{js,jsx,json,css}\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx,json,css}\"",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test": "NODE_OPTIONS='--no-warnings' vitest run",
+    "test:watch": "NODE_OPTIONS='--no-warnings' vitest",
+    "test:coverage": "NODE_OPTIONS='--no-warnings' vitest run --coverage",
     "check": "npm run lint && npm test && npm run build"
   },
   "dependencies": {

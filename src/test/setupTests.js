@@ -6,6 +6,51 @@
 // - reset Zustand stores between tests
 // - minimal DOM and browser API polyfills when necessary
 
+// IMPORTANT: Mock localStorage FIRST, before any imports that use it
+const localStorageMock = (() => {
+  let store = {};
+  return {
+    getItem: (key) => store[key] || null,
+    setItem: (key, value) => {
+      store[key] = String(value);
+    },
+    removeItem: (key) => {
+      delete store[key];
+    },
+    clear: () => {
+      store = {};
+    },
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: (index) => {
+      const keys = Object.keys(store);
+      return keys[index] || null;
+    },
+  };
+})();
+
+// Set up localStorage on both global and window
+if (typeof global !== 'undefined') {
+  Object.defineProperty(global, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+    configurable: true,
+  });
+}
+
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+    configurable: true,
+  });
+  
+  if (!window.matchMedia) {
+    window.matchMedia = () => ({ matches: false, addListener: () => {}, removeListener: () => {} });
+  }
+}
+
 import '@testing-library/jest-dom';
 
 // Ensure i18n is initialized and forced to English for stable snapshots
@@ -81,10 +126,3 @@ afterEach(() => {
   console.error.mockRestore?.();
   console.warn.mockRestore?.();
 });
-
-// jsdom polyfills for APIs occasionally used
-if (typeof window !== 'undefined') {
-  if (!window.matchMedia) {
-    window.matchMedia = () => ({ matches: false, addListener: () => {}, removeListener: () => {} });
-  }
-}

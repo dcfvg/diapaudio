@@ -57,7 +57,7 @@ export default defineConfig({
   // and "/diapaudio/" when process.env.GHPAGES is set (CI workflow below)
   base: process.env.VITE_BASE || (process.env.GHPAGES === "true" ? "/diapaudio/" : "/"),
   server: {
-    port: 5173,
+    port: 5959,
   },
   build: {
     rollupOptions: {
@@ -77,6 +77,11 @@ export default defineConfig({
   // Vitest configuration for unit/component testing
   test: {
     environment: "jsdom",
+    environmentOptions: {
+      jsdom: {
+        url: "http://localhost:3000",
+      },
+    },
     setupFiles: ["src/test/setupTests.js"],
     globals: true,
     css: true,

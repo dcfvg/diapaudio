@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { DEFAULT_SPEED, DEFAULT_SKIP_SILENCE } from "../constants/playback.js";
 import {
   MIN_IMAGE_DISPLAY_DEFAULT_MS,
@@ -13,8 +13,30 @@ import {
 
 /**
  * Persistent settings store - the ONLY store that persists across page reloads.
- * All other stores (media, playback, UI) are reset on page load.
+ * Uses localStorage to save settings.
  */
+// Check if localStorage is available at runtime
+const getStorage = () => {
+  try {
+    // In test environment, ensure we wait for the mock to be ready
+    if (typeof window !== 'undefined' && window.localStorage) {
+      // Verify it actually works
+      if (typeof window.localStorage.getItem === 'function' && 
+          typeof window.localStorage.setItem === 'function') {
+        return window.localStorage;
+      }
+    }
+  } catch {
+    // localStorage might throw in some environments
+  }
+  // Return a no-op storage for SSR or when localStorage is unavailable
+  return {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+  };
+};
+
 export const useSettingsStore = create(
   persist(
     (set) => ({
@@ -82,6 +104,7 @@ export const useSettingsStore = create(
     {
       name: "diapaudio-settings",
       version: 7,
+      storage: createJSONStorage(getStorage),
       merge: (persistedState, currentState) => ({
         ...currentState,
         ...(persistedState || {}),
