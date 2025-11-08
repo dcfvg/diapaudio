@@ -202,6 +202,12 @@ function Timeline() {
       ? Math.max(viewEndMs - viewStartMs, 1)
       : null;
 
+  // DEBUG: Log timeline view range
+  if (viewStartMs && viewEndMs && mediaData?.audioTracks?.length) {
+    console.log(`Timeline view: startMs=${viewStartMs}, endMs=${viewEndMs}, durationMs=${viewDurationMs}`);
+    console.log(`  View span: ${new Date(viewStartMs).toISOString()} → ${new Date(viewEndMs).toISOString()}`);
+  }
+
   const summaryDurationMs =
     Number.isFinite(summaryStartMs) && Number.isFinite(summaryEndMs)
       ? Math.max(summaryEndMs - summaryStartMs, 1)

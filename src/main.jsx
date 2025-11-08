@@ -4,6 +4,10 @@ import "./i18n/index.js";
 import "./styles/theme.css";
 import App from "./App.jsx";
 import "./style.css";
+import * as logger from "./utils/logger.js";
+
+// Set log level to INFO to see debug messages
+logger.setLogLevel('INFO');
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
