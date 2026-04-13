@@ -8,7 +8,6 @@ import {
 } from "./constants.js";
 import { t } from "../i18n/index.js";
 import { toTimestamp } from "../utils/dateUtils.js";
-import * as logger from "../utils/logger.js";
 
 export function applyTimelineCalculations(mediaData, delaySeconds = 0) {
   if (!mediaData) {
@@ -17,20 +16,10 @@ export function applyTimelineCalculations(mediaData, delaySeconds = 0) {
 
   const delayMs = Number.isFinite(delaySeconds) ? delaySeconds * 1000 : 0;
   
-  // DEBUG: Log incoming audio tracks
-  logger.info(`applyTimelineCalculations called with ${mediaData.audioTracks?.length || 0} audio tracks, delay: ${delaySeconds}s`);
-  
-  const audioTracks = (mediaData.audioTracks || []).map((track, index) => {
+  const audioTracks = (mediaData.audioTracks || []).map((track) => {
     const fileTimestamp = track.fileTimestamp instanceof Date ? track.fileTimestamp : null;
     const startMs = fileTimestamp ? toTimestamp(fileTimestamp) + delayMs : null;
     
-    // DEBUG: Log each track calculation
-    if (fileTimestamp) {
-      const time = `${fileTimestamp.getHours()}:${fileTimestamp.getMinutes().toString().padStart(2, '0')}:${fileTimestamp.getSeconds().toString().padStart(2, '0')}`;
-      logger.info(`  Track [${index}] ${track.originalName?.split('/').pop() || track.label}: fileTimestamp=${time}, startMs=${startMs}, delayMs=${delayMs}`);
-    } else {
-      logger.warn(`  Track [${index}] ${track.originalName?.split('/').pop() || track.label}: NO fileTimestamp`);
-    }
     const durationMs = Number.isFinite(track.duration) ? track.duration * 1000 : null;
 
     const adjustedStartTime = Number.isFinite(startMs) ? new Date(startMs) : null;
@@ -98,20 +87,10 @@ function buildTimelineSummary(audioTracks, images) {
   let minContentMs = Number.POSITIVE_INFINITY;
   let maxContentMs = Number.NEGATIVE_INFINITY;
 
-  // DEBUG: Log what we're building from
-  logger.info(`buildTimelineSummary: Processing ${audioTracks.length} audio tracks`);
-
   audioTracks.forEach((track, index) => {
     const start =
       track?.adjustedStartTime instanceof Date ? toTimestamp(track.adjustedStartTime) : null;
     const end = track?.adjustedEndTime instanceof Date ? toTimestamp(track.adjustedEndTime) : null;
-    
-    // DEBUG: Log each track range
-    if (Number.isFinite(start)) {
-      logger.info(`  Track [${index}] "${track.label}": startMs=${start}, endMs=${end || 'null'}`);
-    } else {
-      logger.warn(`  Track [${index}] "${track.label}": NO valid start time (adjustedStartTime=${track.adjustedStartTime})`);
-    }
     
     if (!Number.isFinite(start)) return;
     const resolvedEnd = Number.isFinite(end) ? end : start + (Number(track.duration) || 0) * 1000;
@@ -126,9 +105,6 @@ function buildTimelineSummary(audioTracks, images) {
   });
 
   trackRanges.sort((a, b) => a.startMs - b.startMs);
-  
-  // DEBUG: Log sorted track ranges
-  logger.info(`buildTimelineSummary: Created ${trackRanges.length} track ranges (minContent=${minContentMs}, maxContent=${maxContentMs})`);
 
   let latestRange = null;
   let latestEndMs = null;

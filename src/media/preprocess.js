@@ -303,22 +303,6 @@ export async function prepareMediaFromFiles(files, options = {}) {
     })
   );
 
-  // DEBUG: Log EXIF extraction results
-  if (imageMetadataResults.length > 0) {
-    const successCount = imageMetadataResults.filter(r => r?.timestamp).length;
-    logger.info(`EXIF extraction: ${successCount}/${imageMetadataResults.length} images have metadata timestamps`);
-    
-    // Log first few timestamps
-    imageMetadataResults.slice(0, 5).forEach((result, i) => {
-      if (result?.timestamp) {
-        const time = `${result.timestamp.getHours()}:${result.timestamp.getMinutes().toString().padStart(2, '0')}:${result.timestamp.getSeconds().toString().padStart(2, '0')}`;
-        logger.info(`  [${i}] ${imagesNeedingMetadata[i].name} → ${time} (${result.timestamp.toISOString()})`);
-      } else {
-        logger.warn(`  [${i}] ${imagesNeedingMetadata[i].name} → NO EXIF timestamp`);
-      }
-    });
-  }
-
   // Map metadata results back to original indices
   metadataIndex = 0;
   const images = await Promise.all(
