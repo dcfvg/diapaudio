@@ -1,8 +1,43 @@
-test-folder/
+# OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Desktop.ini
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Node / package managers
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm
+
+# Build outputs
+/dist/
+coverage/
+.eslintcache
+
+# Logs / temp
+logs/
+*.log
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Project-specific
+test-folder/
 legacy/
-dist/
 todo.md
 TODO_NEXT.md
-coverage/
