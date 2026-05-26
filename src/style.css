@@ -53,12 +53,24 @@ body {
 }
 
 .viewer__content {
+  --settings-panel-width: 336px;
   display: flex;
   flex-direction: column;
   gap: 0;
+  position: relative;
   height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+
+.viewer__content--settings-open .viewer__slideshow {
+  flex: 1 1 auto;
+  width: calc(100% - var(--settings-panel-width));
+  max-width: calc(100% - var(--settings-panel-width));
+}
+
+.viewer__content--settings-open .viewer__hud {
+  right: var(--settings-panel-width);
 }
 
 .hidden {
@@ -235,7 +247,8 @@ body {
   transform: translateY(18px);
   transition:
     opacity 0.25s ease,
-    transform 0.25s ease;
+    transform 0.25s ease,
+    right 0.25s ease;
 }
 
 .viewer__hud.viewer__hud--visible,
@@ -292,6 +305,15 @@ body {
 }
 
 @media (max-width: 720px) {
+  .viewer__content--settings-open .viewer__slideshow {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .viewer__content--settings-open .viewer__hud {
+    right: 0;
+  }
+
   .viewer__hud {
     padding: 1rem 0.5rem 1rem;
   }

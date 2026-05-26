@@ -1,6 +1,7 @@
 import {
   RiArchiveLine,
   RiCircleLine,
+  RiCloseLine,
   RiErrorWarningLine,
   RiFileLine,
   RiFileZipLine,
@@ -18,6 +19,7 @@ import {
 
 const ICONS = {
   archive: RiArchiveLine,
+  close: RiCloseLine,
   document: RiFileLine,
   file: RiFileLine,
   folder: RiFolderLine,

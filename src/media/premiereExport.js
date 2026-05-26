@@ -9,6 +9,8 @@ export const PREMIERE_FRAME_RATE = 30;
 export const PREMIERE_TIMEBASE = 30;
 export const PREMIERE_VIDEO_WIDTH = 3840;
 export const PREMIERE_VIDEO_HEIGHT = 2160;
+export const PREMIERE_LAYOUT_PADDING_PX = Math.round(PREMIERE_VIDEO_WIDTH * 0.04);
+export const PREMIERE_LAYOUT_GAP_PX = 48;
 
 function msToFrames(ms, frameRate = PREMIERE_FRAME_RATE) {
   return Math.max(0, Math.round((ms / 1000) * frameRate));
@@ -193,21 +195,42 @@ function buildFileElement(asset, mediaType, mediaBasePathUrl) {
             </file>`;
 }
 
-export function calculateSlotMotion({ imageWidth, imageHeight, layoutSize, slotIndex }) {
+export function resolveSlotFrame({ layoutSize, slotIndex }) {
   const columns = Math.max(1, Math.min(layoutSize || 1, MAX_VISIBLE_IMAGES));
-  const slotWidth = PREMIERE_VIDEO_WIDTH / columns;
-  const slotHeight = PREMIERE_VIDEO_HEIGHT;
+  const column = Math.min(Math.max(slotIndex || 0, 0), columns - 1);
+  const safeWidth =
+    PREMIERE_VIDEO_WIDTH - PREMIERE_LAYOUT_PADDING_PX * 2 - PREMIERE_LAYOUT_GAP_PX * (columns - 1);
+  const slotWidth = safeWidth / columns;
+  const slotHeight = PREMIERE_VIDEO_HEIGHT - PREMIERE_LAYOUT_PADDING_PX * 2;
+  const x = PREMIERE_LAYOUT_PADDING_PX + column * (slotWidth + PREMIERE_LAYOUT_GAP_PX);
+  const y = PREMIERE_LAYOUT_PADDING_PX;
+
+  return {
+    x,
+    y,
+    width: slotWidth,
+    height: slotHeight,
+    centerX: x + slotWidth / 2,
+    centerY: y + slotHeight / 2,
+    columns,
+    rows: 1,
+  };
+}
+
+export function calculateSlotMotion({ imageWidth, imageHeight, layoutSize, slotIndex }) {
+  const frame = resolveSlotFrame({ layoutSize, slotIndex });
   const width = Number.isFinite(imageWidth) && imageWidth > 0 ? imageWidth : PREMIERE_VIDEO_WIDTH;
   const height =
     Number.isFinite(imageHeight) && imageHeight > 0 ? imageHeight : PREMIERE_VIDEO_HEIGHT;
-  const scale = Math.min(slotWidth / width, slotHeight / height) * 100;
-  const slotCenterX = slotWidth * slotIndex + slotWidth / 2;
-  const centerH = ((slotCenterX - PREMIERE_VIDEO_WIDTH / 2) / (PREMIERE_VIDEO_WIDTH / 2)) * 100;
+  const scale = Math.min(frame.width / width, frame.height / height) * 100;
+  const centerH = (frame.centerX - PREMIERE_VIDEO_WIDTH / 2) / PREMIERE_VIDEO_WIDTH;
+  const centerV = (PREMIERE_VIDEO_HEIGHT / 2 - frame.centerY) / PREMIERE_VIDEO_HEIGHT;
 
   return {
     scale: Math.max(0.01, Number(scale.toFixed(4))),
-    centerH: Number(centerH.toFixed(4)),
-    centerV: 0,
+    centerH: Number(centerH.toFixed(6)),
+    centerV: Number(centerV.toFixed(6)),
+    frame,
   };
 }
 
@@ -606,7 +629,7 @@ Import:
 3. If Premiere asks to relink media, choose the media folder from this archive.
 
 Notes:
-- Video is exported as editable multi-track still images with Basic Motion scale and center.
+- Video is exported as a 3840x2160 editable multi-track sequence with the same horizontal split layout as the preview.
 - If a mediaBasePathUrl was provided, XML pathurl fields point to that folder.
 - mediaBasePathUrl: ${mediaBasePathUrl || "(not provided)"}
 `;

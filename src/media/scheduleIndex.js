@@ -170,6 +170,60 @@ export function filterEntriesInView(entries, viewStartMs, viewEndMs) {
   return entries.filter((entry) => entry.endMs > viewStartMs && entry.startMs < viewEndMs);
 }
 
+const MIN_READABLE_ENTRY_PX = 4;
+const MAX_GROUP_SPAN_PX = 18;
+const MAX_GROUP_GAP_PX = 2;
+
+function createAggregateGroup(metric) {
+  return {
+    ...metric.entry,
+    aggregatedCount: 1,
+    aggregationKey: `single:${metric.entry.slotIndex}:${metric.entry.index}`,
+    images: [metric.entry.image],
+    leftPx: metric.leftPx,
+    rightPx: metric.rightPx,
+    firstIndex: metric.entry.index,
+    lastIndex: metric.entry.index,
+  };
+}
+
+function addMetricToGroup(group, metric) {
+  group.startMs = Math.min(group.startMs, metric.entry.startMs);
+  group.endMs = Math.max(group.endMs, metric.entry.endMs);
+  group.maxConcurrency = Math.max(group.maxConcurrency, metric.entry.maxConcurrency);
+  group.aggregatedCount += 1;
+  group.images.push(metric.entry.image);
+  group.leftPx = Math.min(group.leftPx, metric.leftPx);
+  group.rightPx = Math.max(group.rightPx, metric.rightPx);
+  group.firstIndex = Math.min(group.firstIndex, metric.entry.index);
+  group.lastIndex = Math.max(group.lastIndex, metric.entry.index);
+  group.aggregationKey = `group:${group.slotIndex}:${group.firstIndex}:${group.lastIndex}`;
+}
+
+function finalizeAggregateGroup(group) {
+  if (!group) {
+    return null;
+  }
+  if (group.aggregatedCount <= 1) {
+    return {
+      ...group,
+      aggregatedCount: 1,
+      images: [group.image],
+      aggregationKey: `single:${group.slotIndex}:${group.index}`,
+    };
+  }
+  return group;
+}
+
+function toPublicAggregateEntry(entry) {
+  const publicEntry = { ...entry };
+  delete publicEntry.leftPx;
+  delete publicEntry.rightPx;
+  delete publicEntry.firstIndex;
+  delete publicEntry.lastIndex;
+  return publicEntry;
+}
+
 export function aggregateEntriesByPixel(entries, viewStartMs, viewEndMs, widthPx) {
   const visible = filterEntriesInView(entries, viewStartMs, viewEndMs);
   const durationMs = viewEndMs - viewStartMs;
@@ -183,27 +237,67 @@ export function aggregateEntriesByPixel(entries, viewStartMs, viewEndMs, widthPx
     return visible;
   }
 
-  const buckets = new Map();
-  visible.forEach((entry) => {
-    const leftPx = Math.max(0, Math.floor(((entry.startMs - viewStartMs) / durationMs) * widthPx));
-    const rightPx = Math.min(
-      widthPx,
-      Math.ceil(((entry.endMs - viewStartMs) / durationMs) * widthPx)
+  const metrics = visible
+    .map((entry) => {
+      const leftPx = Math.max(0, ((entry.startMs - viewStartMs) / durationMs) * widthPx);
+      const rightPx = Math.min(widthPx, ((entry.endMs - viewStartMs) / durationMs) * widthPx);
+      return {
+        entry,
+        leftPx,
+        rightPx: Math.max(leftPx + 1, rightPx),
+        widthPx: Math.max(rightPx - leftPx, 1),
+        slotIndex: Math.max(entry.slotIndex || 0, 0),
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.slotIndex - b.slotIndex ||
+        a.leftPx - b.leftPx ||
+        a.entry.startMs - b.entry.startMs ||
+        a.entry.index - b.entry.index
     );
-    const key = `${entry.slotIndex}:${leftPx}:${Math.max(leftPx + 1, rightPx)}`;
-    const existing = buckets.get(key);
-    if (!existing) {
-      buckets.set(key, { ...entry, aggregatedCount: 1, images: [entry.image] });
+
+  const groups = [];
+  let pendingGroup = null;
+
+  metrics.forEach((metric) => {
+    const isTooSmall = metric.widthPx < MIN_READABLE_ENTRY_PX;
+    if (!isTooSmall) {
+      const finalized = finalizeAggregateGroup(pendingGroup);
+      if (finalized) {
+        groups.push(finalized);
+      }
+      pendingGroup = null;
+      groups.push(finalizeAggregateGroup(createAggregateGroup(metric)));
       return;
     }
-    existing.startMs = Math.min(existing.startMs, entry.startMs);
-    existing.endMs = Math.max(existing.endMs, entry.endMs);
-    existing.maxConcurrency = Math.max(existing.maxConcurrency, entry.maxConcurrency);
-    existing.aggregatedCount += 1;
-    existing.images.push(entry.image);
+
+    if (!pendingGroup) {
+      pendingGroup = createAggregateGroup(metric);
+      return;
+    }
+
+    const sameSlot = pendingGroup.slotIndex === metric.slotIndex;
+    const gapPx = metric.leftPx - pendingGroup.rightPx;
+    const nextSpanPx = Math.max(pendingGroup.rightPx, metric.rightPx) - pendingGroup.leftPx;
+    if (sameSlot && gapPx <= MAX_GROUP_GAP_PX && nextSpanPx <= MAX_GROUP_SPAN_PX) {
+      addMetricToGroup(pendingGroup, metric);
+      return;
+    }
+
+    const finalized = finalizeAggregateGroup(pendingGroup);
+    if (finalized) {
+      groups.push(finalized);
+    }
+    pendingGroup = createAggregateGroup(metric);
   });
 
-  return Array.from(buckets.values()).sort(
-    (a, b) => a.startMs - b.startMs || a.slotIndex - b.slotIndex || a.index - b.index
-  );
+  const finalized = finalizeAggregateGroup(pendingGroup);
+  if (finalized) {
+    groups.push(finalized);
+  }
+
+  return groups
+    .map(toPublicAggregateEntry)
+    .sort((a, b) => a.startMs - b.startMs || a.slotIndex - b.slotIndex || a.index - b.index);
 }

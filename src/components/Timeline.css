@@ -1,10 +1,10 @@
 .timeline__toolbar {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: 0.85rem;
   flex-wrap: wrap;
   width: 100%;
-  padding: 0 1.25rem;
+  padding: 0 2.4rem 0 0.9rem;
   box-sizing: border-box;
 }
 
@@ -40,15 +40,14 @@
 .timeline__controls-right {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
 }
 
 .timeline__controls-right {
   justify-content: flex-end;
 }
 
-.timeline__settings-button,
-.timeline__pin-button {
+.timeline__settings-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -65,22 +64,14 @@
     transform var(--transition-fast);
 }
 
-.timeline__settings-button:hover,
-.timeline__pin-button:hover {
+.timeline__settings-button:hover {
   background: rgba(255, 255, 255, 0.16);
   border-color: rgba(255, 255, 255, 0.3);
-}
-
-.timeline__pin-button.is-active {
-  color: var(--color-accent-alt);
-  background: rgba(160, 127, 67, 0.22);
-  border-color: rgba(216, 201, 168, 0.5);
 }
 
 .timeline__settings-button.is-open {
   background: rgba(255, 255, 255, 0.22);
   border-color: rgba(255, 255, 255, 0.45);
-  transform: rotate(20deg);
 }
 
 .speed-control {
@@ -99,8 +90,8 @@
 }
 
 .speed-control__select {
-  padding: 0.2rem 0.7rem;
-  min-width: 70px;
+  padding: 0.16rem 0.55rem;
+  min-width: 64px;
   background: rgba(18, 18, 18, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--radius-pill);
@@ -156,7 +147,7 @@
   background: rgba(12, 12, 12, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
-  padding: 1.25rem 0;
+  padding: 1rem 0 0.9rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -166,6 +157,45 @@
   transition: opacity 0.5s ease-out;
 }
 
+.timeline__pin-toggle {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.55rem;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.58);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.timeline__pin-toggle:hover,
+.timeline__pin-toggle:focus-visible {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-primary);
+}
+
+.timeline__pin-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.24);
+}
+
+.timeline__pin-toggle.is-active {
+  color: var(--color-accent-alt);
+  background: transparent;
+  border-color: transparent;
+}
+
 .timeline--fading {
   opacity: 0;
   pointer-events: none;
@@ -173,8 +203,8 @@
 
 .timeline__scrubber {
   flex: 1 1 auto;
-  min-width: 220px;
-  padding: 0 var(--space-sm);
+  min-width: 260px;
+  padding: 0 var(--space-xs);
   position: relative;
   display: flex;
   align-items: center;
@@ -377,10 +407,30 @@
   z-index: 3;
   border-radius: 8px;
   opacity: 0.85;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.timeline-image--grouped {
+  min-width: 2px;
 }
 
 .timeline-image--active {
   background: var(--color-accent);
+}
+
+.timeline-image__count {
+  max-width: 100%;
+  padding: 0 0.25rem;
+  color: rgba(7, 9, 12, 0.82);
+  font-size: 0.56rem;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .timeline__hover-preview {
@@ -768,8 +818,8 @@
 @media (max-width: 720px) {
   .timeline__toolbar {
     align-items: stretch;
-    gap: var(--space-sm);
-    padding: 0 var(--space-sm);
+    gap: var(--space-xs);
+    padding: 0 2.35rem 0 var(--space-xs);
   }
 
   .timeline__controls-left,
@@ -799,11 +849,17 @@
     min-width: 0;
   }
 
-  .timeline__settings-button,
-  .timeline__pin-button {
+  .timeline__settings-button {
     flex: 0 0 44px;
     width: 44px;
     height: 44px;
+  }
+
+  .timeline__pin-toggle {
+    top: 0.45rem;
+    right: 0.45rem;
+    width: 32px;
+    height: 32px;
   }
 
   .speed-control__select {

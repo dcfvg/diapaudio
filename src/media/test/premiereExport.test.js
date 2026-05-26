@@ -6,6 +6,11 @@ import {
   calculateSlotMotion,
   exportPremiereXmlPackage,
   PREMIERE_FRAME_RATE,
+  PREMIERE_LAYOUT_GAP_PX,
+  PREMIERE_LAYOUT_PADDING_PX,
+  PREMIERE_VIDEO_HEIGHT,
+  PREMIERE_VIDEO_WIDTH,
+  resolveSlotFrame,
 } from "../premiereExport.js";
 
 const originalCreateObjectURL = URL.createObjectURL;
@@ -148,6 +153,14 @@ describe("premiereExport", () => {
     expect(Array.from(doc.querySelectorAll("parameterid")).map((node) => node.textContent)).toEqual(
       expect.arrayContaining(["scale", "center"])
     );
+    const centerValues = Array.from(doc.querySelectorAll("parameterid"))
+      .filter((node) => node.textContent === "center")
+      .map((node) => node.parentElement.querySelector("value"))
+      .flatMap((valueNode) => [
+        Number(valueNode.querySelector("horiz")?.textContent),
+        Number(valueNode.querySelector("vert")?.textContent),
+      ]);
+    expect(centerValues.every((value) => Math.abs(value) < 1)).toBe(true);
     expect(textContent(doc, "audio clipitem start")).toBe("0");
     expect(doc.querySelectorAll("pathurl")).toHaveLength(0);
   });
@@ -204,35 +217,67 @@ describe("premiereExport", () => {
     expect(invalidDoc.querySelectorAll("pathurl")).toHaveLength(0);
   });
 
-  it("calculates editable slot scale and center for one to four image tracks", () => {
+  it("calculates editable 4K slot scale and normalized center values", () => {
     expect(
       calculateSlotMotion({ imageWidth: 1920, imageHeight: 1080, layoutSize: 1, slotIndex: 0 })
     ).toMatchObject({
-      scale: 200,
+      scale: 171.4815,
       centerH: 0,
       centerV: 0,
     });
 
-    expect(
-      calculateSlotMotion({ imageWidth: 4000, imageHeight: 3000, layoutSize: 2, slotIndex: 0 })
-    ).toMatchObject({
-      scale: 48,
-      centerH: -50,
+    const left = calculateSlotMotion({
+      imageWidth: 4000,
+      imageHeight: 3000,
+      layoutSize: 2,
+      slotIndex: 0,
     });
+    expect(left.scale).toBeCloseTo(43.55, 4);
+    expect(left.centerH).toBeCloseTo(-0.233073, 6);
+    expect(left.centerV).toBe(0);
 
-    expect(
-      calculateSlotMotion({ imageWidth: 4000, imageHeight: 3000, layoutSize: 2, slotIndex: 1 })
-    ).toMatchObject({
-      scale: 48,
-      centerH: 50,
+    const right = calculateSlotMotion({
+      imageWidth: 4000,
+      imageHeight: 3000,
+      layoutSize: 2,
+      slotIndex: 1,
     });
+    expect(right.scale).toBeCloseTo(43.55, 4);
+    expect(right.centerH).toBeCloseTo(0.233073, 6);
+    expect(right.centerV).toBe(0);
 
-    expect(
-      calculateSlotMotion({ imageWidth: 800, imageHeight: 1600, layoutSize: 4, slotIndex: 3 })
-    ).toMatchObject({
-      scale: 120,
-      centerH: 75,
+    const farRight = calculateSlotMotion({
+      imageWidth: 800,
+      imageHeight: 1600,
+      layoutSize: 4,
+      slotIndex: 3,
     });
+    expect(farRight.scale).toBeCloseTo(105.875, 4);
+    expect(farRight.centerH).toBeCloseTo(0.349609, 6);
+    expect(farRight.centerV).toBe(0);
+  });
+
+  it("keeps every exported slot frame inside the 4K canvas with browser-like margins", () => {
+    for (let layoutSize = 1; layoutSize <= 6; layoutSize += 1) {
+      let previousFrame = null;
+      for (let slotIndex = 0; slotIndex < layoutSize; slotIndex += 1) {
+        const frame = resolveSlotFrame({ layoutSize, slotIndex });
+
+        expect(frame.x).toBeGreaterThanOrEqual(PREMIERE_LAYOUT_PADDING_PX);
+        expect(frame.y).toBe(PREMIERE_LAYOUT_PADDING_PX);
+        expect(frame.x + frame.width).toBeLessThanOrEqual(
+          PREMIERE_VIDEO_WIDTH - PREMIERE_LAYOUT_PADDING_PX
+        );
+        expect(frame.y + frame.height).toBe(PREMIERE_VIDEO_HEIGHT - PREMIERE_LAYOUT_PADDING_PX);
+        expect(frame.rows).toBe(1);
+
+        if (previousFrame) {
+          const gap = frame.x - (previousFrame.x + previousFrame.width);
+          expect(gap).toBeCloseTo(PREMIERE_LAYOUT_GAP_PX, 5);
+        }
+        previousFrame = frame;
+      }
+    }
   });
 
   it("downloads a Premiere package containing XML, README and packaged media", async () => {

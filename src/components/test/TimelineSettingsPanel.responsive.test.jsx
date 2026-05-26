@@ -1,33 +1,12 @@
 import React from "react";
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { waitFor } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { fireEvent, screen } from "@testing-library/react";
 import { renderWithProviders } from "../../test/test-utils.jsx";
 import TimelineSettingsPanel from "../TimelineSettingsPanel.jsx";
-
-const DEFAULT_WIDTH = window.innerWidth;
-const DEFAULT_HEIGHT = window.innerHeight;
-
-function setViewport(width, height) {
-  Object.defineProperty(window, "innerWidth", {
-    configurable: true,
-    writable: true,
-    value: width,
-  });
-  Object.defineProperty(window, "innerHeight", {
-    configurable: true,
-    writable: true,
-    value: height,
-  });
-}
 
 function makeProps(overrides = {}) {
   return {
     open: true,
-    anchorRef: {
-      current: {
-        getBoundingClientRect: () => ({ top: 600, right: 360 }),
-      },
-    },
     delayDraft: "0:00",
     onDelayChange: vi.fn(),
     onCommitDelay: vi.fn(),
@@ -55,40 +34,31 @@ function makeProps(overrides = {}) {
   };
 }
 
-afterEach(() => {
-  setViewport(DEFAULT_WIDTH, DEFAULT_HEIGHT);
-});
-
-describe("TimelineSettingsPanel responsive positioning", () => {
-  it("uses a fixed bottom-sheet position on narrow viewports", async () => {
-    setViewport(390, 844);
-
+describe("TimelineSettingsPanel", () => {
+  it("renders as a right-side panel without modal overlay behavior", () => {
     renderWithProviders(<TimelineSettingsPanel {...makeProps()} />);
 
-    await waitFor(() => {
-      const panel = document.body.querySelector(".timeline-settings-modal");
-      expect(panel).toBeInTheDocument();
-      expect(panel.style.position).toBe("fixed");
-      expect(panel.style.left).toBe("8px");
-      expect(panel.style.right).toBe("8px");
-      expect(panel.style.bottom).toBe("8px");
-      expect(panel.style.transform).toBe("none");
-      expect(panel.style.maxWidth).toBe("none");
-    });
+    const panel = screen.getByRole("complementary", { name: "timelineSettingsTitle" });
+
+    expect(panel).toBeInTheDocument();
+    expect(panel).toHaveClass("timeline-settings-panel");
+    expect(document.body.querySelector(".modal-overlay")).not.toBeInTheDocument();
+    expect(document.body.querySelector(".timeline-settings-modal")).not.toBeInTheDocument();
   });
 
-  it("keeps anchor-relative positioning on roomy viewports", async () => {
-    setViewport(1280, 720);
+  it("keeps close action accessible from the panel header", () => {
+    const onClose = vi.fn();
 
-    renderWithProviders(<TimelineSettingsPanel {...makeProps()} />);
+    renderWithProviders(<TimelineSettingsPanel {...makeProps({ onClose })} />);
 
-    await waitFor(() => {
-      const panel = document.body.querySelector(".timeline-settings-modal");
-      expect(panel).toBeInTheDocument();
-      expect(panel.style.position).toBe("absolute");
-      expect(panel.style.top).toBe("588px");
-      expect(panel.style.right).toBe("904px");
-      expect(panel.style.transform).toBe("translateY(-100%)");
-    });
+    fireEvent.click(screen.getByRole("button", { name: "closeButton" }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not render while closed", () => {
+    renderWithProviders(<TimelineSettingsPanel {...makeProps({ open: false })} />);
+
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,6 @@
 import "./Timeline.css";
 import { useMemo, useCallback, useRef, memo, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMediaStore } from "../state/useMediaStore.js";
 import { useSettingsStore } from "../state/useSettingsStore.js";
 import { usePlaybackStore } from "../state/usePlaybackStore.js";
@@ -57,6 +58,7 @@ function filterVisibleTracks(tracks, viewStartMs, viewEndMs, padding = 0.1) {
 }
 
 function Timeline() {
+  const { t } = useTranslation();
   const mediaData = useMediaStore((state) => state.mediaData);
   const timelineView = useMediaStore((state) => state.timelineView);
   const setTimelineView = useMediaStore((state) => state.setTimelineView);
@@ -196,18 +198,28 @@ function Timeline() {
   useEffect(() => {
     const node = interactionRef.current;
     const ResizeObserverCtor = globalThis.ResizeObserver;
-    if (!node || typeof ResizeObserverCtor !== "function") {
+    if (!node) {
+      return undefined;
+    }
+    const measureWidth = () => {
+      const width = node.getBoundingClientRect().width;
+      if (Number.isFinite(width) && width > 0) {
+        setTimelineWidthPx(width);
+      }
+    };
+    measureWidth();
+    if (typeof ResizeObserverCtor !== "function") {
       return undefined;
     }
     const observer = new ResizeObserverCtor((entries) => {
-      const width = entries[0]?.contentRect?.width;
-      if (Number.isFinite(width)) {
+      const width = entries[0]?.contentRect?.width || node.getBoundingClientRect().width;
+      if (Number.isFinite(width) && width > 0) {
         setTimelineWidthPx(width);
       }
     });
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [timeline]);
 
   // Virtual scrolling: filter visible items based on current viewport
   const visibleImageEntries = useMemo(() => {
@@ -492,7 +504,12 @@ function Timeline() {
   }
 
   return (
-    <div className="timeline__main" id="timeline-main" ref={containerRef} style={layoutVars}>
+    <div
+      className="timeline__main"
+      id="timeline-main"
+      ref={containerRef}
+      style={layoutVars}
+    >
       <div
         className="timeline__interaction"
         id="timeline-interaction"
@@ -619,8 +636,16 @@ function Timeline() {
             const left = positionPercent(entry.startMs, viewStartMs, viewDurationMs);
             const right = positionPercent(entry.endMs, viewStartMs, viewDurationMs);
             const widthPercent = clamp(right - left, 0, 100 - left);
+            const widthPx = Number.isFinite(timelineWidthPx)
+              ? (widthPercent / 100) * timelineWidthPx
+              : 0;
+            const isGrouped = entry.aggregatedCount > 1;
+            const showGroupLabel = isGrouped && widthPx >= 30;
 
             const classes = ["timeline-image"];
+            if (isGrouped) {
+              classes.push("timeline-image--grouped");
+            }
             if (
               visibleImageSet.has(entry.image) ||
               entry.images?.some((image) => visibleImageSet.has(image))
@@ -636,12 +661,14 @@ function Timeline() {
             const topPx = concurrency > 1 ? slotIndex * (heightPx + marginPx) : 0;
 
             const timeLabel = formatDateAndTime(new Date(entry.startMs));
-            const name =
-              entry.aggregatedCount > 1
-                ? `${entry.aggregatedCount} images`
-                : entry.image?.name || `Image ${entry.index + 1}`;
+            const name = isGrouped
+              ? t("timelineImageGroup", { count: entry.aggregatedCount })
+              : entry.image?.name || `Image ${entry.index + 1}`;
             const imageKey =
-              entry.image?.url || entry.image?.name || `${entry.startMs}-${entry.index}`;
+              isGrouped
+                ? entry.aggregationKey ||
+                  `group-${slotIndex}-${entry.index}-${entry.aggregatedCount}`
+                : entry.image?.url || entry.image?.name || `${entry.startMs}-${entry.index}`;
 
             return (
               <div
@@ -659,7 +686,15 @@ function Timeline() {
                 data-duration-ms={entry.endMs - entry.startMs}
                 data-position={left.toFixed(2)}
                 data-slot-index={slotIndex}
-              />
+                data-aggregated-count={entry.aggregatedCount || 1}
+                data-aggregation-key={entry.aggregationKey || imageKey}
+              >
+                {showGroupLabel ? (
+                  <span className="timeline-image__count">
+                    {t("timelineImageGroupShort", { count: entry.aggregatedCount })}
+                  </span>
+                ) : null}
+              </div>
             );
           })}
         </div>

@@ -748,8 +748,15 @@ function AppShell() {
     return isDragging ? "dropzone dragover" : "dropzone";
   }, [mediaData, isDragging]);
   const viewerContentClassName = useMemo(
-    () => (mediaData ? "viewer__content" : "viewer__content hidden"),
-    [mediaData]
+    () =>
+      [
+        "viewer__content",
+        mediaData ? "" : "hidden",
+        settingsOpen ? "viewer__content--settings-open" : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    [mediaData, settingsOpen]
   );
   const dropzoneCtaClassName = useMemo(
     () => (loading ? "dropzone__cta hidden" : "dropzone__cta"),
@@ -1043,6 +1050,16 @@ function AppShell() {
               id="viewer-hud"
             >
               <div className={mediaData ? "timeline" : "timeline hidden"} id="timeline">
+                <button
+                  type="button"
+                  className={`timeline__pin-toggle ${timelinePinned ? "is-active" : ""}`}
+                  onClick={() => setTimelinePinned(!timelinePinned)}
+                  aria-label={timelinePinned ? t("timelineUnpin") : t("timelinePin")}
+                  aria-pressed={timelinePinned}
+                  title={timelinePinned ? t("tooltipTimelineUnpin") : t("tooltipTimelinePin")}
+                >
+                  <Icon name={timelinePinned ? "pinned" : "pin"} size={16} />
+                </button>
                 <div className="timeline__toolbar">
                   <div className="timeline__controls-left">
                     <button
@@ -1083,16 +1100,6 @@ function AppShell() {
                     </ErrorBoundary>
                   </div>
                   <div className="timeline__controls-right">
-                    <button
-                      type="button"
-                      className={`timeline__pin-button ${timelinePinned ? "is-active" : ""}`}
-                      onClick={() => setTimelinePinned(!timelinePinned)}
-                      aria-label={timelinePinned ? t("timelineUnpin") : t("timelinePin")}
-                      aria-pressed={timelinePinned}
-                      title={timelinePinned ? t("tooltipTimelineUnpin") : t("tooltipTimelinePin")}
-                    >
-                      <Icon name={timelinePinned ? "pinned" : "pin"} size={18} />
-                    </button>
                     <label
                       className="speed-control"
                       title={t("tooltipSpeed")}
@@ -1125,37 +1132,36 @@ function AppShell() {
                     </button>
                   </div>
                 </div>
-                <Suspense fallback={<div className="loading-placeholder" />}>
-                  <TimelineSettingsPanel
-                    open={settingsOpen}
-                    anchorRef={settingsButtonRef}
-                    delayDraft={delayDraft}
-                    onDelayChange={(event) => setDelayDraft(event.target.value)}
-                    onCommitDelay={commitDelay}
-                    onDelayKeyDown={handleDelayKeyDown}
-                    imageDisplaySeconds={String(Math.round(imageDisplayValue))}
-                    onImageDisplayChange={handleImageDisplayChange}
-                    imageHoldSeconds={String(Math.round(imageHoldValue))}
-                    onImageHoldChange={handleImageHoldChange}
-                    snapToGrid={snapToGrid}
-                    onToggleSnapToGrid={handleToggleSnapToGrid}
-                    snapGridSeconds={String(snapGridSeconds)}
-                    onSnapGridSecondsChange={handleSnapGridSecondsChange}
-                    autoSkipVoids={autoSkipVoids}
-                    onToggleAutoSkipVoids={setAutoSkipVoids}
-                    showClock={showClock}
-                    onToggleShowClock={setShowClock}
-                    onExportXml={handleExportXml}
-                    onExportPremiere={handleExportPremiere}
-                    onExportZip={handleExportZip}
-                    disabled={!mediaData}
-                    onClose={() => setSettingsOpen(false)}
-                    onShowKeyboardHelp={handleOpenKeyboardHelp}
-                    t={t}
-                  />
-                </Suspense>
               </div>
             </div>
+            <Suspense fallback={<div className="loading-placeholder" />}>
+              <TimelineSettingsPanel
+                open={settingsOpen}
+                delayDraft={delayDraft}
+                onDelayChange={(event) => setDelayDraft(event.target.value)}
+                onCommitDelay={commitDelay}
+                onDelayKeyDown={handleDelayKeyDown}
+                imageDisplaySeconds={String(Math.round(imageDisplayValue))}
+                onImageDisplayChange={handleImageDisplayChange}
+                imageHoldSeconds={String(Math.round(imageHoldValue))}
+                onImageHoldChange={handleImageHoldChange}
+                snapToGrid={snapToGrid}
+                onToggleSnapToGrid={handleToggleSnapToGrid}
+                snapGridSeconds={String(snapGridSeconds)}
+                onSnapGridSecondsChange={handleSnapGridSecondsChange}
+                autoSkipVoids={autoSkipVoids}
+                onToggleAutoSkipVoids={setAutoSkipVoids}
+                showClock={showClock}
+                onToggleShowClock={setShowClock}
+                onExportXml={handleExportXml}
+                onExportPremiere={handleExportPremiere}
+                onExportZip={handleExportZip}
+                disabled={!mediaData}
+                onClose={() => setSettingsOpen(false)}
+                onShowKeyboardHelp={handleOpenKeyboardHelp}
+                t={t}
+              />
+            </Suspense>
             <ErrorBoundary componentName="Timeline Notices">
               <Suspense fallback={null}>
                 <TimelineNotices open={noticesOpen} onClose={() => setNoticesOpen(false)} />

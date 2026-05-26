@@ -1,26 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
-import Modal from "./Modal.jsx";
+import { useId } from "react";
 import { DEFAULT_IMAGE_HOLD_MS, MIN_IMAGE_DISPLAY_DEFAULT_MS } from "../media/constants.js";
 import Icon from "./Icon.jsx";
 import "./TimelineSettingsPanel.css";
 
-const COMPACT_PANEL_MAX_WIDTH_PX = 720;
-const COMPACT_PANEL_MAX_HEIGHT_PX = 640;
-const COMPACT_PANEL_MARGIN_PX = 8;
-
-function isCompactPanelViewport() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-  return (
-    window.innerWidth <= COMPACT_PANEL_MAX_WIDTH_PX ||
-    window.innerHeight <= COMPACT_PANEL_MAX_HEIGHT_PX
-  );
-}
-
 export default function TimelineSettingsPanel({
   open,
-  anchorRef,
   delayDraft,
   onDelayChange,
   onCommitDelay,
@@ -45,66 +29,34 @@ export default function TimelineSettingsPanel({
   onShowKeyboardHelp,
   t,
 }) {
-  const [positionStyle, setPositionStyle] = useState(null);
+  const titleId = useId();
 
-  const updatePosition = useCallback(() => {
-    if (isCompactPanelViewport()) {
-      setPositionStyle({
-        position: "fixed",
-        left: `${COMPACT_PANEL_MARGIN_PX}px`,
-        right: `${COMPACT_PANEL_MARGIN_PX}px`,
-        bottom: `${COMPACT_PANEL_MARGIN_PX}px`,
-        top: "auto",
-        width: "auto",
-        maxWidth: "none",
-        transform: "none",
-      });
-      return;
-    }
-
-    if (!anchorRef?.current) {
-      setPositionStyle(null);
-      return;
-    }
-    const rect = anchorRef.current.getBoundingClientRect();
-    const gap = 12;
-    const top = Math.max(rect.top - gap, 16);
-    const right = Math.max(window.innerWidth - rect.right - 16, 16);
-    setPositionStyle({
-      position: "absolute",
-      top: `${top}px`,
-      right: `${right}px`,
-      transform: "translateY(-100%)",
-    });
-  }, [anchorRef]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    // Initial position update - synchronizing position with DOM layout
-    updatePosition();
-
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
-  }, [open, updatePosition]);
+  if (!open) {
+    return null;
+  }
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={t("timelineSettingsTitle")}
-      subtitle={t("timelineSettingsSubtitle")}
-      icon={<Icon name="document" size={20} />}
-      size="sm"
-      variant="panel"
-      contentClassName="timeline-settings-modal"
-      style={positionStyle}
+    <aside
+      className="timeline-settings-panel"
+      aria-labelledby={titleId}
+      role="complementary"
     >
+      <header className="timeline-settings-panel__header">
+        <div className="timeline-settings-panel__title-group">
+          <h2 className="timeline-settings-panel__title" id={titleId}>
+            {t("timelineSettingsTitle")}
+          </h2>
+          <p className="timeline-settings-panel__subtitle">{t("timelineSettingsSubtitle")}</p>
+        </div>
+        <button
+          type="button"
+          className="timeline-settings-panel__close"
+          aria-label={t("closeButton")}
+          onClick={onClose}
+        >
+          <Icon name="close" size={20} />
+        </button>
+      </header>
       <div className="timeline-settings">
         <div className="timeline-settings__group">
           <label className="timeline-settings__label" htmlFor="timeline-delay-input">
@@ -124,61 +76,65 @@ export default function TimelineSettingsPanel({
           <span className="timeline-settings__hint">{t("timelineSettingsDelayHint")}</span>
         </div>
 
-        <div className="timeline-settings__group">
-          <label className="timeline-settings__label" htmlFor="timeline-image-display-input">
-            {t("timelineSettingsImageDisplay")}
-          </label>
-          <div className="timeline-settings__input-with-unit">
-            <input
-              id="timeline-image-display-input"
-              type="number"
-              min="1"
-              step="1"
-              value={imageDisplaySeconds}
-              onChange={(event) => onImageDisplayChange(event.target.value)}
-            />
-            <span className="timeline-settings__unit">s</span>
+        <div className="timeline-settings__compact-grid">
+          <div className="timeline-settings__group">
+            <label className="timeline-settings__label" htmlFor="timeline-image-display-input">
+              {t("timelineSettingsImageDisplay")}
+            </label>
+            <div className="timeline-settings__input-with-unit">
+              <input
+                id="timeline-image-display-input"
+                type="number"
+                min="1"
+                step="1"
+                value={imageDisplaySeconds}
+                onChange={(event) => onImageDisplayChange(event.target.value)}
+              />
+              <span className="timeline-settings__unit">s</span>
+            </div>
+            <span className="timeline-settings__hint">
+              {t("timelineSettingsDefault")}: {Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000)}s
+            </span>
           </div>
-          <span className="timeline-settings__hint">
-            {t("timelineSettingsImageDisplayHint")} · {t("timelineSettingsDefault")}:{" "}
-            {Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000)}s
-          </span>
+
+          <div className="timeline-settings__group">
+            <label className="timeline-settings__label" htmlFor="timeline-image-hold-input">
+              {t("timelineSettingsImageHold")}
+            </label>
+            <div className="timeline-settings__input-with-unit">
+              <input
+                id="timeline-image-hold-input"
+                type="number"
+                min="0"
+                max="180"
+                step="1"
+                value={imageHoldSeconds}
+                onChange={(event) => onImageHoldChange(event.target.value)}
+              />
+              <span className="timeline-settings__unit">s</span>
+            </div>
+            <span className="timeline-settings__hint">
+              {t("timelineSettingsDefault")}: {Math.round(DEFAULT_IMAGE_HOLD_MS / 1000)}s
+            </span>
+          </div>
         </div>
 
         <div className="timeline-settings__group">
-          <label className="timeline-settings__label" htmlFor="timeline-image-hold-input">
-            {t("timelineSettingsImageHold")}
-          </label>
-          <div className="timeline-settings__input-with-unit">
-            <input
-              id="timeline-image-hold-input"
-              type="number"
-              min="0"
-              max="180"
-              step="1"
-              value={imageHoldSeconds}
-              onChange={(event) => onImageHoldChange(event.target.value)}
-            />
-            <span className="timeline-settings__unit">s</span>
-          </div>
-          <span className="timeline-settings__hint">
-            {t("timelineSettingsImageHoldHint")} · {t("timelineSettingsDefault")}:{" "}
-            {Math.round(DEFAULT_IMAGE_HOLD_MS / 1000)}s
-          </span>
-        </div>
-
-        <div className="timeline-settings__group">
-          <label className="timeline-settings__toggle" title={t("timelineSettingsSnapToGridHint")}>
-            <input
-              type="checkbox"
-              checked={!!snapToGrid}
-              onChange={(e) => onToggleSnapToGrid?.(e.target.checked)}
-            />
-            <span>{t("timelineSettingsSnapToGrid")}</span>
-          </label>
-          <div className="timeline-settings__input-with-unit" style={{ marginTop: 6 }}>
+          <div className="timeline-settings__snap-row">
+            <label
+              className="timeline-settings__toggle"
+              title={t("timelineSettingsSnapToGridHint")}
+            >
+              <input
+                type="checkbox"
+                checked={!!snapToGrid}
+                onChange={(e) => onToggleSnapToGrid?.(e.target.checked)}
+              />
+              <span>{t("timelineSettingsSnapToGrid")}</span>
+            </label>
             <input
               id="timeline-grid-step-input"
+              className="timeline-settings__step-input"
               type="number"
               min="1"
               step="1"
@@ -186,12 +142,11 @@ export default function TimelineSettingsPanel({
               onChange={(e) => onSnapGridSecondsChange?.(e.target.value)}
               disabled={!snapToGrid}
             />
-            <span className="timeline-settings__unit">s</span>
           </div>
           <span className="timeline-settings__hint">{t("timelineSettingsSnapToGridHint")}</span>
         </div>
 
-        <div className="timeline-settings__group">
+        <div className="timeline-settings__toggle-grid">
           <label className="timeline-settings__toggle" title={t("tooltipAutoSkip")}>
             <input
               type="checkbox"
@@ -200,9 +155,7 @@ export default function TimelineSettingsPanel({
             />
             <span>{t("tooltipAutoSkipCheckbox")}</span>
           </label>
-        </div>
 
-        <div className="timeline-settings__group">
           <label className="timeline-settings__toggle" title={t("tooltipShowClock")}>
             <input
               type="checkbox"
@@ -253,6 +206,6 @@ export default function TimelineSettingsPanel({
           </button>
         </div>
       </div>
-    </Modal>
+    </aside>
   );
 }

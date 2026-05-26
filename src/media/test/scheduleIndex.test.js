@@ -68,7 +68,7 @@ describe("scheduleIndex", () => {
     expect(surrounding.next?.name).toBe("b.jpg");
   });
 
-  it("aggregates dense image entries by rendered pixel while preserving active images", () => {
+  it("aggregates contiguous micro image entries while preserving active images", () => {
     const entries = [
       {
         image: { name: "a.jpg" },
@@ -98,9 +98,31 @@ describe("scheduleIndex", () => {
 
     const result = aggregateEntriesByPixel(entries, 0, 1_000, 2);
 
-    expect(result).toHaveLength(2);
-    expect(result[0].aggregatedCount).toBe(2);
-    expect(result[0].images.map((image) => image.name)).toEqual(["a.jpg", "b.jpg"]);
-    expect(result[1].image.name).toBe("c.jpg");
+    expect(result).toHaveLength(1);
+    expect(result[0].aggregatedCount).toBe(3);
+    expect(result[0].images.map((image) => image.name)).toEqual(["a.jpg", "b.jpg", "c.jpg"]);
+    expect(result[0].aggregationKey).toBe("group:0:0:2");
+  });
+
+  it("groups busy overview ranges into readable buckets and keeps close zoom precise", () => {
+    const entries = Array.from({ length: 24 }, (_, index) => ({
+      image: { name: `image-${index}.jpg` },
+      index,
+      startMs: index * 1_000,
+      endMs: index * 1_000 + 800,
+      slotIndex: 0,
+      maxConcurrency: 1,
+    }));
+
+    const overview = aggregateEntriesByPixel(entries, 0, 24_000, 100);
+    const closeZoom = aggregateEntriesByPixel(entries.slice(0, 4), 0, 4_000, 400);
+
+    expect(overview.length).toBeLessThan(entries.length);
+    expect(overview.some((entry) => entry.aggregatedCount > 1)).toBe(true);
+    expect(overview.flatMap((entry) => entry.images).map((image) => image.name)).toEqual(
+      entries.map((entry) => entry.image.name)
+    );
+    expect(closeZoom).toHaveLength(4);
+    expect(closeZoom.every((entry) => entry.aggregatedCount === 1)).toBe(true);
   });
 });
