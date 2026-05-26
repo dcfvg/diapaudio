@@ -41,10 +41,27 @@ jobs:
           GHPAGES: "true"
         run: npm run build
 
+      - name: Archive Pages artifact
+        shell: bash
+        run: |
+          echo "::group::Archive artifact"
+          tar \
+            --dereference \
+            --hard-dereference \
+            --directory dist \
+            -cvf "$RUNNER_TEMP/artifact.tar" \
+            --exclude=.git \
+            --exclude=.github \
+            .
+          echo "::endgroup::"
+
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
-          path: dist
+          name: github-pages
+          path: ${{ runner.temp }}/artifact.tar
+          retention-days: 1
+          if-no-files-found: error
 
   deploy:
     needs: build
