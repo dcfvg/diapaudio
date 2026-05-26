@@ -58,9 +58,7 @@ function Timeline() {
   const setTimelineView = useMediaStore((state) => state.setTimelineView);
   const imageDisplaySeconds = useSettingsStore((state) => state.imageDisplaySeconds);
   const imageHoldSeconds = useSettingsStore((state) => state.imageHoldSeconds);
-  const compositionIntervalSeconds = useSettingsStore(
-    (state) => state.compositionIntervalSeconds
-  );
+  const compositionIntervalSeconds = useSettingsStore((state) => state.compositionIntervalSeconds);
   const speed = useSettingsStore((state) => state.speed);
   const snapToGrid = useSettingsStore((state) => state.snapToGrid);
   const snapGridSeconds = useSettingsStore((state) => state.snapGridSeconds);
@@ -90,10 +88,11 @@ function Timeline() {
 
   // Get base timeline first (will extend with segments later)
   const baseTimeline = mediaData?.timeline;
-  
+
   // Summary bounds represent the scrollable range - use content bounds (no padding)
   // This ensures tracks and brush align properly with timeline edges
-  const summaryStartMs = baseTimeline && Number.isFinite(baseTimeline.startMs) ? baseTimeline.startMs : 0;
+  const summaryStartMs =
+    baseTimeline && Number.isFinite(baseTimeline.startMs) ? baseTimeline.startMs : 0;
   const summaryEndMs = baseTimeline && Number.isFinite(baseTimeline.endMs) ? baseTimeline.endMs : 0;
 
   const setTimelineViewRange = useCallback(
@@ -108,26 +107,23 @@ function Timeline() {
   const displaySeconds = Number(imageDisplaySeconds);
   const speedValue = Number(speed);
   const holdSecondsValue = Number(imageHoldSeconds);
-  
-  const minVisibleMs = useMemo(() =>
-    computeMinVisibleMs(displaySeconds, speedValue),
+
+  const minVisibleMs = useMemo(
+    () => computeMinVisibleMs(displaySeconds, speedValue),
     [displaySeconds, speedValue]
   );
 
-  const imageHoldMs = useMemo(() =>
-    computeScaledHoldMs(holdSecondsValue, speedValue),
+  const imageHoldMs = useMemo(
+    () => computeScaledHoldMs(holdSecondsValue, speedValue),
     [holdSecondsValue, speedValue]
   );
 
-  const compositionIntervalMs = useMemo(() =>
-    computeCompositionIntervalMs(compositionIntervalSeconds),
+  const compositionIntervalMs = useMemo(
+    () => computeCompositionIntervalMs(compositionIntervalSeconds),
     [compositionIntervalSeconds]
   );
-  
-  const snapGridMs = useMemo(() =>
-    computeSnapGridMs(snapGridSeconds),
-    [snapGridSeconds]
-  );
+
+  const snapGridMs = useMemo(() => computeSnapGridMs(snapGridSeconds), [snapGridSeconds]);
 
   const schedule = useMemo(
     () =>
@@ -201,12 +197,6 @@ function Timeline() {
     Number.isFinite(viewStartMs) && Number.isFinite(viewEndMs)
       ? Math.max(viewEndMs - viewStartMs, 1)
       : null;
-
-  // DEBUG: Log timeline view range
-  if (viewStartMs && viewEndMs && mediaData?.audioTracks?.length) {
-    console.log(`Timeline view: startMs=${viewStartMs}, endMs=${viewEndMs}, durationMs=${viewDurationMs}`);
-    console.log(`  View span: ${new Date(viewStartMs).toISOString()} → ${new Date(viewEndMs).toISOString()}`);
-  }
 
   const summaryDurationMs =
     Number.isFinite(summaryStartMs) && Number.isFinite(summaryEndMs)
@@ -427,9 +417,10 @@ function Timeline() {
     const triggerRatio = 0.1;
     const marginMs = viewDuration * marginRatio;
     const triggerMs = viewEndMs - viewDuration * triggerRatio;
-    
+
     const isOutsideWindow = resolvedAbsoluteMs < viewStartMs || resolvedAbsoluteMs > viewEndMs;
-    const isApproachingEdge = resolvedAbsoluteMs >= triggerMs || resolvedAbsoluteMs < viewStartMs + marginMs;
+    const isApproachingEdge =
+      resolvedAbsoluteMs >= triggerMs || resolvedAbsoluteMs < viewStartMs + marginMs;
 
     // Auto-scroll if playhead is outside window or approaching edges
     const shouldScroll = isOutsideWindow || isApproachingEdge;
@@ -502,7 +493,15 @@ function Timeline() {
 
       setTimelineViewRange(newStart, newEnd);
     },
-    [interactionRef, viewStartMs, viewEndMs, summaryStartMs, summaryEndMs, setTimelineViewRange, markUserInteraction]
+    [
+      interactionRef,
+      viewStartMs,
+      viewEndMs,
+      summaryStartMs,
+      summaryEndMs,
+      setTimelineViewRange,
+      markUserInteraction,
+    ]
   );
 
   // Attach non-passive wheel listener to allow preventDefault without warnings
@@ -566,9 +565,7 @@ function Timeline() {
             const date = new Date(tick);
             // Show seconds only if view duration is less than 1 hour
             const showSeconds = viewDurationMs && viewDurationMs < TIMELINE_HOUR_THRESHOLD_MS;
-            const label = showSeconds
-              ? formatClockWithSeconds(date)
-              : formatClock(date);
+            const label = showSeconds ? formatClockWithSeconds(date) : formatClock(date);
 
             return (
               <div
@@ -678,7 +675,8 @@ function Timeline() {
 
             const timeLabel = formatDateAndTime(new Date(entry.startMs));
             const name = entry.image?.name || `Image ${entry.index + 1}`;
-            const imageKey = entry.image?.url || entry.image?.name || `${entry.startMs}-${entry.index}`;
+            const imageKey =
+              entry.image?.url || entry.image?.name || `${entry.startMs}-${entry.index}`;
 
             return (
               <div
@@ -732,7 +730,9 @@ function Timeline() {
             slots={hoverState?.previewLayout?.slots || []}
             layoutSize={hoverState?.previewLayout?.layoutSize || 1}
             emptyFallback={
-              hoverPlaceholder?.element || <div className="timeline__hover-preview-empty">No media</div>
+              hoverPlaceholder?.element || (
+                <div className="timeline__hover-preview-empty">No media</div>
+              )
             }
             emptyFallbackKey={hoverPlaceholder?.key}
             placeholderClassName="slideshow__column-placeholder"

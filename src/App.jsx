@@ -24,6 +24,13 @@ import ProgressModal from "./components/ProgressModal.jsx";
 import ErrorModal from "./components/ErrorModal.jsx";
 import * as logger from "./utils/logger.js";
 import { fetchSampleFile, fetchSampleManifest, shouldAutoloadSample } from "./dev/sampleLoader.js";
+import {
+  buildMediaTimelineIndex,
+  findNextEventTime,
+  findNextImageTime,
+  findPrevEventTime,
+  hasAudioCoverage,
+} from "./media/timelineEvents.js";
 
 // Lazy-load heavy components only needed after media is loaded
 const Slideshow = lazy(() => import("./components/Slideshow.jsx"));
@@ -132,6 +139,7 @@ function AppShell() {
   const [sampleManifest, setSampleManifest] = useState(null);
   const [sampleLoading, setSampleLoading] = useState(false);
   const sampleAutoloadAttemptedRef = useRef(false);
+  const mediaTimelineIndex = useMemo(() => buildMediaTimelineIndex(mediaData), [mediaData]);
 
   // Get audio element getter and state setters from playback store
   const getAudioElement = usePlaybackStore((state) => state.getAudioElement);
@@ -366,68 +374,15 @@ function AppShell() {
 
         // Auto-skip voids: no audio coverage and no fresh image at this time (ignoring hold)
         if (autoSkipVoids && mediaData) {
-          const hasAnyAudio = Boolean(mediaData.audioTracks?.length);
-          const inAudio = hasAnyAudio
-            ? mediaData.audioTracks.some((track) => {
-                const s =
-                  track?.adjustedStartTime instanceof Date
-                    ? toTimestamp(track.adjustedStartTime)
-                    : null;
-                const e =
-                  track?.adjustedEndTime instanceof Date
-                    ? toTimestamp(track.adjustedEndTime)
-                    : null;
-                return (
-                  Number.isFinite(s) && Number.isFinite(e) && nextAbsolute >= s && nextAbsolute <= e
-                );
-              })
-            : false;
-
-          // Determine if there is a "fresh" image starting at or near current time
-          let hasFreshImage = false;
-          let nextImageTime = null;
-          if (Array.isArray(mediaData.images) && mediaData.images.length) {
-            const images = mediaData.images
-              .map((img, idx) => ({
-                idx,
-                t:
-                  img?.adjustedTimestamp instanceof Date
-                    ? toTimestamp(img.adjustedTimestamp)
-                    : img?.originalTimestamp instanceof Date
-                      ? toTimestamp(img.originalTimestamp)
-                      : img?.timestamp instanceof Date
-                        ? toTimestamp(img.timestamp)
-                        : Number.isFinite(img?.timeMs)
-                          ? img.timeMs
-                          : null,
-              }))
-              .filter((e) => Number.isFinite(e.t))
-              .sort((a, b) => a.t - b.t);
-
-            // Find the next image at or after current time
-            const idx = images.findIndex((e) => e.t >= nextAbsolute);
-            if (idx >= 0) {
-              nextImageTime = images[idx].t;
-              // Consider image "fresh" if it's within 100ms of current time (accounts for timing variance)
-              hasFreshImage = Math.abs(images[idx].t - nextAbsolute) < 100;
-            }
-          }
+          const inAudio = hasAudioCoverage(mediaTimelineIndex.audioRanges, nextAbsolute);
+          const nextImageTime = findNextImageTime(mediaTimelineIndex.imageTimes, nextAbsolute);
+          const hasFreshImage =
+            Number.isFinite(nextImageTime) && Math.abs(nextImageTime - nextAbsolute) < 100;
 
           // If no audio and no fresh image nearby, jump to next media event
           // This handles both gaps during audio and after audio ends
           if (!inAudio && !hasFreshImage) {
-            const nextAudioStart = (mediaData.audioTracks || [])
-              .map((track) =>
-                track?.adjustedStartTime instanceof Date
-                  ? toTimestamp(track.adjustedStartTime)
-                  : null
-              )
-              .filter((v) => Number.isFinite(v) && v > nextAbsolute)
-              .sort((a, b) => a - b)[0];
-
-            const nextEvent = [nextImageTime, nextAudioStart]
-              .filter((v) => Number.isFinite(v))
-              .sort((a, b) => a - b)[0];
+            const nextEvent = findNextEventTime(mediaTimelineIndex.eventTimes, nextAbsolute, 0);
 
             if (Number.isFinite(nextEvent)) {
               state.seekToAbsolute(mediaData, nextEvent, { autoplay: state.playing });
@@ -500,7 +455,7 @@ function AppShell() {
       cancelled = true;
       stopTicker();
     };
-  }, [mediaData, playing]);
+  }, [mediaData, mediaTimelineIndex, playing]);
 
   // Initialize playback state when media changes
   useEffect(() => {
@@ -636,88 +591,24 @@ function AppShell() {
     const currentTime = Number.isFinite(absoluteTime) ? absoluteTime : mediaData?.timeline?.startMs;
     if (!Number.isFinite(currentTime)) return;
 
-    // Collect all media events (audio starts and images)
-    const events = [];
-
-    // Add audio track start times
-    (mediaData.audioTracks || []).forEach((track) => {
-      const startTime =
-        track?.adjustedStartTime instanceof Date ? toTimestamp(track.adjustedStartTime) : null;
-      if (Number.isFinite(startTime)) {
-        events.push(startTime);
-      }
-    });
-
-    // Add image times
-    (mediaData.images || []).forEach((img) => {
-      const imgTime =
-        img?.adjustedTimestamp instanceof Date
-          ? toTimestamp(img.adjustedTimestamp)
-          : img?.originalTimestamp instanceof Date
-            ? toTimestamp(img.originalTimestamp)
-            : img?.timestamp instanceof Date
-              ? toTimestamp(img.timestamp)
-              : Number.isFinite(img?.timeMs)
-                ? img.timeMs
-                : null;
-      if (Number.isFinite(imgTime)) {
-        events.push(imgTime);
-      }
-    });
-
-    // Find next event after current time
-    const nextEvent = events
-      .filter((t) => t > currentTime + 100) // 100ms threshold to avoid same event
-      .sort((a, b) => a - b)[0];
+    const nextEvent = findNextEventTime(mediaTimelineIndex.eventTimes, currentTime);
 
     if (Number.isFinite(nextEvent)) {
       seekToAbsoluteAction(mediaData, nextEvent, { autoplay: playing });
     }
-  }, [mediaData, absoluteTime, seekToAbsoluteAction, playing]);
+  }, [mediaData, mediaTimelineIndex, absoluteTime, seekToAbsoluteAction, playing]);
 
   const handlePrevMedia = useCallback(() => {
     if (!mediaData) return;
     const currentTime = Number.isFinite(absoluteTime) ? absoluteTime : mediaData?.timeline?.startMs;
     if (!Number.isFinite(currentTime)) return;
 
-    // Collect all media events (audio starts and images)
-    const events = [];
-
-    // Add audio track start times
-    (mediaData.audioTracks || []).forEach((track) => {
-      const startTime =
-        track?.adjustedStartTime instanceof Date ? toTimestamp(track.adjustedStartTime) : null;
-      if (Number.isFinite(startTime)) {
-        events.push(startTime);
-      }
-    });
-
-    // Add image times
-    (mediaData.images || []).forEach((img) => {
-      const imgTime =
-        img?.adjustedTimestamp instanceof Date
-          ? toTimestamp(img.adjustedTimestamp)
-          : img?.originalTimestamp instanceof Date
-            ? toTimestamp(img.originalTimestamp)
-            : img?.timestamp instanceof Date
-              ? toTimestamp(img.timestamp)
-              : Number.isFinite(img?.timeMs)
-                ? img.timeMs
-                : null;
-      if (Number.isFinite(imgTime)) {
-        events.push(imgTime);
-      }
-    });
-
-    // Find previous event before current time
-    const prevEvent = events
-      .filter((t) => t < currentTime - 100) // 100ms threshold to avoid same event
-      .sort((a, b) => b - a)[0];
+    const prevEvent = findPrevEventTime(mediaTimelineIndex.eventTimes, currentTime);
 
     if (Number.isFinite(prevEvent)) {
       seekToAbsoluteAction(mediaData, prevEvent, { autoplay: playing });
     }
-  }, [mediaData, absoluteTime, seekToAbsoluteAction, playing]);
+  }, [mediaData, mediaTimelineIndex, absoluteTime, seekToAbsoluteAction, playing]);
 
   const handleSpeedIncrease = useCallback(() => {
     const currentIndex = SPEED_OPTIONS.indexOf(speed);
