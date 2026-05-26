@@ -86,8 +86,8 @@ describe('ProgressModal', () => {
   });
 
   it('displays icon when provided', () => {
-    renderWithProviders(<ProgressModal {...defaultProps} icon="⏳" />);
-    expect(screen.getByText('⏳')).toBeTruthy();
+    renderWithProviders(<ProgressModal {...defaultProps} icon="loader" />);
+    expect(document.body.querySelector('.modal__icon svg')).toBeTruthy();
   });
 
   it('does not show cancel button when cancellable is false', () => {

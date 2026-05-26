@@ -19,10 +19,12 @@ import {
 const getStorage = () => {
   try {
     // In test environment, ensure we wait for the mock to be ready
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (typeof window !== "undefined" && window.localStorage) {
       // Verify it actually works
-      if (typeof window.localStorage.getItem === 'function' && 
-          typeof window.localStorage.setItem === 'function') {
+      if (
+        typeof window.localStorage.getItem === "function" &&
+        typeof window.localStorage.setItem === "function"
+      ) {
         return window.localStorage;
       }
     }
@@ -43,7 +45,7 @@ export const useSettingsStore = create(
       // Playback settings
       speed: DEFAULT_SPEED,
       skipSilence: DEFAULT_SKIP_SILENCE,
-  autoSkipVoids: false,
+      autoSkipVoids: false,
       // Timeline/Image scheduling
       snapToGrid: true,
       snapGridSeconds: 2,
@@ -52,12 +54,13 @@ export const useSettingsStore = create(
       compositionIntervalSeconds: Math.round(MAX_COMPOSITION_CHANGE_INTERVAL_MS / 1000),
       // Display options
       showClock: true,
-      clockMode: 'digital', // 'analog' or 'digital'
+      clockMode: "digital", // "analog" or "digital"
+      timelinePinned: false,
 
       // Actions
       setSpeed: (speed) => set({ speed }),
       setSkipSilence: (skipSilence) => set({ skipSilence }),
-  setAutoSkipVoids: (enabled) => set({ autoSkipVoids: Boolean(enabled) }),
+      setAutoSkipVoids: (enabled) => set({ autoSkipVoids: Boolean(enabled) }),
       setSnapToGrid: (enabled) => set({ snapToGrid: Boolean(enabled) }),
       setSnapGridSeconds: (seconds) => {
         const numeric = Math.round(Number(seconds));
@@ -81,10 +84,7 @@ export const useSettingsStore = create(
           return;
         }
         const ms = numeric * 1000;
-        const clampedMs = Math.min(
-          Math.max(ms, IMAGE_HOLD_MIN_MS),
-          IMAGE_HOLD_MAX_MS
-        );
+        const clampedMs = Math.min(Math.max(ms, IMAGE_HOLD_MIN_MS), IMAGE_HOLD_MAX_MS);
         const clamped = Math.round(clampedMs / 1000);
         set({ imageHoldSeconds: clamped });
       },
@@ -99,7 +99,8 @@ export const useSettingsStore = create(
         set({ compositionIntervalSeconds: outSeconds });
       },
       setShowClock: (enabled) => set({ showClock: Boolean(enabled) }),
-      setClockMode: (mode) => set({ clockMode: mode === 'digital' ? 'digital' : 'analog' }),
+      setClockMode: (mode) => set({ clockMode: mode === "digital" ? "digital" : "analog" }),
+      setTimelinePinned: (enabled) => set({ timelinePinned: Boolean(enabled) }),
     }),
     {
       name: "diapaudio-settings",

@@ -1,5 +1,6 @@
 import { Component } from "react";
 import Modal from "./Modal.jsx";
+import Icon from "./Icon.jsx";
 import * as logger from "../utils/logger.js";
 
 /**
@@ -63,7 +64,7 @@ class ErrorBoundary extends Component {
         <Modal
           open
           title={`${componentName} Error`}
-          icon="⚠️"
+          icon={<Icon name="warning" size={22} />}
           variant="danger"
           onClose={this.handleReset}
           actions={[

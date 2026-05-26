@@ -4,6 +4,20 @@ import { DEFAULT_IMAGE_HOLD_MS, MIN_IMAGE_DISPLAY_DEFAULT_MS } from "../media/co
 import Icon from "./Icon.jsx";
 import "./TimelineSettingsPanel.css";
 
+const COMPACT_PANEL_MAX_WIDTH_PX = 720;
+const COMPACT_PANEL_MAX_HEIGHT_PX = 640;
+const COMPACT_PANEL_MARGIN_PX = 8;
+
+function isCompactPanelViewport() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  return (
+    window.innerWidth <= COMPACT_PANEL_MAX_WIDTH_PX ||
+    window.innerHeight <= COMPACT_PANEL_MAX_HEIGHT_PX
+  );
+}
+
 export default function TimelineSettingsPanel({
   open,
   anchorRef,
@@ -34,6 +48,20 @@ export default function TimelineSettingsPanel({
   const [positionStyle, setPositionStyle] = useState(null);
 
   const updatePosition = useCallback(() => {
+    if (isCompactPanelViewport()) {
+      setPositionStyle({
+        position: "fixed",
+        left: `${COMPACT_PANEL_MARGIN_PX}px`,
+        right: `${COMPACT_PANEL_MARGIN_PX}px`,
+        bottom: `${COMPACT_PANEL_MARGIN_PX}px`,
+        top: "auto",
+        width: "auto",
+        maxWidth: "none",
+        transform: "none",
+      });
+      return;
+    }
+
     if (!anchorRef?.current) {
       setPositionStyle(null);
       return;
@@ -54,7 +82,6 @@ export default function TimelineSettingsPanel({
     if (!open) return undefined;
 
     // Initial position update - synchronizing position with DOM layout
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     updatePosition();
 
     window.addEventListener("resize", updatePosition);
@@ -75,6 +102,7 @@ export default function TimelineSettingsPanel({
       icon={<Icon name="document" size={20} />}
       size="sm"
       variant="panel"
+      contentClassName="timeline-settings-modal"
       style={positionStyle}
     >
       <div className="timeline-settings">

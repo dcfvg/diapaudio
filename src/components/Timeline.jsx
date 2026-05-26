@@ -222,7 +222,7 @@ function Timeline() {
   const axisHeightPx = 14;
   const axisGapPx = 3;
   const trackGapPx = 3;
-  const trackHeightPx = 14;
+  const trackHeightPx = 18;
   const brushHeightPx = 14;
   const brushOffsetPx = 6;
 

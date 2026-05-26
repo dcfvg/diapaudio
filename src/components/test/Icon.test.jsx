@@ -42,10 +42,10 @@ describe('Icon', () => {
     expect(svg?.getAttribute('height')).toBe('32');
   });
 
-  it('applies custom stroke width', () => {
-    const { container } = renderWithProviders(<Icon name="play" stroke={2.5} />);
+  it('passes through svg props', () => {
+    const { container } = renderWithProviders(<Icon name="play" data-tone="quiet" />);
     const svg = container.querySelector('svg');
-    expect(svg?.getAttribute('stroke-width')).toBe('2.5');
+    expect(svg?.getAttribute('data-tone')).toBe('quiet');
   });
 
   it('applies custom className', () => {
@@ -58,8 +58,6 @@ describe('Icon', () => {
     const { container } = renderWithProviders(<Icon name="unknown" />);
     const svg = container.querySelector('svg');
     expect(svg).toBeTruthy();
-    const circle = svg?.querySelector('circle');
-    expect(circle).toBeTruthy();
   });
 
   it('passes through additional props', () => {

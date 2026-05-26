@@ -1,4 +1,5 @@
 import Modal from "./Modal.jsx";
+import Icon from "./Icon.jsx";
 import "./ErrorModal.css";
 
 export default function ErrorModal({ open, error, onClose, title = "Something went wrong" }) {
@@ -16,7 +17,7 @@ export default function ErrorModal({ open, error, onClose, title = "Something we
       open={open}
       onClose={onClose}
       title={title}
-      icon="⚠️"
+      icon={<Icon name="warning" size={22} />}
       variant="danger"
       actions={[
         {

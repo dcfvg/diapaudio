@@ -1,5 +1,3 @@
-/* eslint-env jest */
-
 // Global test setup for Vitest + Testing Library
 // - jsdom assertions
 // - i18n initialization with deterministic language
@@ -63,7 +61,11 @@ import { useMediaStore } from '../state/useMediaStore.js';
 import { usePlaybackStore } from '../state/usePlaybackStore.js';
 import { useUiStore } from '../state/useUiStore.js';
 import { useSettingsStore } from '../state/useSettingsStore.js';
-import { DEFAULT_IMAGE_HOLD_MS, MAX_COMPOSITION_CHANGE_INTERVAL_MS } from '../media/constants.js';
+import {
+  DEFAULT_IMAGE_HOLD_MS,
+  MAX_COMPOSITION_CHANGE_INTERVAL_MS,
+  MIN_IMAGE_DISPLAY_DEFAULT_MS,
+} from '../media/constants.js';
 
 // Helper to fully reset stores
 export function resetAllStores() {
@@ -97,8 +99,15 @@ export function resetAllStores() {
     useSettingsStore.setState({
       speed: 1,
       skipSilence: false,
+      autoSkipVoids: false,
+      snapToGrid: true,
+      snapGridSeconds: 2,
+      imageDisplaySeconds: Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000),
       imageHoldSeconds: Math.round(DEFAULT_IMAGE_HOLD_MS / 1000),
       compositionIntervalSeconds: Math.round(MAX_COMPOSITION_CHANGE_INTERVAL_MS / 1000),
+      showClock: true,
+      clockMode: 'digital',
+      timelinePinned: false,
     });
   } catch {
     // ignore reset errors

@@ -113,9 +113,13 @@ export const translations = {
     timelineSettingsPremiereRelinkHint:
       "Premiere may ask to relink media; choose the media folder from the archive.",
     timelineSettingsKeyboardHelp: "Keyboard shortcuts help",
+    timelinePin: "Pin timeline",
+    timelineUnpin: "Unpin timeline",
 
     // Tooltips
     tooltipPlayPause: "Play/Pause playback (Spacebar)",
+    tooltipTimelinePin: "Keep the timeline visible",
+    tooltipTimelineUnpin: "Let the timeline auto-hide",
     tooltipTimeline: "Click to seek, drag to scrub through time. Scroll to zoom in/out.",
     tooltipAudioTracks: "Audio tracks - Click to switch between tracks",
     tooltipPhotoTimeline: "Photo timeline - Shows when photos were captured",
@@ -271,9 +275,13 @@ export const translations = {
     timelineSettingsPremiereRelinkHint:
       "Premiere peut demander un relink ; choisir le dossier media de l'archive.",
     timelineSettingsKeyboardHelp: "Raccourcis clavier",
+    timelinePin: "Épingler la timeline",
+    timelineUnpin: "Désépingler la timeline",
 
     // Tooltips
     tooltipPlayPause: "Lecture/Pause (Barre d'espace)",
+    tooltipTimelinePin: "Garder la timeline visible",
+    tooltipTimelineUnpin: "Réactiver le masquage automatique",
     tooltipTimeline: "Cliquez pour chercher, glissez pour parcourir le temps. Molette pour zoomer.",
     tooltipAudioTracks: "Pistes audio - Cliquez pour changer de piste",
     tooltipPhotoTimeline: "Chronologie des photos - Montre quand les photos ont été prises",
@@ -431,9 +439,13 @@ export const translations = {
     timelineSettingsPremiereRelinkHint:
       "Premiere puede pedir revincular medios; elija la carpeta media del archivo.",
     timelineSettingsKeyboardHelp: "Ayuda de atajos de teclado",
+    timelinePin: "Fijar la línea de tiempo",
+    timelineUnpin: "Desfijar la línea de tiempo",
 
     // Tooltips
     tooltipPlayPause: "Reproducir/Pausar (Barra espaciadora)",
+    tooltipTimelinePin: "Mantener visible la línea de tiempo",
+    tooltipTimelineUnpin: "Volver a ocultarla automáticamente",
     tooltipTimeline:
       "Clic para buscar, arrastrar para recorrer el tiempo. Desplazar para acercar/alejar.",
     tooltipAudioTracks: "Pistas de audio - Clic para cambiar entre pistas",

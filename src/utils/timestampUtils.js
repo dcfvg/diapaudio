@@ -1,86 +1,219 @@
 /**
- * Timestamp parsing utilities - powered by fixTS v1.1.0
- * Simple re-export wrapper maintaining API compatibility
- * 
- * Migration from 938 lines of duplicated code to clean imports!
- * See: https://github.com/dcfvg/fixts for the source library
- * 
- * NEW in v1.1.0 (2025-11-08):
- * - ✅ Browser bundle fixed (no more process errors!)
- * - 🚀 Batch processing API (10x faster bulk operations)
- * - 🧠 Context-aware ambiguity resolution
- * - 🎨 Custom pattern support
- * - 📊 Unified metadata extraction API
- * - 📸 Extended image formats (PNG, WebP, HEIC, GIF)
- * - 🎵 Extended audio formats (FLAC, WMA, APE, Opus, Speex, etc.)
+ * Timestamp parsing utilities - powered by fixTS.
+ *
+ * Keep imports explicit. The fixts browser entry currently exposes a contextual
+ * resolver that imports a Node-only ambiguity detector internally, so importing
+ * those contextual helpers through the package entry breaks production builds.
  */
-
-// Re-export all fixTS browser functions
-export {
-  // Core timestamp parsing from filenames
-  parseTimestamp as parseTimestampFromName,
-  parseTimestampFromFilename,
-  
-  // File metadata extraction (EXIF, audio tags)
-  parseTimestampFromEXIF,
-  parseTimestampFromAudio,
-  
-  // Date utilities
+import {
+  DEFAULT_PRIORITY,
+  PatternValidationError,
+  SOURCE_TYPE,
+  applyCustomPatterns,
+  applyTimeShift,
+  clearPatterns,
+  compareTimestampSources,
+  createDate,
+  detectAmbiguity,
+  exportPatterns,
+  extractTimestamp,
+  extractTimestampBatch,
+  filterByTimestamp,
+  formatDate,
+  formatTimeShift,
+  generateNewName,
+  getBatchStats,
+  getBestTimestamp,
+  getDetectionInfo,
+  getPattern,
+  getRegisteredPatterns,
+  getSourceStatistics,
+  hasPattern,
+  importPatterns,
+  parseAndGroupByConfidence,
   parseDateString,
   parseEXIFDateTime,
-  createDate,
-  
-  // Formatting
-  formatDate,
-  generateNewName,
-  
-  // Detection and analysis
-  getDetectionInfo,
-  getBestTimestamp,
-  
-  // Ambiguity detection (now browser-safe!)
-  detectAmbiguity,
-  
-  // Time shift utilities
   parseTimeShift,
-  applyTimeShift,
-  formatTimeShift,
-  
-  // NEW v1.1.0: Batch Processing API (High Performance) 🚀
-  parseTimestampBatch,           // Process multiple files efficiently
-  parseAndGroupByConfidence,     // Group by detection quality
-  getBatchStats,                  // Get comprehensive statistics
-  filterByTimestamp,              // Separate files with/without timestamps
-  
-  // NEW v1.1.0: Context-Aware Ambiguity Resolution 🧠
-  analyzeContextualFormat,        // Analyze batch for DD-MM vs MM-DD
-  resolveAmbiguitiesByContext,    // Auto-resolve based on context
-  getContextualParsingOptions,    // Get recommended parsing options
-  hasAmbiguousDates,              // Check if batch has ambiguous dates
-  getFormatSummary,               // Human-readable format analysis
-  
-  // NEW v1.1.0: Custom Pattern Support 🎨
-  registerPattern,                // Register custom regex patterns
-  unregisterPattern,              // Remove custom patterns
-  getRegisteredPatterns,          // List all registered patterns
-  clearPatterns,                  // Remove all custom patterns
-  hasPattern,                     // Check if pattern exists
-  getPattern,                     // Get specific pattern
-  applyCustomPatterns,            // Apply patterns to filenames
-  exportPatterns,                 // Export pattern definitions
-  importPatterns,                 // Import pattern definitions
-  PatternValidationError,         // Custom error for invalid patterns
-  
-  // NEW v1.1.0: Unified Metadata Extraction 📊
-  extractTimestamp,               // Extract from any source with fallback
-  extractTimestampBatch,          // Batch metadata extraction
-  compareTimestampSources,        // Detect discrepancies between sources
-  getSourceStatistics,            // Analyze source distribution
-  suggestBestSource,              // Get recommendation for best source
-  SOURCE_TYPE,                    // Source type constants
-  DEFAULT_PRIORITY,               // Default source priority order
-} from 'fixts/browser';
+  parseTimestamp as parseTimestampFromName,
+  parseTimestampBatch,
+  parseTimestampFromAudio,
+  parseTimestampFromEXIF,
+  parseTimestampFromFilename,
+  registerPattern,
+  suggestBestSource,
+  unregisterPattern,
+} from "fixts/browser";
 
-// Default export for backwards compatibility
-import * as timestampUtils from 'fixts/browser';
-export default timestampUtils;
+const DATE_ORDER_PATTERN = /(\d{1,2})[-_/](\d{1,2})[-_/](\d{2,4})/;
+
+function analyzeDateOrderEvidence(filenames) {
+  const stats = {
+    total: filenames.length,
+    ambiguous: 0,
+    dmyProof: 0,
+    mdyProof: 0,
+  };
+
+  for (const filename of filenames) {
+    if (detectAmbiguity(filename)) {
+      stats.ambiguous += 1;
+    }
+
+    const match = String(filename).match(DATE_ORDER_PATTERN);
+    if (!match) {
+      continue;
+    }
+
+    const first = Number.parseInt(match[1], 10);
+    const second = Number.parseInt(match[2], 10);
+    if (first > 12 && second <= 12) {
+      stats.dmyProof += 1;
+    } else if (second > 12 && first <= 12) {
+      stats.mdyProof += 1;
+    }
+  }
+
+  return stats;
+}
+
+export function hasAmbiguousDates(filenames) {
+  return filenames.some((filename) => Boolean(detectAmbiguity(filename)));
+}
+
+export function analyzeContextualFormat(filenames) {
+  const stats = analyzeDateOrderEvidence(filenames);
+  const likelyFormat = stats.mdyProof > stats.dmyProof ? "mdy" : "dmy";
+  const proofCount = Math.max(stats.dmyProof, stats.mdyProof);
+  const confidence =
+    proofCount > 0 ? Math.min(0.95, 0.65 + proofCount / Math.max(4, filenames.length)) : 0.5;
+  const evidence = [
+    `${stats.ambiguous} ambiguous date${stats.ambiguous === 1 ? "" : "s"}`,
+    `${stats.dmyProof} DMY proof date${stats.dmyProof === 1 ? "" : "s"}`,
+    `${stats.mdyProof} MDY proof date${stats.mdyProof === 1 ? "" : "s"}`,
+  ];
+
+  return {
+    likelyFormat,
+    recommendation: likelyFormat,
+    confidence,
+    evidence,
+    stats,
+  };
+}
+
+export function resolveAmbiguitiesByContext(filenames) {
+  const analysis = analyzeContextualFormat(filenames);
+  return {
+    format: analysis.likelyFormat,
+    confidence: analysis.confidence,
+    autoResolved: analysis.confidence >= 0.8,
+    analysis,
+  };
+}
+
+export function getContextualParsingOptions(filenames) {
+  const resolution = resolveAmbiguitiesByContext(filenames);
+  return {
+    dateFormat: resolution.format,
+    confidence: resolution.confidence,
+    autoResolved: resolution.autoResolved,
+    evidence: resolution.analysis.evidence,
+  };
+}
+
+export function getFormatSummary(analysisOrFilenames) {
+  const analysis = Array.isArray(analysisOrFilenames)
+    ? analyzeContextualFormat(analysisOrFilenames)
+    : analysisOrFilenames;
+  return {
+    totalFiles: analysis.stats.total,
+    ambiguousDates: analysis.stats.ambiguous,
+    recommendation: analysis.likelyFormat,
+    confidence: analysis.confidence,
+    evidence: analysis.evidence,
+    needsUserInput: analysis.confidence < 0.7 && analysis.stats.ambiguous > 0,
+  };
+}
+
+export {
+  DEFAULT_PRIORITY,
+  PatternValidationError,
+  SOURCE_TYPE,
+  applyCustomPatterns,
+  applyTimeShift,
+  clearPatterns,
+  compareTimestampSources,
+  createDate,
+  detectAmbiguity,
+  exportPatterns,
+  extractTimestamp,
+  extractTimestampBatch,
+  filterByTimestamp,
+  formatDate,
+  formatTimeShift,
+  generateNewName,
+  getBatchStats,
+  getBestTimestamp,
+  getDetectionInfo,
+  getPattern,
+  getRegisteredPatterns,
+  getSourceStatistics,
+  hasPattern,
+  importPatterns,
+  parseAndGroupByConfidence,
+  parseDateString,
+  parseEXIFDateTime,
+  parseTimeShift,
+  parseTimestampBatch,
+  parseTimestampFromAudio,
+  parseTimestampFromEXIF,
+  parseTimestampFromFilename,
+  parseTimestampFromName,
+  registerPattern,
+  suggestBestSource,
+  unregisterPattern,
+};
+
+export default {
+  DEFAULT_PRIORITY,
+  PatternValidationError,
+  SOURCE_TYPE,
+  analyzeContextualFormat,
+  applyCustomPatterns,
+  applyTimeShift,
+  clearPatterns,
+  compareTimestampSources,
+  createDate,
+  detectAmbiguity,
+  exportPatterns,
+  extractTimestamp,
+  extractTimestampBatch,
+  filterByTimestamp,
+  formatDate,
+  formatTimeShift,
+  generateNewName,
+  getBatchStats,
+  getBestTimestamp,
+  getContextualParsingOptions,
+  getDetectionInfo,
+  getFormatSummary,
+  getPattern,
+  getRegisteredPatterns,
+  getSourceStatistics,
+  hasAmbiguousDates,
+  hasPattern,
+  importPatterns,
+  parseAndGroupByConfidence,
+  parseDateString,
+  parseEXIFDateTime,
+  parseTimeShift,
+  parseTimestampBatch,
+  parseTimestampFromAudio,
+  parseTimestampFromEXIF,
+  parseTimestampFromFilename,
+  parseTimestampFromName,
+  registerPattern,
+  resolveAmbiguitiesByContext,
+  suggestBestSource,
+  unregisterPattern,
+};

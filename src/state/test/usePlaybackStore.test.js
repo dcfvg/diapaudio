@@ -27,7 +27,9 @@ describe('usePlaybackStore', () => {
       removeEventListener: removeEventListenerSpy,
     };
 
-    global.Audio = vi.fn(() => audioMock);
+    global.Audio = vi.fn(function AudioMock() {
+      return audioMock;
+    });
     
     // Reset store state between tests
     usePlaybackStore.setState({

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useSettingsStore } from '../useSettingsStore.js';
 import { DEFAULT_SPEED, DEFAULT_SKIP_SILENCE } from '../../constants/playback.js';
 import {
+  MIN_IMAGE_DISPLAY_DEFAULT_MS,
   DEFAULT_IMAGE_HOLD_MS,
   MAX_COMPOSITION_CHANGE_INTERVAL_MS,
   MIN_COMPOSITION_CHANGE_INTERVAL_MS,
@@ -15,8 +16,15 @@ describe('useSettingsStore', () => {
     useSettingsStore.setState({
       speed: DEFAULT_SPEED,
       skipSilence: DEFAULT_SKIP_SILENCE,
+      autoSkipVoids: false,
+      snapToGrid: true,
+      snapGridSeconds: 2,
+      imageDisplaySeconds: Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000),
       imageHoldSeconds: Math.round(DEFAULT_IMAGE_HOLD_MS / 1000),
       compositionIntervalSeconds: Math.round(MAX_COMPOSITION_CHANGE_INTERVAL_MS / 1000),
+      showClock: true,
+      clockMode: 'digital',
+      timelinePinned: false,
     });
   });
 
@@ -28,6 +36,13 @@ describe('useSettingsStore', () => {
     expect(state.compositionIntervalSeconds).toBe(
       Math.round(MAX_COMPOSITION_CHANGE_INTERVAL_MS / 1000)
     );
+    expect(state.autoSkipVoids).toBe(false);
+    expect(state.snapToGrid).toBe(true);
+    expect(state.snapGridSeconds).toBe(2);
+    expect(state.imageDisplaySeconds).toBe(Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000));
+    expect(state.showClock).toBe(true);
+    expect(state.clockMode).toBe('digital');
+    expect(state.timelinePinned).toBe(false);
   });
 
   it('updates speed', () => {
@@ -92,6 +107,54 @@ describe('useSettingsStore', () => {
     if (stored) {
       const parsed = JSON.parse(stored);
       expect(parsed.state.speed).toBe(2);
+    }
+  });
+
+  it('persists all user-facing playback settings', () => {
+    const state = useSettingsStore.getState();
+    state.setSpeed(1.5);
+    state.setSkipSilence(true);
+    state.setAutoSkipVoids(true);
+    state.setSnapToGrid(false);
+    state.setSnapGridSeconds(5);
+    state.setImageDisplaySeconds(4);
+    state.setImageHoldSeconds(12);
+    state.setCompositionIntervalSeconds(3);
+    state.setShowClock(false);
+    state.setClockMode('analog');
+    state.setTimelinePinned(true);
+
+    const stored = window.localStorage.getItem('diapaudio-settings');
+
+    expect(useSettingsStore.getState()).toMatchObject({
+      speed: 1.5,
+      skipSilence: true,
+      autoSkipVoids: true,
+      snapToGrid: false,
+      snapGridSeconds: 5,
+      imageDisplaySeconds: 4,
+      imageHoldSeconds: 12,
+      compositionIntervalSeconds: 3,
+      showClock: false,
+      clockMode: 'analog',
+      timelinePinned: true,
+    });
+
+    if (stored) {
+      const persisted = JSON.parse(stored).state;
+      expect(persisted).toMatchObject({
+        speed: 1.5,
+        skipSilence: true,
+        autoSkipVoids: true,
+        snapToGrid: false,
+        snapGridSeconds: 5,
+        imageDisplaySeconds: 4,
+        imageHoldSeconds: 12,
+        compositionIntervalSeconds: 3,
+        showClock: false,
+        clockMode: 'analog',
+        timelinePinned: true,
+      });
     }
   });
 });

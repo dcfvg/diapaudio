@@ -165,16 +165,14 @@ describe("Dropzone", () => {
   });
 
   it("clamps progress percent to 0-100 range", () => {
-    const { container: container1 } = renderWithProviders(
+    const { container, rerender } = renderWithProviders(
       <Dropzone {...defaultProps} progressPercent={-10} />
     );
-    const progressBar1 = container1.querySelector("#loader-progress-bar");
+    const progressBar1 = container.querySelector("#loader-progress-bar");
     expect(progressBar1?.getAttribute("aria-valuenow")).toBe("0");
 
-    const { container: container2 } = renderWithProviders(
-      <Dropzone {...defaultProps} progressPercent={150} />
-    );
-    const progressBar2 = container2.querySelector("#loader-progress-bar");
+    rerender(<Dropzone {...defaultProps} progressPercent={150} />);
+    const progressBar2 = container.querySelector("#loader-progress-bar");
     expect(progressBar2?.getAttribute("aria-valuenow")).toBe("100");
   });
 

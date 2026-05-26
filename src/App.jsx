@@ -99,6 +99,8 @@ function AppShell() {
   const setShowClock = useSettingsStore((state) => state.setShowClock);
   const clockMode = useSettingsStore((state) => state.clockMode);
   const setClockMode = useSettingsStore((state) => state.setClockMode);
+  const timelinePinned = useSettingsStore((state) => state.timelinePinned);
+  const setTimelinePinned = useSettingsStore((state) => state.setTimelinePinned);
   const imageDisplayValue =
     Number.isFinite(imageDisplaySeconds) && imageDisplaySeconds > 0
       ? imageDisplaySeconds
@@ -507,12 +509,12 @@ function AppShell() {
 
     // Schedule hide after inactivity timeout (but not if settings panel is open)
     hudHideTimerRef.current = setTimeout(() => {
-      // Don't hide if settings panel is open
-      if (!settingsOpen) {
+      // Don't hide if settings panel is open or timeline is pinned
+      if (!settingsOpen && !timelinePinned) {
         hideHudState();
       }
     }, HUD_INACTIVITY_TIMEOUT_MS);
-  }, [alwaysShowHud, hideHudState, showHudState, settingsOpen]);
+  }, [alwaysShowHud, hideHudState, showHudState, settingsOpen, timelinePinned]);
 
   // Handle global activity (mouse move, touch, keyboard)
   useEffect(() => {
@@ -543,12 +545,16 @@ function AppShell() {
     };
   }, [alwaysShowHud, mediaData, showHud]);
 
-  // Always show HUD on touch devices
+  // Always show HUD on touch devices and while timeline is pinned
   useEffect(() => {
-    if (alwaysShowHud) {
+    if (alwaysShowHud || timelinePinned) {
       showHudState();
+      if (hudHideTimerRef.current) {
+        clearTimeout(hudHideTimerRef.current);
+        hudHideTimerRef.current = null;
+      }
     }
-  }, [alwaysShowHud, showHudState]);
+  }, [alwaysShowHud, showHudState, timelinePinned]);
 
   // Keep HUD visible while settings panel is open
   useEffect(() => {
@@ -1033,7 +1039,7 @@ function AppShell() {
             </div>
             <div className="viewer__meta"></div>
             <div
-              className={`viewer__hud ${hudVisible ? "viewer__hud--visible" : ""}`}
+              className={`viewer__hud ${hudVisible || timelinePinned ? "viewer__hud--visible" : ""}`}
               id="viewer-hud"
             >
               <div className={mediaData ? "timeline" : "timeline hidden"} id="timeline">
@@ -1077,6 +1083,16 @@ function AppShell() {
                     </ErrorBoundary>
                   </div>
                   <div className="timeline__controls-right">
+                    <button
+                      type="button"
+                      className={`timeline__pin-button ${timelinePinned ? "is-active" : ""}`}
+                      onClick={() => setTimelinePinned(!timelinePinned)}
+                      aria-label={timelinePinned ? t("timelineUnpin") : t("timelinePin")}
+                      aria-pressed={timelinePinned}
+                      title={timelinePinned ? t("tooltipTimelineUnpin") : t("tooltipTimelinePin")}
+                    >
+                      <Icon name={timelinePinned ? "pinned" : "pin"} size={18} />
+                    </button>
                     <label
                       className="speed-control"
                       title={t("tooltipSpeed")}
@@ -1105,7 +1121,7 @@ function AppShell() {
                       aria-label={t("timelineSettings")}
                       title={t("timelineSettings")}
                     >
-                      <GearIcon />
+                      <Icon name="settings" size={20} />
                     </button>
                   </div>
                 </div>
@@ -1177,25 +1193,5 @@ function AppShell() {
         <KeyboardShortcutsHelp open={showKeyboardHelp} onClose={() => setShowKeyboardHelp(false)} />
       </Suspense>
     </div>
-  );
-}
-
-function GearIcon(props) {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 13a1.65 1.65 0 0 0 0-2l1.9-1.09-1.9-3.28-2.2.58a1.65 1.65 0 0 0-1.42-.82L15 3h-6l-.38 2.39a1.65 1.65 0 0 0-1.42.82l-2.2-.58-1.9 3.28L4 11a1.65 1.65 0 0 0 0 2l-1.9 1.09 1.9 3.28 2.2-.58a1.65 1.65 0 0 0 1.42.82L9 21h6l.38-2.39a1.65 1.65 0 0 0 1.42-.82l2.2.58 1.9-3.28z" />
-    </svg>
   );
 }

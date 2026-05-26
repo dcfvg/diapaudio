@@ -1,6 +1,7 @@
 import Modal from "./Modal.jsx";
 import "./ProgressModal.css";
 import { sanitizeHtml } from "../utils/sanitizeHtml.js";
+import Icon from "./Icon.jsx";
 
 export default function ProgressModal({
   open,
@@ -24,13 +25,14 @@ export default function ProgressModal({
   }
 
   const sanitizedDetails = details ? sanitizeHtml(details) : "";
+  const resolvedIcon = typeof icon === "string" ? <Icon name={icon || "loader"} size={22} /> : icon;
 
   return (
     <Modal
       open={open}
       title={title}
       subtitle={status}
-      icon={icon}
+      icon={resolvedIcon}
       size="sm"
       onClose={cancellable ? onClose : undefined}
       actions={actions}

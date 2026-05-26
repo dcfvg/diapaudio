@@ -176,13 +176,13 @@ export async function prepareMediaFromFiles(files, options = {}) {
 
   // OPTIMIZATION: Batch parse filenames (10x faster than individual calls)
   const audioFilePaths = uniqueAudioFiles.map(getFilePath);
-  const audioBatchResults = parseTimestampBatch(audioFilePaths);
-  const audioFilenameTimestamps = audioBatchResults.map(result => result?.date || null);
-  
+  const audioBatchResults = await parseTimestampBatch(audioFilePaths);
+  const audioFilenameTimestamps = audioBatchResults.map((result) => result?.date || null);
+
   // QUALITY INDICATOR: Check confidence levels for all files
   const allFilePaths = [...audioFilePaths, ...uniqueImageFiles.map(getFilePath)];
-  const confidenceGroups = parseAndGroupByConfidence(allFilePaths);
-  
+  const confidenceGroups = await parseAndGroupByConfidence(allFilePaths);
+
   // Warn about low-confidence detections
   if (confidenceGroups.low.length > 0) {
     const message = `${confidenceGroups.low.length} files have low-confidence timestamp detection`;
@@ -243,7 +243,7 @@ export async function prepareMediaFromFiles(files, options = {}) {
 
       if (!fileTimestamp && audioFilesNeedingMetadata.includes(file)) {
         const metadata = audioMetadataResults[metadataIndex++];
-        fileTimestamp = metadata?.timestamp;
+        fileTimestamp = metadata?.result?.timestamp || metadata?.timestamp;
         if (fileTimestamp) {
           logger.info(`Extracted timestamp from audio metadata for ${file.name}:`, fileTimestamp);
         }
@@ -278,10 +278,10 @@ export async function prepareMediaFromFiles(files, options = {}) {
 
   // OPTIMIZATION: Batch parse image filenames (10x faster)
   const imageFilePaths = uniqueImageFiles.map(getFilePath);
-  const imageBatchResults = parseTimestampBatch(imageFilePaths);
+  const imageBatchResults = await parseTimestampBatch(imageFilePaths);
   // Extract Date objects from batch results
-  const imageFilenameTimestamps = imageBatchResults.map(result => result?.date || null);
-  
+  const imageFilenameTimestamps = imageBatchResults.map((result) => result?.date || null);
+
   // DEBUG: Log image filename parsing results
   const imagesWithFilenameTimestamps = imageFilenameTimestamps.filter(t => t).length;
   logger.info(`Parsed ${imagesWithFilenameTimestamps}/${imageFilePaths.length} image file timestamps from filenames`);

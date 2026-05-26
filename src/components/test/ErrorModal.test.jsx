@@ -67,7 +67,7 @@ describe('ErrorModal', () => {
 
   it('displays warning icon', () => {
     renderWithProviders(<ErrorModal {...defaultProps} />);
-    expect(screen.getByText('⚠️')).toBeTruthy();
+    expect(document.body.querySelector('.modal__icon svg')).toBeTruthy();
   });
 
   it('displays close button', () => {
