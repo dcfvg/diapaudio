@@ -77,4 +77,105 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
+
+          const apiUrl = process.env.GITHUB_API_URL || "https://api.github.com";
+          const repository = process.env.GITHUB_REPOSITORY;
+          const runId = process.env.GITHUB_RUN_ID;
+          const buildVersion = process.env.GITHUB_SHA;
+          const githubToken = process.env.GITHUB_TOKEN;
+          const idTokenRequestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+          const idTokenRequestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+          const artifactName = "github-pages";
+
+          const headers = {
+            "accept": "application/vnd.github+json",
+            "authorization": `Bearer ${githubToken}`,
+            "x-github-api-version": "2022-11-28",
+          };
+
+          async function requestJson(url, options = {}) {
+            const response = await fetch(url, {
+              ...options,
+              headers: {
+                ...headers,
+                ...(options.body ? { "content-type": "application/json" } : {}),
+                ...options.headers,
+              },
+            });
+            const text = await response.text();
+            const data = text ? JSON.parse(text) : null;
+            if (!response.ok) {
+              const message = data?.message || text || response.statusText;
+              throw new Error(`${options.method || "GET"} ${url} failed (${response.status}): ${message}`);
+            }
+            return data;
+          }
+
+          async function getIdToken() {
+            if (!idTokenRequestUrl || !idTokenRequestToken) {
+              throw new Error('Missing id-token runtime variables. Ensure the workflow has "id-token: write".');
+            }
+            const response = await fetch(idTokenRequestUrl, {
+              headers: {
+                "authorization": `bearer ${idTokenRequestToken}`,
+              },
+            });
+            const data = await response.json();
+            if (!response.ok || !data.value) {
+              throw new Error(`OIDC token request failed (${response.status}): ${data.message || response.statusText}`);
+            }
+            return data.value;
+          }
+
+          const artifacts = await requestJson(
+            `${apiUrl}/repos/${repository}/actions/runs/${runId}/artifacts?name=${encodeURIComponent(artifactName)}`
+          );
+          const artifact = artifacts.artifacts?.find((item) => item.name === artifactName);
+          if (!artifact) {
+            throw new Error(`No artifact named "${artifactName}" was found for this workflow run.`);
+          }
+
+          const oidcToken = await getIdToken();
+          const deployment = await requestJson(`${apiUrl}/repos/${repository}/pages/deployments`, {
+            method: "POST",
+            body: JSON.stringify({
+              artifact_id: artifact.id,
+              pages_build_version: buildVersion,
+              oidc_token: oidcToken,
+            }),
+          });
+
+          const pageUrl = deployment.page_url || "";
+          appendFileSync(process.env.GITHUB_OUTPUT, `page_url=${pageUrl}\n`);
+          console.log(`Created Pages deployment ${deployment.id || deployment.status_url || buildVersion}`);
+
+          const statusUrl =
+            deployment.status_url || `${apiUrl}/repos/${repository}/pages/deployments/${deployment.id}`;
+          const terminalFailures = new Set([
+            "deployment_failed",
+            "deployment_content_failed",
+            "deployment_cancelled",
+            "deployment_lost",
+          ]);
+
+          for (let attempt = 0; attempt < 120; attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+            const status = await requestJson(statusUrl);
+            console.log(`Pages deployment status: ${status.status}`);
+            if (status.status === "succeed") {
+              appendFileSync(process.env.GITHUB_OUTPUT, "status=succeed\n");
+              process.exit(0);
+            }
+            if (terminalFailures.has(status.status)) {
+              throw new Error(`Pages deployment failed with status "${status.status}".`);
+            }
+          }
+
+          throw new Error("Pages deployment timed out.");
+          NODE
