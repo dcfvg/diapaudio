@@ -46,8 +46,10 @@ export function extractTimelineView(timeline) {
 }
 
 // Build a new media store payload from a preprocessing result
-export function buildMediaData(result, existingDelay = 0) {
-  const resolvedDelay = result.delaySeconds ?? existingDelay ?? 0;
+export function buildMediaData(result, existingDelay = 0, options = {}) {
+  const resolvedDelay = options.preferExistingDelay
+    ? (existingDelay ?? result.delaySeconds ?? 0)
+    : (result.delaySeconds ?? existingDelay ?? 0);
   let audioTracks = (result.audioTracks || []).map((track) => ({ ...track }));
   let images = (result.images || []).map((img) => ({
     ...img,

@@ -46,6 +46,8 @@ export const useSettingsStore = create(
       speed: DEFAULT_SPEED,
       skipSilence: DEFAULT_SKIP_SILENCE,
       autoSkipVoids: false,
+      delaySeconds: 0,
+      delayUserOverride: false,
       // Timeline/Image scheduling
       snapToGrid: true,
       snapGridSeconds: 2,
@@ -61,6 +63,26 @@ export const useSettingsStore = create(
       setSpeed: (speed) => set({ speed }),
       setSkipSilence: (skipSilence) => set({ skipSilence }),
       setAutoSkipVoids: (enabled) => set({ autoSkipVoids: Boolean(enabled) }),
+      setDelaySeconds: (delaySeconds, options = {}) => {
+        const numeric = Number(delaySeconds);
+        if (!Number.isFinite(numeric)) {
+          return;
+        }
+        set({
+          delaySeconds: numeric,
+          delayUserOverride: options.userOverride !== false,
+        });
+      },
+      setImportedDelaySeconds: (delaySeconds) => {
+        const numeric = Number(delaySeconds);
+        if (!Number.isFinite(numeric)) {
+          return;
+        }
+        set({
+          delaySeconds: numeric,
+          delayUserOverride: false,
+        });
+      },
       setSnapToGrid: (enabled) => set({ snapToGrid: Boolean(enabled) }),
       setSnapGridSeconds: (seconds) => {
         const numeric = Math.round(Number(seconds));

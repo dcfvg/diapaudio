@@ -100,6 +100,8 @@ export function resetAllStores() {
       speed: 1,
       skipSilence: false,
       autoSkipVoids: false,
+      delaySeconds: 0,
+      delayUserOverride: false,
       snapToGrid: true,
       snapGridSeconds: 2,
       imageDisplaySeconds: Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000),

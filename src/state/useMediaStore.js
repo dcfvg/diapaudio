@@ -9,12 +9,21 @@ import createMediaSlice from "./slices/mediaSlice.js";
 import createDragDropSlice from "./slices/dragDropSlice.js";
 
 // Helper functions moved to helpers
-import { deriveMediaWithDelay, extractTimelineView, buildMediaData as buildMediaDataHelper } from "./helpers/mediaHelpers.js";
+import {
+  deriveMediaWithDelay,
+  extractTimelineView,
+  buildMediaData as buildMediaDataHelper,
+} from "./helpers/mediaHelpers.js";
 import { resolveImageScheduleSettings } from "./helpers/settingsHelpers.js";
+
+function getInitialDelaySeconds() {
+  const value = useSettingsStore.getState().delaySeconds;
+  return Number.isFinite(value) ? value : 0;
+}
 
 const initialState = {
   mediaData: null,
-  delaySeconds: 0,
+  delaySeconds: getInitialDelaySeconds(),
   anomalies: [],
   duplicates: { audio: 0, images: 0 },
   loading: false,
@@ -49,7 +58,8 @@ const mediaStoreImpl = (set, get) => ({
   extractTimelineView: (timeline) => extractTimelineView(timeline),
 
   // Helper: Build media data from preprocessing result
-  buildMediaData: (result, existingDelay) => buildMediaDataHelper(result, existingDelay),
+  buildMediaData: (result, existingDelay, options) =>
+    buildMediaDataHelper(result, existingDelay, options),
 
   // Error actions provided by progress slice (setError/clearError)
 

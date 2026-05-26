@@ -3,10 +3,16 @@ import { prepareMediaFromFiles } from "../../media/preprocess.js";
 import { t as translate } from "../../i18n/index.js";
 import { dedupeAudioTracks, dedupeImages } from "../../media/dedupe.js";
 import { parseDelayField } from "../../media/delay.js";
+import { useSettingsStore } from "../useSettingsStore.js";
+
+function getPersistedDelaySeconds() {
+  const value = useSettingsStore.getState().delaySeconds;
+  return Number.isFinite(value) ? value : 0;
+}
 
 export const createMediaSlice = (set, get) => ({
   mediaData: null,
-  delaySeconds: 0,
+  delaySeconds: getPersistedDelaySeconds(),
   anomalies: [],
   duplicates: { audio: 0, images: 0 },
   objectUrls: [],
@@ -34,6 +40,7 @@ export const createMediaSlice = (set, get) => ({
     if (!Number.isFinite(value)) return;
     const updatedMedia = deriveMediaWithDelay(mediaData, value);
     const timelineView = extractTimelineView(updatedMedia?.timeline);
+    useSettingsStore.getState().setDelaySeconds(value, { userOverride: true });
     set({
       delaySeconds: value,
       mediaData: updatedMedia,
@@ -49,6 +56,7 @@ export const createMediaSlice = (set, get) => ({
     }
     const updatedMedia = deriveMediaWithDelay(mediaData, parsed);
     const timelineView = extractTimelineView(updatedMedia?.timeline);
+    useSettingsStore.getState().setDelaySeconds(parsed, { userOverride: true });
     set({ delaySeconds: parsed, mediaData: updatedMedia, timelineView });
     return true;
   },
@@ -69,7 +77,13 @@ export const createMediaSlice = (set, get) => ({
         progress: _progressManager,
         t: translate,
       });
-      const payload = buildMediaData(result, delaySeconds);
+      const settings = useSettingsStore.getState();
+      const payload = buildMediaData(result, delaySeconds, {
+        preferExistingDelay: Boolean(settings.delayUserOverride),
+      });
+      if (!settings.delayUserOverride) {
+        useSettingsStore.getState().setImportedDelaySeconds(payload.delaySeconds);
+      }
       set({ loading: false, error: null, ...payload });
     } catch (error) {
       _progressManager.reset();
@@ -131,7 +145,13 @@ export const createMediaSlice = (set, get) => ({
         mergedResult.duplicates.images += imageDedupe.removedCount;
       }
 
-      const payload = buildMediaData(mergedResult, delaySeconds);
+      const settings = useSettingsStore.getState();
+      const payload = buildMediaData(mergedResult, delaySeconds, {
+        preferExistingDelay: Boolean(settings.delayUserOverride),
+      });
+      if (!settings.delayUserOverride) {
+        useSettingsStore.getState().setImportedDelaySeconds(payload.delaySeconds);
+      }
       set({ loading: false, error: null, ...payload });
     } catch (error) {
       _progressManager.reset();

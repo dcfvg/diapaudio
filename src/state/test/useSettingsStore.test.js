@@ -17,6 +17,8 @@ describe('useSettingsStore', () => {
       speed: DEFAULT_SPEED,
       skipSilence: DEFAULT_SKIP_SILENCE,
       autoSkipVoids: false,
+      delaySeconds: 0,
+      delayUserOverride: false,
       snapToGrid: true,
       snapGridSeconds: 2,
       imageDisplaySeconds: Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000),
@@ -37,6 +39,8 @@ describe('useSettingsStore', () => {
       Math.round(MAX_COMPOSITION_CHANGE_INTERVAL_MS / 1000)
     );
     expect(state.autoSkipVoids).toBe(false);
+    expect(state.delaySeconds).toBe(0);
+    expect(state.delayUserOverride).toBe(false);
     expect(state.snapToGrid).toBe(true);
     expect(state.snapGridSeconds).toBe(2);
     expect(state.imageDisplaySeconds).toBe(Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000));
@@ -53,6 +57,18 @@ describe('useSettingsStore', () => {
   it('updates skipSilence', () => {
     useSettingsStore.getState().setSkipSilence(true);
     expect(useSettingsStore.getState().skipSilence).toBe(true);
+  });
+
+  it('updates delaySeconds as a user override', () => {
+    useSettingsStore.getState().setDelaySeconds(12);
+    expect(useSettingsStore.getState().delaySeconds).toBe(12);
+    expect(useSettingsStore.getState().delayUserOverride).toBe(true);
+  });
+
+  it('stores imported delaySeconds without marking a user override', () => {
+    useSettingsStore.getState().setImportedDelaySeconds(-3);
+    expect(useSettingsStore.getState().delaySeconds).toBe(-3);
+    expect(useSettingsStore.getState().delayUserOverride).toBe(false);
   });
 
   it('updates imageHoldSeconds', () => {
@@ -115,6 +131,7 @@ describe('useSettingsStore', () => {
     state.setSpeed(1.5);
     state.setSkipSilence(true);
     state.setAutoSkipVoids(true);
+    state.setDelaySeconds(9);
     state.setSnapToGrid(false);
     state.setSnapGridSeconds(5);
     state.setImageDisplaySeconds(4);
@@ -130,6 +147,8 @@ describe('useSettingsStore', () => {
       speed: 1.5,
       skipSilence: true,
       autoSkipVoids: true,
+      delaySeconds: 9,
+      delayUserOverride: true,
       snapToGrid: false,
       snapGridSeconds: 5,
       imageDisplaySeconds: 4,
@@ -146,6 +165,8 @@ describe('useSettingsStore', () => {
         speed: 1.5,
         skipSilence: true,
         autoSkipVoids: true,
+        delaySeconds: 9,
+        delayUserOverride: true,
         snapToGrid: false,
         snapGridSeconds: 5,
         imageDisplaySeconds: 4,
