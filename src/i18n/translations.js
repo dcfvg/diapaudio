@@ -70,8 +70,9 @@ export const translations = {
     readingFolder: "Reading folder...",
     filesProcessed: "files processed",
     progressLoadingTitle: "Preparing media",
-    progressExportingTitle: "Preparing ZIP archive",
+    progressExportingTitle: "Preparing export",
     errorModalTitle: "Something went wrong",
+    complete: "Complete",
 
     // Controls
     play: "Play",
@@ -79,7 +80,7 @@ export const translations = {
     speed: "Speed",
     delayControl: "Delay",
     delayMs: "ms",
-    exportButton: "Export to FCP XML",
+    exportButton: "Export for Premiere",
     exportZipButton: "Download ZIP",
     closeButton: "Close",
 
@@ -102,8 +103,15 @@ export const translations = {
       "Seconds each image holds when no next image · Extends last image",
     timelineSettingsCompositionInterval: "Composition change (s)",
     timelineSettingsCompositionIntervalHint: "Minimum seconds between layout updates",
-    timelineSettingsExportXml: "Export Final Cut XML",
+    timelineSettingsDefault: "Default",
+    timelineSettingsSnapToGrid: "Snap to grid",
+    timelineSettingsSnapToGridHint: "Align image times to the nearest grid line for tighter sync.",
+    timelineSettingsExportPremiere: "Export for Premiere",
+    timelineSettingsExportXml: "Export Premiere XML",
+    timelineSettingsExportXmlOnly: "Export XML only",
     timelineSettingsExportZip: "Download ZIP archive",
+    timelineSettingsPremiereRelinkHint:
+      "Premiere may ask to relink media; choose the media folder from the archive.",
     timelineSettingsKeyboardHelp: "Keyboard shortcuts help",
 
     // Tooltips
@@ -122,7 +130,7 @@ export const translations = {
     tooltipAutoSkipCheckbox: "Auto-skip of silent periods",
     tooltipShowClock: "Show time of day clock overlay during playback",
     showClockLabel: "Show clock",
-    tooltipExportXML: "Export timeline as Final Cut Pro XML for video editing",
+    tooltipExportXML: "Export timeline as Premiere-compatible Final Cut Pro XML",
     tooltipExportZIP: "Download all media files as a ZIP archive",
 
     // Keyboard shortcuts
@@ -218,8 +226,9 @@ export const translations = {
     readingFolder: "Lecture du dossier...",
     filesProcessed: "fichiers traités",
     progressLoadingTitle: "Préparation des médias",
-    progressExportingTitle: "Préparation de l'archive ZIP",
+    progressExportingTitle: "Préparation de l'export",
     errorModalTitle: "Une erreur est survenue",
+    complete: "Terminé",
 
     // Controls
     play: "Lecture",
@@ -227,7 +236,7 @@ export const translations = {
     speed: "Vitesse",
     delayControl: "Délai",
     delayMs: "ms",
-    exportButton: "Exporter vers FCP XML",
+    exportButton: "Exporter pour Premiere",
     exportZipButton: "Télécharger ZIP",
     closeButton: "Fermer",
 
@@ -251,8 +260,16 @@ export const translations = {
     timelineSettingsCompositionInterval: "Changement de composition (s)",
     timelineSettingsCompositionIntervalHint:
       "Secondes minimales entre deux changements de disposition",
-    timelineSettingsExportXml: "Exporter en XML Final Cut",
+    timelineSettingsDefault: "Par défaut",
+    timelineSettingsSnapToGrid: "Aligner sur la grille",
+    timelineSettingsSnapToGridHint:
+      "Aligne les images sur la ligne de grille la plus proche pour une synchro plus nette.",
+    timelineSettingsExportPremiere: "Exporter pour Premiere",
+    timelineSettingsExportXml: "Exporter le XML Premiere",
+    timelineSettingsExportXmlOnly: "Exporter le XML seul",
     timelineSettingsExportZip: "Télécharger l'archive ZIP",
+    timelineSettingsPremiereRelinkHint:
+      "Premiere peut demander un relink ; choisir le dossier media de l'archive.",
     timelineSettingsKeyboardHelp: "Raccourcis clavier",
 
     // Tooltips
@@ -271,7 +288,7 @@ export const translations = {
     tooltipAutoSkipCheckbox: "Saut automatique des périodes silencieuses",
     tooltipShowClock: "Afficher l'horloge de l'heure du jour pendant la lecture",
     showClockLabel: "Afficher l'horloge",
-    tooltipExportXML: "Exporter la chronologie en XML Final Cut Pro pour le montage vidéo",
+    tooltipExportXML: "Exporter la chronologie en XML Final Cut Pro compatible Premiere",
     tooltipExportZIP: "Télécharger tous les fichiers médias dans une archive ZIP",
 
     // Keyboard shortcuts
@@ -370,8 +387,9 @@ export const translations = {
     readingFolder: "Leyendo carpeta...",
     filesProcessed: "archivos procesados",
     progressLoadingTitle: "Preparando medios",
-    progressExportingTitle: "Preparando archivo ZIP",
+    progressExportingTitle: "Preparando exportación",
     errorModalTitle: "Ocurrió un error",
+    complete: "Completado",
 
     // Controls
     play: "Reproducir",
@@ -379,7 +397,7 @@ export const translations = {
     speed: "Velocidad",
     delayControl: "Retraso",
     delayMs: "ms",
-    exportButton: "Exportar a FCP XML",
+    exportButton: "Exportar para Premiere",
     exportZipButton: "Descargar ZIP",
     closeButton: "Cerrar",
 
@@ -402,8 +420,16 @@ export const translations = {
       "Segundos de retención de imagen si no hay imagen siguiente · Extiende última imagen",
     timelineSettingsCompositionInterval: "Cambio de composición (s)",
     timelineSettingsCompositionIntervalHint: "Segundos mínimos entre cambios de diseño",
-    timelineSettingsExportXml: "Exportar XML de Final Cut",
+    timelineSettingsDefault: "Predeterminado",
+    timelineSettingsSnapToGrid: "Ajustar a la cuadrícula",
+    timelineSettingsSnapToGridHint:
+      "Alinea las imágenes con la línea de cuadrícula más cercana para una sincronización más precisa.",
+    timelineSettingsExportPremiere: "Exportar para Premiere",
+    timelineSettingsExportXml: "Exportar XML de Premiere",
+    timelineSettingsExportXmlOnly: "Exportar solo XML",
     timelineSettingsExportZip: "Descargar archivo ZIP",
+    timelineSettingsPremiereRelinkHint:
+      "Premiere puede pedir revincular medios; elija la carpeta media del archivo.",
     timelineSettingsKeyboardHelp: "Ayuda de atajos de teclado",
 
     // Tooltips
@@ -423,7 +449,7 @@ export const translations = {
     tooltipAutoSkipCheckbox: "Salto automático de períodos silenciosos",
     tooltipShowClock: "Mostrar reloj de hora del día durante la reproducción",
     showClockLabel: "Mostrar reloj",
-    tooltipExportXML: "Exportar línea de tiempo como XML de Final Cut Pro para edición de video",
+    tooltipExportXML: "Exportar línea de tiempo como XML de Final Cut Pro compatible con Premiere",
     tooltipExportZIP: "Descargar todos los archivos multimedia como archivo ZIP",
 
     // Keyboard shortcuts

@@ -24,6 +24,7 @@ export default function TimelineSettingsPanel({
   showClock,
   onToggleShowClock,
   onExportXml,
+  onExportPremiere,
   onExportZip,
   disabled,
   onClose,
@@ -111,7 +112,8 @@ export default function TimelineSettingsPanel({
             <span className="timeline-settings__unit">s</span>
           </div>
           <span className="timeline-settings__hint">
-            {t("timelineSettingsImageDisplayHint")} · Default: {Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000)}s
+            {t("timelineSettingsImageDisplayHint")} · {t("timelineSettingsDefault")}:{" "}
+            {Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000)}s
           </span>
         </div>
 
@@ -132,18 +134,19 @@ export default function TimelineSettingsPanel({
             <span className="timeline-settings__unit">s</span>
           </div>
           <span className="timeline-settings__hint">
-            {t("timelineSettingsImageHoldHint")} · Default: {Math.round(DEFAULT_IMAGE_HOLD_MS / 1000)}s
+            {t("timelineSettingsImageHoldHint")} · {t("timelineSettingsDefault")}:{" "}
+            {Math.round(DEFAULT_IMAGE_HOLD_MS / 1000)}s
           </span>
         </div>
 
         <div className="timeline-settings__group">
-          <label className="timeline-settings__toggle" title="Snap images to time grid">
+          <label className="timeline-settings__toggle" title={t("timelineSettingsSnapToGridHint")}>
             <input
               type="checkbox"
               checked={!!snapToGrid}
               onChange={(e) => onToggleSnapToGrid?.(e.target.checked)}
             />
-            <span>Snap to grid</span>
+            <span>{t("timelineSettingsSnapToGrid")}</span>
           </label>
           <div className="timeline-settings__input-with-unit" style={{ marginTop: 6 }}>
             <input
@@ -157,7 +160,7 @@ export default function TimelineSettingsPanel({
             />
             <span className="timeline-settings__unit">s</span>
           </div>
-          <span className="timeline-settings__hint">Align image times to nearest grid line for tighter sync.</span>
+          <span className="timeline-settings__hint">{t("timelineSettingsSnapToGridHint")}</span>
         </div>
 
         <div className="timeline-settings__group">
@@ -186,11 +189,20 @@ export default function TimelineSettingsPanel({
           <button
             type="button"
             className="timeline-settings__action"
+            onClick={onExportPremiere}
+            disabled={disabled}
+          >
+            <Icon name="archive" size={17} />
+            <span>{t("timelineSettingsExportPremiere")}</span>
+          </button>
+          <button
+            type="button"
+            className="timeline-settings__action"
             onClick={onExportXml}
             disabled={disabled}
           >
-            <span aria-hidden="true">📋</span>
-            <span>{t("timelineSettingsExportXml")}</span>
+            <Icon name="document" size={17} />
+            <span>{t("timelineSettingsExportXmlOnly")}</span>
           </button>
           <button
             type="button"
@@ -198,9 +210,12 @@ export default function TimelineSettingsPanel({
             onClick={onExportZip}
             disabled={disabled}
           >
-            <span aria-hidden="true">📦</span>
+            <Icon name="archive" size={17} />
             <span>{t("timelineSettingsExportZip")}</span>
           </button>
+          <span className="timeline-settings__hint timeline-settings__export-hint">
+            {t("timelineSettingsPremiereRelinkHint")}
+          </span>
         </div>
 
         <div className="timeline-settings__group timeline-settings__group--footer">

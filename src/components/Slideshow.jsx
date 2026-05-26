@@ -2,7 +2,6 @@ import { useMemo, useRef, useEffect, useCallback, useState, memo } from "react";
 import { useMediaStore } from "../state/useMediaStore.js";
 import { useSettingsStore } from "../state/useSettingsStore.js";
 import { usePlaybackStore } from "../state/usePlaybackStore.js";
-import { computeImageSchedule } from "../media/imageSchedule.js";
 import { MAX_VISIBLE_IMAGES } from "../media/constants.js";
 import { hasAudioCoverage } from "../media/images.js";
 import {
@@ -11,6 +10,11 @@ import {
   computeCompositionIntervalMs,
   computeSnapGridMs,
 } from "../state/helpers/settingsHelpers.js";
+import {
+  createScheduleIndex,
+  findSurroundingImages,
+  getCompositionAtTime,
+} from "../media/scheduleIndex.js";
 import CompositionView from "./CompositionView.jsx";
 import SlideshowPlaceholder, {
   resolvePlaceholderSources,
@@ -24,9 +28,7 @@ function Slideshow() {
   const loadFromDataTransfer = useMediaStore((state) => state.loadFromDataTransfer);
   const imageDisplaySeconds = useSettingsStore((state) => state.imageDisplaySeconds);
   const imageHoldSeconds = useSettingsStore((state) => state.imageHoldSeconds);
-  const compositionIntervalSeconds = useSettingsStore(
-    (state) => state.compositionIntervalSeconds
-  );
+  const compositionIntervalSeconds = useSettingsStore((state) => state.compositionIntervalSeconds);
   const speed = useSettingsStore((state) => state.speed);
   const snapToGrid = useSettingsStore((state) => state.snapToGrid);
   const snapGridSeconds = useSettingsStore((state) => state.snapGridSeconds);
@@ -57,31 +59,28 @@ function Slideshow() {
 
   const displaySeconds = Number(imageDisplaySeconds);
   const speedValue = Number(speed);
-  
-  const minVisibleMs = useMemo(() => 
-    computeMinVisibleMs(displaySeconds, speedValue),
+
+  const minVisibleMs = useMemo(
+    () => computeMinVisibleMs(displaySeconds, speedValue),
     [displaySeconds, speedValue]
   );
 
   const holdSeconds = Number(imageHoldSeconds);
-  const imageHoldMs = useMemo(() => 
-    computeScaledHoldMs(holdSeconds, speedValue),
+  const imageHoldMs = useMemo(
+    () => computeScaledHoldMs(holdSeconds, speedValue),
     [holdSeconds, speedValue]
   );
 
-  const compositionIntervalMs = useMemo(() =>
-    computeCompositionIntervalMs(compositionIntervalSeconds),
+  const compositionIntervalMs = useMemo(
+    () => computeCompositionIntervalMs(compositionIntervalSeconds),
     [compositionIntervalSeconds]
   );
-  
-  const snapGridMs = useMemo(() =>
-    computeSnapGridMs(snapGridSeconds),
-    [snapGridSeconds]
-  );
 
-  const schedule = useMemo(
+  const snapGridMs = useMemo(() => computeSnapGridMs(snapGridSeconds), [snapGridSeconds]);
+
+  const scheduleIndex = useMemo(
     () =>
-      computeImageSchedule(mediaData?.images || [], {
+      createScheduleIndex(mediaData?.images || [], {
         minVisibleMs,
         holdMs: imageHoldMs,
         maxSlots: MAX_VISIBLE_IMAGES,
@@ -91,8 +90,6 @@ function Slideshow() {
       }),
     [mediaData?.images, minVisibleMs, imageHoldMs, compositionIntervalMs, snapToGrid, snapGridMs]
   );
-
-  const scheduleMetadata = useMemo(() => schedule?.metadata || EMPTY_ARRAY, [schedule]);
 
   const inAudioCoverage = useMemo(() => {
     if (!Number.isFinite(resolvedAbsolute)) {
@@ -106,68 +103,32 @@ function Slideshow() {
   }, [hasAudio, mediaData, resolvedAbsolute]);
 
   const compositionState = useMemo(() => {
-    if (!mediaData?.images?.length || !scheduleMetadata.length) {
+    if (!mediaData?.images?.length || !scheduleIndex.metadata.length) {
       return null;
     }
     if (!Number.isFinite(resolvedAbsolute)) {
       return null;
     }
 
-    const activeMeta = scheduleMetadata
-      .map((meta, index) => ({ ...meta, index }))
-      .filter(
-        (meta) =>
-          meta.visible &&
-          Number.isFinite(meta.startMs) &&
-          Number.isFinite(meta.endMs) &&
-          resolvedAbsolute >= meta.startMs &&
-          resolvedAbsolute < meta.endMs
-      );
+    const composition = getCompositionAtTime(scheduleIndex, mediaData.images, resolvedAbsolute);
 
     // When skipSilence is enabled, only skip if BOTH no audio AND no images
     // This creates true "silent periods" where nothing is happening
-    if (skipSilence && !inAudioCoverage && !activeMeta.length) {
+    if (skipSilence && !inAudioCoverage && !composition?.images?.length) {
       return null;
     }
 
-    if (!activeMeta.length) {
+    if (!composition?.images?.length) {
       return null;
-    }
-
-    const layoutSize = Math.max(
-      1,
-      Math.min(
-        MAX_VISIBLE_IMAGES,
-        activeMeta.reduce(
-          (max, meta) => Math.max(max, meta.maxConcurrency || 1),
-          1
-        )
-      )
-    );
-
-    const mappedSlots = Array.from({ length: layoutSize }, (_, slotIndex) => {
-      const match = activeMeta.find((meta) => meta.slotIndex === slotIndex);
-      if (!match) {
-        return null;
-      }
-      const image = mediaData.images?.[match.index] || null;
-      return image ? { image } : null;
-    });
-
-    const activeImages = mappedSlots.filter(Boolean).map((slot) => slot.image);
-    const primary = activeImages[0] || null;
-
-    if (!mappedSlots.length) {
-      mappedSlots.push(null);
     }
 
     return {
-      layoutSize,
-      slots: mappedSlots,
-      displayImages: activeImages,
-      primaryImage: primary,
+      layoutSize: Math.max(1, Math.min(MAX_VISIBLE_IMAGES, composition.layoutSize)),
+      slots: composition.slots?.length ? composition.slots : DEFAULT_SLOTS,
+      displayImages: composition.images,
+      primaryImage: composition.primaryImage,
     };
-  }, [mediaData, scheduleMetadata, resolvedAbsolute, skipSilence, inAudioCoverage]);
+  }, [mediaData, scheduleIndex, resolvedAbsolute, skipSilence, inAudioCoverage]);
 
   const layoutSize = compositionState?.layoutSize ?? 1;
   const slots = compositionState?.slots ?? DEFAULT_SLOTS;
@@ -186,61 +147,19 @@ function Slideshow() {
   }, [displayImages, displaySignature, setDisplayedImages]);
 
   const surroundingImages = useMemo(() => {
-    if (!mediaData?.images?.length || !scheduleMetadata.length) {
+    if (!mediaData?.images?.length || !scheduleIndex.entries.length) {
       return { previous: null, next: null };
     }
 
-    const entries = scheduleMetadata
-      .map((meta, index) =>
-        meta.visible
-          ? {
-              image: mediaData.images[index],
-              startMs: meta.startMs,
-            }
-          : null
-      )
-      .filter(Boolean)
-      .sort((a, b) => a.startMs - b.startMs);
-
-    if (!entries.length) {
-      return { previous: null, next: null };
-    }
-
-    if (!Number.isFinite(resolvedAbsolute)) {
-      const firstImage = entries[0]?.image || null;
-      return { previous: firstImage, next: firstImage };
-    }
-
-    let previous = null;
-    let next = null;
-    for (const entry of entries) {
-      if (!Number.isFinite(entry.startMs)) {
-        continue;
-      }
-      if (entry.startMs <= resolvedAbsolute) {
-        previous = entry.image;
-      }
-      if (entry.startMs > resolvedAbsolute) {
-        next = entry.image;
-        break;
-      }
-    }
-
-    if (!previous) {
-      previous = entries[0]?.image || null;
-    }
-
-    if (!next) {
-      const future = entries.find((entry) => entry.startMs > resolvedAbsolute);
-      next = future ? future.image : null;
-    }
-
-    return { previous, next };
-  }, [mediaData, scheduleMetadata, resolvedAbsolute]);
+    return findSurroundingImages(scheduleIndex, resolvedAbsolute);
+  }, [mediaData?.images?.length, scheduleIndex, resolvedAbsolute]);
 
   const placeholderData = useMemo(() => {
     const { previous, next } = surroundingImages;
-    const { previousSrc, nextSrc } = resolvePlaceholderSources({ previousImage: previous, nextImage: next });
+    const { previousSrc, nextSrc } = resolvePlaceholderSources({
+      previousImage: previous,
+      nextImage: next,
+    });
     const signature = buildPlaceholderSignature(previousSrc, nextSrc, resolvedAbsolute);
     return {
       element: <SlideshowPlaceholder previousImage={previous} nextImage={next} />,

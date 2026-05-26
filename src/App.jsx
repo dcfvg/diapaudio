@@ -875,11 +875,39 @@ function AppShell() {
     }
     setSettingsOpen(false);
     try {
-      const { exportFinalCutProXml } = await getExportersModule();
-      await exportFinalCutProXml({ mediaData });
+      const { exportPremiereXml } = await getExportersModule();
+      await exportPremiereXml({ mediaData });
     } catch (error) {
-      logger.error("Failed to export XML:", error);
+      logger.error("Failed to export Premiere XML:", error);
       setError(error);
+    }
+  }, [mediaData, setError, setSettingsOpen, t]);
+
+  const handleExportPremiere = useCallback(async () => {
+    if (!mediaData) {
+      setError(new Error(t("alertNoMediaToExport")));
+      return;
+    }
+    setSettingsOpen(false);
+    setZipExporting(true);
+    setZipProgress({ percent: 0, status: t("processingFiles"), details: "" });
+    try {
+      const { exportPremiereXmlPackage } = await getExportersModule();
+      await exportPremiereXmlPackage({
+        mediaData,
+        onProgress: (percent, statusKey, details) => {
+          setZipProgress({
+            percent,
+            status: t(statusKey || "processingFiles"),
+            details,
+          });
+        },
+      });
+    } catch (error) {
+      logger.error("Failed to export Premiere package:", error);
+      setError(error);
+    } finally {
+      setZipExporting(false);
     }
   }, [mediaData, setError, setSettingsOpen, t]);
 
@@ -1102,6 +1130,7 @@ function AppShell() {
                     showClock={showClock}
                     onToggleShowClock={setShowClock}
                     onExportXml={handleExportXml}
+                    onExportPremiere={handleExportPremiere}
                     onExportZip={handleExportZip}
                     disabled={!mediaData}
                     onClose={() => setSettingsOpen(false)}

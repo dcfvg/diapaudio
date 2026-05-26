@@ -1,5 +1,5 @@
 import "./Timeline.css";
-import { useMemo, useCallback, useRef, memo, useEffect } from "react";
+import { useMemo, useCallback, useRef, memo, useEffect, useState } from "react";
 import { useMediaStore } from "../state/useMediaStore.js";
 import { useSettingsStore } from "../state/useSettingsStore.js";
 import { usePlaybackStore } from "../state/usePlaybackStore.js";
@@ -17,8 +17,12 @@ import {
   computeCompositionIntervalMs,
   computeSnapGridMs,
 } from "../state/helpers/settingsHelpers.js";
-import { computeImageSchedule } from "../media/imageSchedule.js";
 import { cleanTrackNameForDisplay } from "../media/fileUtils.js";
+import {
+  aggregateEntriesByPixel,
+  createScheduleIndex,
+  findSurroundingImages,
+} from "../media/scheduleIndex.js";
 import CompositionView from "./CompositionView.jsx";
 import SlideshowPlaceholder, {
   resolvePlaceholderSources,
@@ -82,6 +86,7 @@ function Timeline() {
   const containerRef = useRef(null);
   const interactionRef = useRef(null);
   const brushTrackRef = useRef(null);
+  const [timelineWidthPx, setTimelineWidthPx] = useState(null);
 
   // Use custom hooks
   const { snapToMedia, findTrackAtTime, positionPercent } = useTimelineSnapping();
@@ -125,9 +130,9 @@ function Timeline() {
 
   const snapGridMs = useMemo(() => computeSnapGridMs(snapGridSeconds), [snapGridSeconds]);
 
-  const schedule = useMemo(
+  const scheduleIndex = useMemo(
     () =>
-      computeImageSchedule(mediaData?.images || [], {
+      createScheduleIndex(mediaData?.images || [], {
         minVisibleMs,
         holdMs: imageHoldMs,
         maxSlots: MAX_VISIBLE_IMAGES,
@@ -138,8 +143,7 @@ function Timeline() {
     [mediaData?.images, minVisibleMs, imageHoldMs, compositionIntervalMs, snapToGrid, snapGridMs]
   );
 
-  const scheduleMetadata = schedule?.metadata || EMPTY_ARRAY;
-  const scheduleSegments = schedule?.segments || EMPTY_ARRAY;
+  const scheduleSegments = scheduleIndex.segments || EMPTY_ARRAY;
 
   // Extend timeline with schedule segments and snap settings for snapping logic
   const timeline = useMemo(() => {
@@ -152,34 +156,7 @@ function Timeline() {
     };
   }, [baseTimeline, scheduleSegments, snapToGrid, snapGridMs]);
 
-  const scheduledEntries = useMemo(() => {
-    const metadata = scheduleMetadata;
-    if (!mediaData?.images?.length || !metadata.length) {
-      return [];
-    }
-    return metadata
-      .map((meta, index) => {
-        if (!meta.visible) {
-          return null;
-        }
-        const startMs = meta.startMs;
-        const endMs = meta.endMs;
-        if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
-          return null;
-        }
-        const image = mediaData.images[index];
-        return {
-          image,
-          index,
-          startMs,
-          endMs,
-          slotIndex: Math.max(meta.slotIndex ?? 0, 0),
-          maxConcurrency: Math.max(meta.maxConcurrency || 1, 1),
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.startMs - b.startMs);
-  }, [mediaData, scheduleMetadata]);
+  const scheduledEntries = scheduleIndex.entries || EMPTY_ARRAY;
 
   // On initial load (no timelineView), show the full content range
   // This makes tracks align to edges and brush window span full width
@@ -216,15 +193,29 @@ function Timeline() {
 
   const visibleImageSet = useMemo(() => new Set(displayedImages || []), [displayedImages]);
 
+  useEffect(() => {
+    const node = interactionRef.current;
+    const ResizeObserverCtor = globalThis.ResizeObserver;
+    if (!node || typeof ResizeObserverCtor !== "function") {
+      return undefined;
+    }
+    const observer = new ResizeObserverCtor((entries) => {
+      const width = entries[0]?.contentRect?.width;
+      if (Number.isFinite(width)) {
+        setTimelineWidthPx(width);
+      }
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   // Virtual scrolling: filter visible items based on current viewport
   const visibleImageEntries = useMemo(() => {
     if (!scheduledEntries.length || !Number.isFinite(viewStartMs) || !Number.isFinite(viewEndMs)) {
       return [];
     }
-    return scheduledEntries
-      .filter((entry) => entry.endMs > viewStartMs && entry.startMs < viewEndMs)
-      .sort((a, b) => a.startMs - b.startMs);
-  }, [scheduledEntries, viewStartMs, viewEndMs]);
+    return aggregateEntriesByPixel(scheduledEntries, viewStartMs, viewEndMs, timelineWidthPx);
+  }, [scheduledEntries, viewStartMs, viewEndMs, timelineWidthPx]);
 
   const imageRowHeightPx = 13;
   const imageRowMarginPx = 1;
@@ -316,43 +307,7 @@ function Timeline() {
     if (hasImages) {
       return null;
     }
-    const entries = scheduleMetadata
-      .map((meta, index) =>
-        meta.visible
-          ? {
-              startMs: meta.startMs,
-              image: mediaData.images[index],
-            }
-          : null
-      )
-      .filter(Boolean)
-      .sort((a, b) => a.startMs - b.startMs);
-
-    if (!entries.length) {
-      return null;
-    }
-
-    let previous = null;
-    let next = null;
-    for (const entry of entries) {
-      if (!Number.isFinite(entry.startMs)) {
-        continue;
-      }
-      if (entry.startMs <= hoverState.ms) {
-        previous = entry.image;
-      }
-      if (entry.startMs > hoverState.ms) {
-        next = entry.image;
-        break;
-      }
-    }
-
-    if (!previous) {
-      previous = entries[0]?.image || null;
-    }
-    if (!next) {
-      next = entries.find((entry) => entry.startMs > hoverState.ms)?.image || null;
-    }
+    const { previous, next } = findSurroundingImages(scheduleIndex, hoverState.ms);
 
     const { previousSrc, nextSrc } = resolvePlaceholderSources({
       previousImage: previous,
@@ -369,7 +324,7 @@ function Timeline() {
       ),
       key: signature,
     };
-  }, [hoverState, mediaData, scheduleMetadata]);
+  }, [hoverState, mediaData, scheduleIndex]);
 
   // Use brush control hook
   const { startBrushDrag, handleBrushPointerMove, handleBrushPointerUp } = useBrushControl({
@@ -609,6 +564,10 @@ function Timeline() {
               cleanTrackNameForDisplay(track.originalName || track.label || "") ||
               track.label ||
               `Track ${range.index + 1}`;
+            const labelClasses = ["timeline-track__label"];
+            if (left > 70) {
+              labelClasses.push("timeline-track__label--align-end");
+            }
             const titleParts = [
               `"${name}"`,
               `${formatClockWithSeconds(new Date(range.startMs))} → ${formatClockWithSeconds(new Date(range.endMs))}`,
@@ -639,7 +598,7 @@ function Timeline() {
                   width: `${width}%`,
                 }}
               >
-                <span className="timeline-track__label">{name}</span>
+                <span className={labelClasses.join(" ")}>{name}</span>
               </div>
             );
           })}
@@ -662,7 +621,10 @@ function Timeline() {
             const widthPercent = clamp(right - left, 0, 100 - left);
 
             const classes = ["timeline-image"];
-            if (visibleImageSet.has(entry.image)) {
+            if (
+              visibleImageSet.has(entry.image) ||
+              entry.images?.some((image) => visibleImageSet.has(image))
+            ) {
               classes.push("timeline-image--active");
             }
 
@@ -674,7 +636,10 @@ function Timeline() {
             const topPx = concurrency > 1 ? slotIndex * (heightPx + marginPx) : 0;
 
             const timeLabel = formatDateAndTime(new Date(entry.startMs));
-            const name = entry.image?.name || `Image ${entry.index + 1}`;
+            const name =
+              entry.aggregatedCount > 1
+                ? `${entry.aggregatedCount} images`
+                : entry.image?.name || `Image ${entry.index + 1}`;
             const imageKey =
               entry.image?.url || entry.image?.name || `${entry.startMs}-${entry.index}`;
 

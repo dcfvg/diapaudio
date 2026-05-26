@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { clamp } from "../utils/numberUtils.js";
+import { buildCompositionFromSegment, findScheduleSegmentAt } from "../media/scheduleIndex.js";
 
 /**
  * Hook for managing timeline pointer interactions (hover, scrubbing, seeking)
@@ -23,6 +24,18 @@ export function useTimelineInteraction({
   const pointerMovedRef = useRef(false);
   const wasPlayingRef = useRef(false);
   const clickedStateRef = useRef(null); // Store the state at pointer down for accurate seeking
+  const pendingMoveRef = useRef(null);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current != null) {
+        const cancelFrame =
+          typeof cancelAnimationFrame === "function" ? cancelAnimationFrame : clearTimeout;
+        cancelFrame(rafRef.current);
+      }
+    };
+  }, []);
 
   const resolveComposition = useCallback(
     (absoluteMs) => {
@@ -30,38 +43,7 @@ export function useTimelineInteraction({
         return null;
       }
 
-      const segment = imageSegments.find(
-        (entry) =>
-          Number.isFinite(entry?.startMs) &&
-          Number.isFinite(entry?.endMs) &&
-          absoluteMs >= entry.startMs &&
-          absoluteMs < entry.endMs
-      );
-
-      if (!segment) {
-        return null;
-      }
-
-      const slotIndexes = Array.isArray(segment.slots) ? segment.slots : [];
-      const layoutSize = Math.max(1, segment.layoutSize || slotIndexes.length || 1);
-
-      const mappedSlots = Array.from({ length: layoutSize }, (_, idx) => {
-        const imageIndex = slotIndexes[idx];
-        if (!Number.isInteger(imageIndex)) {
-          return null;
-        }
-        const image = images[imageIndex];
-        return image ? { image } : null;
-      });
-
-      const activeImages = mappedSlots.filter(Boolean).map((slot) => slot.image);
-
-      return {
-        segment,
-        layoutSize,
-        slots: mappedSlots,
-        images: activeImages,
-      };
+      return buildCompositionFromSegment(findScheduleSegmentAt(imageSegments, absoluteMs), images);
     },
     [imageSegments, images]
   );
@@ -147,7 +129,11 @@ export function useTimelineInteraction({
       pointerMovedRef.current = false;
       if (onInteraction) onInteraction(); // Mark user interaction
       // Update hover preview and store the clicked state for later seeking
-      const state = updateHover(event.clientX, { scrubbing: false, autoplay: false, applySnap: true });
+      const state = updateHover(event.clientX, {
+        scrubbing: false,
+        autoplay: false,
+        applySnap: true,
+      });
       clickedStateRef.current = state; // Save the exact state at click time
     },
     [playing, updateHover, interactionRef, onInteraction]
@@ -170,18 +156,31 @@ export function useTimelineInteraction({
       }
       if (scrubbing) {
         pointerMovedRef.current = true;
-        // During drag, seek continuously
-        updateHover(event.clientX, {
-          scrubbing: true,
-          autoplay: wasPlayingRef.current,
-          applySnap: true,
-        });
-      } else {
-        // Just hovering, no seek
-        updateHover(event.clientX, {
-          scrubbing: false,
-          autoplay: false,
-          applySnap: true,
+      }
+
+      pendingMoveRef.current = {
+        clientX: event.clientX,
+        scrubbing,
+        autoplay: scrubbing ? wasPlayingRef.current : false,
+      };
+
+      if (rafRef.current == null) {
+        const requestFrame =
+          typeof requestAnimationFrame === "function"
+            ? requestAnimationFrame
+            : (callback) => setTimeout(callback, 16);
+        rafRef.current = requestFrame(() => {
+          rafRef.current = null;
+          const pending = pendingMoveRef.current;
+          pendingMoveRef.current = null;
+          if (!pending) {
+            return;
+          }
+          updateHover(pending.clientX, {
+            scrubbing: pending.scrubbing,
+            autoplay: pending.autoplay,
+            applySnap: true,
+          });
         });
       }
     },
@@ -192,6 +191,13 @@ export function useTimelineInteraction({
    * End scrubbing
    */
   const endScrub = useCallback(() => {
+    if (rafRef.current != null) {
+      const cancelFrame =
+        typeof cancelAnimationFrame === "function" ? cancelAnimationFrame : clearTimeout;
+      cancelFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    pendingMoveRef.current = null;
     scrubbingRef.current = false;
     pointerMovedRef.current = false;
     clickedStateRef.current = null; // Clear the stored click state
@@ -211,7 +217,7 @@ export function useTimelineInteraction({
         // exact position that was shown in the preview at click time.
         // This prevents snapping from changing between hover and click.
         const targetState = !pointerMovedRef.current ? clickedStateRef.current : hoverState;
-        
+
         if (targetState) {
           // Final seek on release with autoplay if was playing or was a click
           seekToAbsolute(targetState.ms, { autoplay });
