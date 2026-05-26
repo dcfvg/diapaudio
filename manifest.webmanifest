@@ -1,0 +1,1 @@
+{"name":"diapaudio","short_name":"diapaudio","description":"Playback photos synced with recordings of that day.","start_url":".","display":"standalone","background_color":"#ffffff","theme_color":"#0f172a","lang":"en","scope":".","icons":[{"src":"favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
