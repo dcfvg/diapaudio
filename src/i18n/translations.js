@@ -56,9 +56,12 @@ export const translations = {
     buttonFolder: "Choose a folder",
     buttonZip: "Choose a ZIP archive",
     buttonFiles: "Choose files",
+    loadLocalSample: "Load local sample",
+    loadingLocalSample: "Loading local sample...",
 
     // Notes
-    notePrivacy: "Nothing leaves your computer — no uploads, no servers, just your session.<br/>For detailed instructions and source code, see the <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
+    notePrivacy:
+      'Nothing leaves your computer — no uploads, no servers, just your session.<br/>For detailed instructions and source code, see the <a href="https://github.com/dcfvg/diapaudio" target="_blank" rel="noopener noreferrer">README</a>.',
 
     // Loader
     loadingFiles: "Loading files...",
@@ -86,7 +89,8 @@ export const translations = {
     timelineNoticesButton_plural: "{{count}} timeline notices",
     overlapHandlingInfo:
       "ℹ️ <strong>Overlap Handling:</strong> When audio tracks overlap, playback starts with the first track. When it ends, the second track seamlessly continues from its current position (not from the beginning).",
-    overlapWarning: '⚠️ Overlap detected: "{{trackA}}" begins {{duration}} before "{{trackB}}" ends.',
+    overlapWarning:
+      '⚠️ Overlap detected: "{{trackA}}" begins {{duration}} before "{{trackB}}" ends.',
     timelineSettings: "Timeline settings",
     timelineSettingsTitle: "Playback settings",
     timelineSettingsSubtitle: "Fine-tune synchronisation",
@@ -94,7 +98,8 @@ export const translations = {
     timelineSettingsImageDisplay: "Image display (s)",
     timelineSettingsImageDisplayHint: "Minimum display duration for each image",
     timelineSettingsImageHold: "Image hold (s)",
-    timelineSettingsImageHoldHint: "Seconds each image holds when no next image · Extends last image",
+    timelineSettingsImageHoldHint:
+      "Seconds each image holds when no next image · Extends last image",
     timelineSettingsCompositionInterval: "Composition change (s)",
     timelineSettingsCompositionIntervalHint: "Minimum seconds between layout updates",
     timelineSettingsExportXml: "Export Final Cut XML",
@@ -113,8 +118,8 @@ export const translations = {
     tooltipDelayInput: "Time offset (e.g., 0:30 or -1:15)",
     tooltipSpeed: "Adjust playback speed - slower or faster than real-time",
     tooltipSpeedSelect: "Playback speed multiplier",
-  tooltipAutoSkip: "Automatically skip periods with no audio and no photos",
-  tooltipAutoSkipCheckbox: "Auto-skip of silent periods",
+    tooltipAutoSkip: "Automatically skip periods with no audio and no photos",
+    tooltipAutoSkipCheckbox: "Auto-skip of silent periods",
     tooltipShowClock: "Show time of day clock overlay during playback",
     showClockLabel: "Show clock",
     tooltipExportXML: "Export timeline as Final Cut Pro XML for video editing",
@@ -199,10 +204,12 @@ export const translations = {
     buttonFolder: "Choisir un dossier",
     buttonZip: "Choisir une archive ZIP",
     buttonFiles: "Choisir des fichiers",
+    loadLocalSample: "Charger le sample local",
+    loadingLocalSample: "Chargement du sample local...",
 
     // Notes
     notePrivacy:
-      "Rien ne quitte votre ordinateur — pas de téléversement, pas de serveur, juste votre session. <br/>Pour des instructions détaillées et le code source, consultez le <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
+      'Rien ne quitte votre ordinateur — pas de téléversement, pas de serveur, juste votre session. <br/>Pour des instructions détaillées et le code source, consultez le <a href="https://github.com/dcfvg/diapaudio" target="_blank" rel="noopener noreferrer">README</a>.',
 
     // Loader
     loadingFiles: "Chargement des fichiers...",
@@ -239,9 +246,11 @@ export const translations = {
     timelineSettingsImageDisplay: "Affichage d'image (s)",
     timelineSettingsImageDisplayHint: "Durée d'affichage minimale pour chaque image",
     timelineSettingsImageHold: "Maintien d'image (s)",
-    timelineSettingsImageHoldHint: "Secondes de maintien d'image si aucune image suivante · Prolonge la dernière image",
+    timelineSettingsImageHoldHint:
+      "Secondes de maintien d'image si aucune image suivante · Prolonge la dernière image",
     timelineSettingsCompositionInterval: "Changement de composition (s)",
-    timelineSettingsCompositionIntervalHint: "Secondes minimales entre deux changements de disposition",
+    timelineSettingsCompositionIntervalHint:
+      "Secondes minimales entre deux changements de disposition",
     timelineSettingsExportXml: "Exporter en XML Final Cut",
     timelineSettingsExportZip: "Télécharger l'archive ZIP",
     timelineSettingsKeyboardHelp: "Raccourcis clavier",
@@ -258,8 +267,8 @@ export const translations = {
     tooltipDelayInput: "Décalage temporel (ex : 0:30 ou -1:15)",
     tooltipSpeed: "Ajuster la vitesse de lecture - plus lente ou plus rapide que le temps réel",
     tooltipSpeedSelect: "Multiplicateur de vitesse de lecture",
-  tooltipAutoSkip: "Sauter automatiquement les périodes sans audio et sans photos",
-  tooltipAutoSkipCheckbox: "Saut automatique des périodes silencieuses",
+    tooltipAutoSkip: "Sauter automatiquement les périodes sans audio et sans photos",
+    tooltipAutoSkipCheckbox: "Saut automatique des périodes silencieuses",
     tooltipShowClock: "Afficher l'horloge de l'heure du jour pendant la lecture",
     showClockLabel: "Afficher l'horloge",
     tooltipExportXML: "Exporter la chronologie en XML Final Cut Pro pour le montage vidéo",
@@ -298,7 +307,8 @@ export const translations = {
       "Varios archivos de retraso detectados ({{count}}); usando el último: {{delay}}",
     multipleDelayFilesDetectedAddition:
       "Varios archivos de retraso detectados además ({{count}}); usando el último: {{delay}}",
-    removedDuplicateAudio: "Eliminado {{count}} archivo(s) de audio duplicado(s) en esta importación",
+    removedDuplicateAudio:
+      "Eliminado {{count}} archivo(s) de audio duplicado(s) en esta importación",
     removedDuplicateImage:
       "Eliminado {{count}} archivo(s) de imagen duplicado(s) en esta importación",
 
@@ -346,9 +356,12 @@ export const translations = {
     buttonFolder: "Elegir una carpeta",
     buttonZip: "Elegir un archivo ZIP",
     buttonFiles: "Elegir archivos",
+    loadLocalSample: "Cargar muestra local",
+    loadingLocalSample: "Cargando muestra local...",
 
     // Notes
-    notePrivacy: "Nada sale de tu computadora — sin cargas, sin servidores, solo tu sesión. <br/> Para instrucciones detalladas y código fuente, consulta el <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
+    notePrivacy:
+      'Nada sale de tu computadora — sin cargas, sin servidores, solo tu sesión. <br/> Para instrucciones detalladas y código fuente, consulta el <a href="https://github.com/dcfvg/diapaudio" target="_blank" rel="noopener noreferrer">README</a>.',
 
     // Loader
     loadingFiles: "Cargando archivos...",
@@ -385,7 +398,8 @@ export const translations = {
     timelineSettingsImageDisplay: "Visualización de imagen (s)",
     timelineSettingsImageDisplayHint: "Duración mínima de visualización para cada imagen",
     timelineSettingsImageHold: "Retención de imagen (s)",
-    timelineSettingsImageHoldHint: "Segundos de retención de imagen si no hay imagen siguiente · Extiende última imagen",
+    timelineSettingsImageHoldHint:
+      "Segundos de retención de imagen si no hay imagen siguiente · Extiende última imagen",
     timelineSettingsCompositionInterval: "Cambio de composición (s)",
     timelineSettingsCompositionIntervalHint: "Segundos mínimos entre cambios de diseño",
     timelineSettingsExportXml: "Exportar XML de Final Cut",
@@ -405,8 +419,8 @@ export const translations = {
     tooltipDelayInput: "Desfase temporal (ej: 0:30 o -1:15)",
     tooltipSpeed: "Ajustar velocidad de reproducción - más lenta o más rápida que tiempo real",
     tooltipSpeedSelect: "Multiplicador de velocidad de reproducción",
-  tooltipAutoSkip: "Saltar automáticamente períodos sin audio y sin fotos",
-  tooltipAutoSkipCheckbox: "Salto automático de períodos silenciosos",
+    tooltipAutoSkip: "Saltar automáticamente períodos sin audio y sin fotos",
+    tooltipAutoSkipCheckbox: "Salto automático de períodos silenciosos",
     tooltipShowClock: "Mostrar reloj de hora del día durante la reproducción",
     showClockLabel: "Mostrar reloj",
     tooltipExportXML: "Exportar línea de tiempo como XML de Final Cut Pro para edición de video",

@@ -6,7 +6,9 @@
   border: 3px dashed rgba(255, 255, 255, 0.16);
   border-radius: var(--radius-xl);
   background: linear-gradient(160deg, rgba(36, 38, 41, 0.85), rgba(18, 19, 22, 0.9));
-  transition: border-color var(--transition-base), background var(--transition-base);
+  transition:
+    border-color var(--transition-base),
+    background var(--transition-base);
   position: relative;
   padding: var(--space-xl);
   margin: calc(var(--space-2xl) * 2);
@@ -48,7 +50,9 @@
   color: var(--text-primary);
   font-size: 0.9rem;
   cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .language-selector__select:hover,
@@ -202,6 +206,50 @@
   justify-content: center;
 }
 
+.dropzone__sample {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2xs);
+  margin-top: var(--space-xs);
+}
+
+.dropzone__sample-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-alt);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+}
+
+.dropzone__sample-button:hover:not(:disabled),
+.dropzone__sample-button:focus-visible {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.dropzone__sample-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.dropzone__sample-icon {
+  opacity: 0.78;
+}
+
+.dropzone__sample-meta {
+  max-width: min(100%, 42rem);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
 .dropzone__browse {
   display: inline-flex;
   align-items: center;
@@ -213,7 +261,9 @@
   color: var(--text-primary);
   font-size: 0.95rem;
   font-weight: var(--font-weight-medium);
-  transition: border-color var(--transition-fast), background var(--transition-fast),
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast),
     transform var(--transition-fast);
 }
 

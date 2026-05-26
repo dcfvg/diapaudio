@@ -44,7 +44,7 @@ diapaudio extracts timestamps from your media files using multiple methods:
    - `DateTimeOriginal` (0x9003) - When the photo was taken (preferred)
    - `DateTimeDigitized` (0x9004) - When the image was digitized
    - `DateTime` (0x0132) - File modification time
-   
+
    This ensures you get the **actual capture time**, not the file creation date, which is critical for accurate synchronization.
 
 #### Audio Files
@@ -57,7 +57,7 @@ diapaudio extracts timestamps from your media files using multiple methods:
    - **OGG Vorbis**: `DATE` or `CREATION_TIME` comment tags
    - **WAV**: Broadcast Wave Format `bext` chunk (originationDate/Time), or RIFF INFO chunks (`ICRD`, `IDIT`)
    - **AIFF/AIFC**: `NAME`, `AUTH`, `ANNO`, or copyright chunks with date information
-   
+
    This allows audio files to be automatically synchronized even without timestamp filenames.
 
 This prioritization (filename first, metadata second) ensures fast processing while still providing fallback timestamp extraction.
@@ -69,6 +69,7 @@ The `_delay.txt` file is used to fix time setting differences between devices. S
 It should contain a single timestamp in the format `HH:MM:SS` (e.g., `14:23:45`) that represents the time difference between your devices.
 
 **Example:** If your audio recording shows it started at 2:00:00 PM but your camera's first photo timestamp is 2:23:45 PM (due to different clock settings), your `_delay.txt` file should contain:
+
 ```
 14:23:45
 ```
@@ -78,6 +79,7 @@ This tells diapaudio to account for the 23 minutes and 45 seconds offset between
 ## Supported Formats
 
 ### Audio Formats
+
 - **MP3** (.mp3) - MPEG Audio Layer III
 - **M4A/AAC** (.m4a, .aac) - Advanced Audio Coding
 - **OGG** (.ogg, .oga) - Ogg Vorbis
@@ -86,6 +88,7 @@ This tells diapaudio to account for the 23 minutes and 45 seconds offset between
 - **FLAC** (.flac) - Free Lossless Audio Codec
 
 ### Image Formats
+
 - **JPEG** (.jpg, .jpeg) - With EXIF metadata support
 - **PNG** (.png)
 - **GIF** (.gif)
@@ -95,6 +98,7 @@ This tells diapaudio to account for the 23 minutes and 45 seconds offset between
 ## Features
 
 ### Core Features
+
 - **Automatic timestamp-based synchronization** - Intelligent alignment of images with audio based on timestamps
 - **Intelligent timestamp extraction** - Supports both filename parsing and EXIF/audio metadata extraction
 - **ZIP file support** - Drop ZIP archives instead of folders for easier sharing
@@ -102,6 +106,7 @@ This tells diapaudio to account for the 23 minutes and 45 seconds offset between
 - **No server required** - Runs entirely in your browser with client-side processing
 
 ### Playback & Navigation
+
 - **Audio playback with visual timeline** - Interactive waveform-style timeline
 - **Comprehensive keyboard shortcuts** - YouTube-style controls (Space, K, J, L, arrows)
 - **Variable playback speed** - Adjust audio speed on the fly
@@ -111,6 +116,7 @@ This tells diapaudio to account for the 23 minutes and 45 seconds offset between
 - **Fullscreen mode** - Immersive viewing experience
 
 ### Timeline Controls
+
 - **Snap to grid** - Align image times to grid lines for tighter sync (configurable grid interval)
 - **Adjustable delay** - Fine-tune synchronization with HH:MM:SS offset
 - **Minimum image display time** - Configure how long each image shows (default: variable, minimum 1s)
@@ -119,10 +125,12 @@ This tells diapaudio to account for the 23 minutes and 45 seconds offset between
 - **Visual clock overlay** - Optional time-of-day display (analog or digital)
 
 ### Export Options
+
 - **XML export for video editing** - FCPXML format compatible with Final Cut Pro, Premiere Pro, DaVinci Resolve
 - **ZIP package export** - Export your complete project with images, audio, and settings for sharing
 
 ### Progressive Web App (PWA)
+
 - **Install as native app** - Install on desktop and mobile for an app-like experience
 - **Offline support** - Works fully offline after first visit with service worker caching
 - **Auto-updates** - Service worker automatically updates on new deployments
@@ -141,6 +149,7 @@ diapaudio can export your synchronized slideshow as an XML file that can be impo
 - Other NLE software that supports XML timelines
 
 The exported XML file includes:
+
 - All your images with precise timing
 - The audio track
 - Proper synchronization based on timestamps
@@ -184,6 +193,9 @@ npm install
 # Start development server with hot reload (default port: 5173)
 npm run dev
 
+# Start development server with the local sample ZIP enabled
+npm run dev:sample
+
 # Build for production (outputs to dist/)
 npm run build
 
@@ -219,8 +231,8 @@ npm run check
 
 - The install prompt typically appears only on a production build served over HTTP(S). The development server does not register the service worker.
 - To test installability locally:
-   - Build: `npm run build`
-   - Preview: `npm run preview` (serves the production build)
+  - Build: `npm run build`
+  - Preview: `npm run preview` (serves the production build)
 - The service worker uses runtime caching. Libraries and lazy-loaded chunks are cached when first used, so subsequent sessions work offline. For deterministic pre-caching of all hashed chunks, consider `vite-plugin-pwa` or Workbox with a precache manifest.
 
 #### Development Workflow
@@ -229,6 +241,16 @@ npm run check
 2. Open your browser to the displayed URL (usually http://localhost:5173)
 3. Make changes to files in `src/` - the page will hot-reload automatically
 4. Run `npm run check` before committing to ensure everything passes
+
+#### Local sample testing
+
+For browser automation with real media, put a ZIP file in `sample/` or set `DIAPAUDIO_SAMPLE_ZIP` to a ZIP path inside the repository, then run:
+
+```zsh
+npm run dev:sample
+```
+
+Open `http://127.0.0.1:5959/?sample=local` to automatically load the sample. The sample endpoint is dev-only and is not included in production builds.
 
 ### Testing
 

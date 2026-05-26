@@ -21,8 +21,11 @@ function Dropzone({
   folderInputRef,
   zipInputRef,
   filesInputRef,
+  sampleManifest,
+  sampleLoading,
   onBrowseClick,
   onFileSelection,
+  onLoadLocalSample,
   onDragEnter,
   onDragOver,
   onDragLeave,
@@ -48,6 +51,9 @@ function Dropzone({
   const progressValue = Number.isFinite(progressPercent)
     ? Math.max(0, Math.min(100, progressPercent))
     : undefined;
+  const sampleSizeText = Number.isFinite(sampleManifest?.sizeBytes)
+    ? `${Math.round(sampleManifest.sizeBytes / 1024 / 1024)} MB`
+    : null;
 
   const accept = useMemo(
     () => ({
@@ -58,11 +64,7 @@ function Dropzone({
     []
   );
 
-  const {
-    getRootProps,
-    getInputProps,
-    isDragActive,
-  } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
     noClick: true,
     multiple: true,
     accept,
@@ -133,7 +135,13 @@ function Dropzone({
         html: `<strong>${sanitizedStepTitle3}</strong>`,
       },
     ],
-    [sanitizedStepTitle1, sanitizedStepTitle2, sanitizedStepTitle3, sanitizedStepText1, sanitizedStepText2]
+    [
+      sanitizedStepTitle1,
+      sanitizedStepTitle2,
+      sanitizedStepTitle3,
+      sanitizedStepText1,
+      sanitizedStepText2,
+    ]
   );
 
   return (
@@ -149,7 +157,11 @@ function Dropzone({
         </div>
         <div className="dropzone__hero">
           <div className="dropzone__logo-wrap" aria-hidden="true">
-            <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="" className="dropzone__logo dropzone__logo--large" />
+            <img
+              src={`${import.meta.env.BASE_URL}logo.svg`}
+              alt=""
+              className="dropzone__logo dropzone__logo--large"
+            />
           </div>
           <h1 className="dropzone__title">{t("appTitle")}</h1>
           <p className="dropzone__lead">{t("tagline")}</p>
@@ -197,6 +209,22 @@ function Dropzone({
                         {t("buttonFiles")}
                       </button>
                     </div>
+                    {sampleManifest ? (
+                      <div className="dropzone__sample">
+                        <button
+                          type="button"
+                          className="dropzone__sample-button"
+                          onClick={onLoadLocalSample}
+                          disabled={isLoading || sampleLoading}
+                        >
+                          <Icon name="archive" size={16} className="dropzone__sample-icon" />
+                          {sampleLoading ? t("loadingLocalSample") : t("loadLocalSample")}
+                        </button>
+                        <span className="dropzone__sample-meta">
+                          {[sampleManifest.fileName, sampleSizeText].filter(Boolean).join(" · ")}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </li>

@@ -6,7 +6,12 @@ import { useSettingsStore } from "./state/useSettingsStore.js";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Icon from "./components/Icon.jsx";
 import { formatDelay } from "./media/delay.js";
-import { toTimestamp, formatLocaleDate, calculateClockAngles, formatClockWithSeconds } from "./utils/dateUtils.js";
+import {
+  toTimestamp,
+  formatLocaleDate,
+  calculateClockAngles,
+  formatClockWithSeconds,
+} from "./utils/dateUtils.js";
 import Dropzone from "./components/Dropzone.jsx";
 import Clock from "./components/Clock.jsx";
 import "./styles/loader.css";
@@ -14,13 +19,11 @@ import { useUiStore } from "./state/useUiStore.js";
 import { HUD_INACTIVITY_TIMEOUT_MS } from "./constants/ui.js";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts.js";
 import { SPEED_OPTIONS } from "./constants/playback.js";
-import {
-  DEFAULT_IMAGE_HOLD_MS,
-  MIN_IMAGE_DISPLAY_DEFAULT_MS,
-} from "./media/constants.js";
+import { DEFAULT_IMAGE_HOLD_MS, MIN_IMAGE_DISPLAY_DEFAULT_MS } from "./media/constants.js";
 import ProgressModal from "./components/ProgressModal.jsx";
 import ErrorModal from "./components/ErrorModal.jsx";
 import * as logger from "./utils/logger.js";
+import { fetchSampleFile, fetchSampleManifest, shouldAutoloadSample } from "./dev/sampleLoader.js";
 
 // Lazy-load heavy components only needed after media is loaded
 const Slideshow = lazy(() => import("./components/Slideshow.jsx"));
@@ -89,15 +92,17 @@ function AppShell() {
   const setShowClock = useSettingsStore((state) => state.setShowClock);
   const clockMode = useSettingsStore((state) => state.clockMode);
   const setClockMode = useSettingsStore((state) => state.setClockMode);
-  const imageDisplayValue = Number.isFinite(imageDisplaySeconds) && imageDisplaySeconds > 0
-    ? imageDisplaySeconds
-    : Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000);
+  const imageDisplayValue =
+    Number.isFinite(imageDisplaySeconds) && imageDisplaySeconds > 0
+      ? imageDisplaySeconds
+      : Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000);
   // Explicitly handle 0 for imageHoldSeconds to avoid any falsy value issues
-  const imageHoldValue = imageHoldSeconds === 0
-    ? 0
-    : (Number.isFinite(imageHoldSeconds) && imageHoldSeconds >= 0
+  const imageHoldValue =
+    imageHoldSeconds === 0
+      ? 0
+      : Number.isFinite(imageHoldSeconds) && imageHoldSeconds >= 0
         ? imageHoldSeconds
-        : Math.round(DEFAULT_IMAGE_HOLD_MS / 1000));
+        : Math.round(DEFAULT_IMAGE_HOLD_MS / 1000);
 
   // Wrap togglePlayback to pass mediaData
   const togglePlayback = useCallback(() => {
@@ -124,6 +129,9 @@ function AppShell() {
   const settingsButtonRef = useRef(null);
   const [zipExporting, setZipExporting] = useState(false);
   const [zipProgress, setZipProgress] = useState({ percent: 0, status: "", details: "" });
+  const [sampleManifest, setSampleManifest] = useState(null);
+  const [sampleLoading, setSampleLoading] = useState(false);
+  const sampleAutoloadAttemptedRef = useRef(false);
 
   // Get audio element getter and state setters from playback store
   const getAudioElement = usePlaybackStore((state) => state.getAudioElement);
@@ -142,13 +150,37 @@ function AppShell() {
     initAudio();
   }, [initAudio]);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === "undefined") {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    fetchSampleManifest()
+      .then((manifest) => {
+        if (!cancelled) {
+          setSampleManifest(manifest);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSampleManifest(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Cleanup audio on unmount to prevent multiple instances
   useEffect(() => {
     return () => {
       const audio = getAudioElement();
       if (audio) {
         audio.pause();
-        audio.src = '';
+        audio.src = "";
         audio.load();
       }
     };
@@ -337,9 +369,17 @@ function AppShell() {
           const hasAnyAudio = Boolean(mediaData.audioTracks?.length);
           const inAudio = hasAnyAudio
             ? mediaData.audioTracks.some((track) => {
-                const s = track?.adjustedStartTime instanceof Date ? toTimestamp(track.adjustedStartTime) : null;
-                const e = track?.adjustedEndTime instanceof Date ? toTimestamp(track.adjustedEndTime) : null;
-                return Number.isFinite(s) && Number.isFinite(e) && nextAbsolute >= s && nextAbsolute <= e;
+                const s =
+                  track?.adjustedStartTime instanceof Date
+                    ? toTimestamp(track.adjustedStartTime)
+                    : null;
+                const e =
+                  track?.adjustedEndTime instanceof Date
+                    ? toTimestamp(track.adjustedEndTime)
+                    : null;
+                return (
+                  Number.isFinite(s) && Number.isFinite(e) && nextAbsolute >= s && nextAbsolute <= e
+                );
               })
             : false;
 
@@ -372,13 +412,15 @@ function AppShell() {
               hasFreshImage = Math.abs(images[idx].t - nextAbsolute) < 100;
             }
           }
-          
+
           // If no audio and no fresh image nearby, jump to next media event
           // This handles both gaps during audio and after audio ends
           if (!inAudio && !hasFreshImage) {
             const nextAudioStart = (mediaData.audioTracks || [])
               .map((track) =>
-                track?.adjustedStartTime instanceof Date ? toTimestamp(track.adjustedStartTime) : null
+                track?.adjustedStartTime instanceof Date
+                  ? toTimestamp(track.adjustedStartTime)
+                  : null
               )
               .filter((v) => Number.isFinite(v) && v > nextAbsolute)
               .sort((a, b) => a - b)[0];
@@ -570,9 +612,7 @@ function AppShell() {
   const handleSeekForward = useCallback(
     (ms) => {
       if (!mediaData) return;
-      const baseTime = Number.isFinite(absoluteTime)
-        ? absoluteTime
-        : mediaData?.timeline?.startMs;
+      const baseTime = Number.isFinite(absoluteTime) ? absoluteTime : mediaData?.timeline?.startMs;
       if (!Number.isFinite(baseTime)) return;
       const newTime = baseTime + ms;
       seekToAbsoluteAction(mediaData, newTime, { autoplay: playing });
@@ -583,9 +623,7 @@ function AppShell() {
   const handleSeekBackward = useCallback(
     (ms) => {
       if (!mediaData) return;
-      const baseTime = Number.isFinite(absoluteTime)
-        ? absoluteTime
-        : mediaData?.timeline?.startMs;
+      const baseTime = Number.isFinite(absoluteTime) ? absoluteTime : mediaData?.timeline?.startMs;
       if (!Number.isFinite(baseTime)) return;
       const newTime = baseTime - ms;
       seekToAbsoluteAction(mediaData, newTime, { autoplay: playing });
@@ -595,9 +633,7 @@ function AppShell() {
 
   const handleNextMedia = useCallback(() => {
     if (!mediaData) return;
-    const currentTime = Number.isFinite(absoluteTime)
-      ? absoluteTime
-      : mediaData?.timeline?.startMs;
+    const currentTime = Number.isFinite(absoluteTime) ? absoluteTime : mediaData?.timeline?.startMs;
     if (!Number.isFinite(currentTime)) return;
 
     // Collect all media events (audio starts and images)
@@ -605,9 +641,8 @@ function AppShell() {
 
     // Add audio track start times
     (mediaData.audioTracks || []).forEach((track) => {
-      const startTime = track?.adjustedStartTime instanceof Date 
-        ? toTimestamp(track.adjustedStartTime) 
-        : null;
+      const startTime =
+        track?.adjustedStartTime instanceof Date ? toTimestamp(track.adjustedStartTime) : null;
       if (Number.isFinite(startTime)) {
         events.push(startTime);
       }
@@ -615,15 +650,16 @@ function AppShell() {
 
     // Add image times
     (mediaData.images || []).forEach((img) => {
-      const imgTime = img?.adjustedTimestamp instanceof Date
-        ? toTimestamp(img.adjustedTimestamp)
-        : img?.originalTimestamp instanceof Date
-          ? toTimestamp(img.originalTimestamp)
-          : img?.timestamp instanceof Date
-            ? toTimestamp(img.timestamp)
-            : Number.isFinite(img?.timeMs)
-              ? img.timeMs
-              : null;
+      const imgTime =
+        img?.adjustedTimestamp instanceof Date
+          ? toTimestamp(img.adjustedTimestamp)
+          : img?.originalTimestamp instanceof Date
+            ? toTimestamp(img.originalTimestamp)
+            : img?.timestamp instanceof Date
+              ? toTimestamp(img.timestamp)
+              : Number.isFinite(img?.timeMs)
+                ? img.timeMs
+                : null;
       if (Number.isFinite(imgTime)) {
         events.push(imgTime);
       }
@@ -641,9 +677,7 @@ function AppShell() {
 
   const handlePrevMedia = useCallback(() => {
     if (!mediaData) return;
-    const currentTime = Number.isFinite(absoluteTime)
-      ? absoluteTime
-      : mediaData?.timeline?.startMs;
+    const currentTime = Number.isFinite(absoluteTime) ? absoluteTime : mediaData?.timeline?.startMs;
     if (!Number.isFinite(currentTime)) return;
 
     // Collect all media events (audio starts and images)
@@ -651,9 +685,8 @@ function AppShell() {
 
     // Add audio track start times
     (mediaData.audioTracks || []).forEach((track) => {
-      const startTime = track?.adjustedStartTime instanceof Date 
-        ? toTimestamp(track.adjustedStartTime) 
-        : null;
+      const startTime =
+        track?.adjustedStartTime instanceof Date ? toTimestamp(track.adjustedStartTime) : null;
       if (Number.isFinite(startTime)) {
         events.push(startTime);
       }
@@ -661,15 +694,16 @@ function AppShell() {
 
     // Add image times
     (mediaData.images || []).forEach((img) => {
-      const imgTime = img?.adjustedTimestamp instanceof Date
-        ? toTimestamp(img.adjustedTimestamp)
-        : img?.originalTimestamp instanceof Date
-          ? toTimestamp(img.originalTimestamp)
-          : img?.timestamp instanceof Date
-            ? toTimestamp(img.timestamp)
-            : Number.isFinite(img?.timeMs)
-              ? img.timeMs
-              : null;
+      const imgTime =
+        img?.adjustedTimestamp instanceof Date
+          ? toTimestamp(img.adjustedTimestamp)
+          : img?.originalTimestamp instanceof Date
+            ? toTimestamp(img.originalTimestamp)
+            : img?.timestamp instanceof Date
+              ? toTimestamp(img.timestamp)
+              : Number.isFinite(img?.timeMs)
+                ? img.timeMs
+                : null;
       if (Number.isFinite(imgTime)) {
         events.push(imgTime);
       }
@@ -779,6 +813,39 @@ function AppShell() {
     [loadFromFiles]
   );
 
+  const handleLoadLocalSample = useCallback(async () => {
+    if (!sampleManifest || sampleLoading || loading) {
+      return;
+    }
+
+    setSampleLoading(true);
+    try {
+      const sampleFile = await fetchSampleFile(sampleManifest);
+      await loadFromFiles([sampleFile]);
+    } catch (error) {
+      setError(error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      setSampleLoading(false);
+    }
+  }, [loadFromFiles, loading, sampleLoading, sampleManifest, setError]);
+
+  useEffect(() => {
+    if (
+      !import.meta.env.DEV ||
+      typeof window === "undefined" ||
+      sampleAutoloadAttemptedRef.current ||
+      !sampleManifest ||
+      mediaData
+    ) {
+      return;
+    }
+
+    if (shouldAutoloadSample(window.location)) {
+      sampleAutoloadAttemptedRef.current = true;
+      handleLoadLocalSample();
+    }
+  }, [handleLoadLocalSample, mediaData, sampleManifest]);
+
   const dropzoneClassName = useMemo(() => {
     if (mediaData) return "dropzone hidden";
     return isDragging ? "dropzone dragover" : "dropzone";
@@ -820,7 +887,10 @@ function AppShell() {
   const playButtonConfig = {
     play: { icon: <Icon name="play" size={18} />, labelKey: "play" },
     pause: { icon: <Icon name="pause" size={18} />, labelKey: "pause" },
-    loading: { icon: <Icon name="loader" size={18} className="button-primary__spinner" />, labelKey: "loadingFiles" },
+    loading: {
+      icon: <Icon name="loader" size={18} className="button-primary__spinner" />,
+      labelKey: "loadingFiles",
+    },
   }[playButtonState];
   const playButtonLabel = t(playButtonConfig.labelKey);
 
@@ -991,7 +1061,7 @@ function AppShell() {
   }, [resolvedAbsoluteMs]);
 
   const handleToggleClockMode = useCallback(() => {
-    setClockMode(clockMode === 'analog' ? 'digital' : 'analog');
+    setClockMode(clockMode === "analog" ? "digital" : "analog");
   }, [clockMode, setClockMode]);
 
   return (
@@ -1014,8 +1084,11 @@ function AppShell() {
             folderInputRef={folderInputRef}
             zipInputRef={zipInputRef}
             filesInputRef={filesInputRef}
+            sampleManifest={sampleManifest}
+            sampleLoading={sampleLoading || loading}
             onBrowseClick={handleBrowseClick}
             onFileSelection={handleFileSelection}
+            onLoadLocalSample={handleLoadLocalSample}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -1046,7 +1119,7 @@ function AppShell() {
             >
               <div className={mediaData ? "timeline" : "timeline hidden"} id="timeline">
                 <div className="timeline__toolbar">
-                    <div className="timeline__controls-left">
+                  <div className="timeline__controls-left">
                     <button
                       type="button"
                       className="button-primary button-primary--icon"
@@ -1085,7 +1158,11 @@ function AppShell() {
                     </ErrorBoundary>
                   </div>
                   <div className="timeline__controls-right">
-                    <label className="speed-control" title={t("tooltipSpeed")} htmlFor="speed-select">
+                    <label
+                      className="speed-control"
+                      title={t("tooltipSpeed")}
+                      htmlFor="speed-select"
+                    >
                       <span>{t("speed")}</span>
                       <select
                         id="speed-select"
@@ -1148,9 +1225,9 @@ function AppShell() {
                 <TimelineNotices open={noticesOpen} onClose={() => setNoticesOpen(false)} />
               </Suspense>
             </ErrorBoundary>
-      </div>
-    </section>
-  </main>
+          </div>
+        </section>
+      </main>
 
       <ProgressModal
         open={loading}

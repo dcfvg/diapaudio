@@ -41,3 +41,6 @@ test-folder/
 legacy/
 todo.md
 TODO_NEXT.md
+sample/
+*.zip
+!src/test/fixtures/*.zip

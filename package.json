@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:sample": "node scripts/dev-sample.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint --max-warnings=0 src",
