@@ -99,6 +99,10 @@ describe("TimelineSettingsPanel", () => {
       "aria-describedby",
       "timeline-image-hold-hint"
     );
+    expect(screen.getByLabelText("tooltipAutoSkipCheckbox")).toHaveAttribute(
+      "aria-describedby",
+      "timeline-auto-skip-hint"
+    );
   });
 
   it("does not render while closed", () => {

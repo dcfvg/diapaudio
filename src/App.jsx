@@ -19,17 +19,23 @@ import { useUiStore } from "./state/useUiStore.js";
 import { HUD_INACTIVITY_TIMEOUT_MS } from "./constants/ui.js";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts.js";
 import { SPEED_OPTIONS } from "./constants/playback.js";
-import { DEFAULT_IMAGE_HOLD_MS, MIN_IMAGE_DISPLAY_DEFAULT_MS } from "./media/constants.js";
+import {
+  DEFAULT_IMAGE_HOLD_MS,
+  MAX_VISIBLE_IMAGES,
+  MIN_IMAGE_DISPLAY_DEFAULT_MS,
+} from "./media/constants.js";
+import { createScheduleIndex } from "./media/scheduleIndex.js";
 import ProgressModal from "./components/ProgressModal.jsx";
 import ErrorModal from "./components/ErrorModal.jsx";
 import * as logger from "./utils/logger.js";
 import { fetchSampleFile, fetchSampleManifest, shouldAutoloadSample } from "./dev/sampleLoader.js";
+import { EMPTY_ARRAY } from "./constants/common.js";
+import { resolveImageScheduleSettings } from "./state/helpers/settingsHelpers.js";
 import {
   buildMediaTimelineIndex,
+  findAutoSkipTarget,
   findNextEventTime,
-  findNextImageTime,
   findPrevEventTime,
-  hasAudioCoverage,
 } from "./media/timelineEvents.js";
 
 // Lazy-load heavy components only needed after media is loaded
@@ -90,6 +96,7 @@ function AppShell() {
   const setImageDisplaySeconds = useSettingsStore((state) => state.setImageDisplaySeconds);
   const imageHoldSeconds = useSettingsStore((state) => state.imageHoldSeconds);
   const setImageHoldSeconds = useSettingsStore((state) => state.setImageHoldSeconds);
+  const compositionIntervalSeconds = useSettingsStore((state) => state.compositionIntervalSeconds);
   const snapToGrid = useSettingsStore((state) => state.snapToGrid);
   const setSnapToGrid = useSettingsStore((state) => state.setSnapToGrid);
   const snapGridSeconds = useSettingsStore((state) => state.snapGridSeconds);
@@ -142,6 +149,32 @@ function AppShell() {
   const [sampleLoading, setSampleLoading] = useState(false);
   const sampleAutoloadAttemptedRef = useRef(false);
   const mediaTimelineIndex = useMemo(() => buildMediaTimelineIndex(mediaData), [mediaData]);
+  const mediaScheduleOptions = useMemo(
+    () => ({
+      ...resolveImageScheduleSettings({
+        speed,
+        imageDisplaySeconds,
+        imageHoldSeconds,
+        compositionIntervalSeconds,
+        snapToGrid,
+        snapGridSeconds,
+      }),
+      maxSlots: MAX_VISIBLE_IMAGES,
+    }),
+    [
+      speed,
+      imageDisplaySeconds,
+      imageHoldSeconds,
+      compositionIntervalSeconds,
+      snapToGrid,
+      snapGridSeconds,
+    ]
+  );
+  const mediaScheduleIndex = useMemo(
+    () => createScheduleIndex(mediaData?.images || EMPTY_ARRAY, mediaScheduleOptions),
+    [mediaData?.images, mediaScheduleOptions]
+  );
+  const mediaCoverageRanges = mediaScheduleIndex.entries || EMPTY_ARRAY;
 
   // Get audio element getter and state setters from playback store
   const getAudioElement = usePlaybackStore((state) => state.getAudioElement);
@@ -374,27 +407,19 @@ function AppShell() {
           state.setAbsoluteTime(nextAbsolute);
         }
 
-        // Auto-skip voids: no audio coverage and no fresh image at this time (ignoring hold)
         if (autoSkipVoids && mediaData) {
-          const inAudio = hasAudioCoverage(mediaTimelineIndex.audioRanges, nextAbsolute);
-          const nextImageTime = findNextImageTime(mediaTimelineIndex.imageTimes, nextAbsolute);
-          const hasFreshImage =
-            Number.isFinite(nextImageTime) && Math.abs(nextImageTime - nextAbsolute) < 100;
+          const nextEvent = findAutoSkipTarget(mediaTimelineIndex, nextAbsolute, {
+            mediaCoverageRanges,
+          });
 
-          // If no audio and no fresh image nearby, jump to next media event
-          // This handles both gaps during audio and after audio ends
-          if (!inAudio && !hasFreshImage) {
-            const nextEvent = findNextEventTime(mediaTimelineIndex.eventTimes, nextAbsolute, 0);
-
-            if (Number.isFinite(nextEvent)) {
-              state.seekToAbsolute(mediaData, nextEvent, { autoplay: state.playing });
-              tickerState.lastNow = now; // reset drift
-              tickerState.rafId = window.requestAnimationFrame(tick);
-              return;
-            } else {
-              // No more media events: pause playback
-              state.pause?.();
-            }
+          if (Number.isFinite(nextEvent)) {
+            state.seekToAbsolute(mediaData, nextEvent, { autoplay: state.playing });
+            tickerState.lastNow = now;
+            tickerState.rafId = window.requestAnimationFrame(tick);
+            return;
+          }
+          if (nextEvent === null) {
+            state.pause?.();
           }
         }
 
@@ -457,7 +482,7 @@ function AppShell() {
       cancelled = true;
       stopTicker();
     };
-  }, [mediaData, mediaTimelineIndex, playing]);
+  }, [mediaData, mediaTimelineIndex, mediaCoverageRanges, playing]);
 
   // Initialize playback state when media changes
   useEffect(() => {
@@ -710,14 +735,15 @@ function AppShell() {
     [loadFromFiles]
   );
 
-  const handleLoadLocalSample = useCallback(async () => {
-    if (!sampleManifest || sampleLoading || loading) {
+  const handleLoadLocalSample = useCallback(async (sample) => {
+    const targetSample = sample || sampleManifest?.samples?.[0];
+    if (!targetSample || sampleLoading || loading) {
       return;
     }
 
     setSampleLoading(true);
     try {
-      const sampleFile = await fetchSampleFile(sampleManifest);
+      const sampleFile = await fetchSampleFile(targetSample);
       await loadFromFiles([sampleFile]);
     } catch (error) {
       setError(error instanceof Error ? error : new Error(String(error)));

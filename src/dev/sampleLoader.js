@@ -33,7 +33,12 @@ export async function fetchSampleManifest({ fetchImpl } = {}) {
   }
 
   const manifest = await response.json();
-  return manifest?.available ? manifest : null;
+  if (!manifest?.available || !Array.isArray(manifest.samples) || !manifest.samples.length) {
+    return null;
+  }
+
+  const samples = manifest.samples.filter((sample) => sample?.sampleUrl && sample?.fileName);
+  return samples.length ? { ...manifest, samples } : null;
 }
 
 export async function fetchSampleFile(manifest, { fetchImpl } = {}) {

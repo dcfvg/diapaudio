@@ -1,4 +1,4 @@
-import { createReadStream, realpathSync, statSync } from "node:fs";
+import { createReadStream, existsSync, readdirSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 
 const SAMPLE_BASE_PATH = "/__diapaudio_sample__";
@@ -40,31 +40,91 @@ export function resolveSampleFile(rootPath, sampleZipPath) {
   };
 }
 
+export function resolveSampleFiles(
+  rootPath,
+  { sampleZipPath = process.env.DIAPAUDIO_SAMPLE_ZIP, sampleDirPath = "sample" } = {}
+) {
+  if (sampleZipPath) {
+    const sampleFile = resolveSampleFile(rootPath, sampleZipPath);
+    return sampleFile ? [sampleFile] : [];
+  }
+
+  const rootRealPath = realpathSync(rootPath);
+  const requestedDir = path.isAbsolute(sampleDirPath)
+    ? sampleDirPath
+    : path.resolve(rootRealPath, sampleDirPath);
+
+  if (!existsSync(requestedDir)) {
+    return [];
+  }
+
+  const sampleDirRealPath = realpathSync(requestedDir);
+  if (!isInsideRoot(sampleDirRealPath, rootRealPath)) {
+    throw new Error("DIAPAUDIO_SAMPLE_DIR must point to a directory inside this repository.");
+  }
+
+  const stats = statSync(sampleDirRealPath);
+  if (!stats.isDirectory()) {
+    throw new Error("DIAPAUDIO_SAMPLE_DIR must point to a directory.");
+  }
+
+  return readdirSync(sampleDirRealPath)
+    .filter((name) => path.extname(name).toLowerCase() === ".zip")
+    .map((name) => resolveSampleFile(rootRealPath, path.join(sampleDirRealPath, name)))
+    .filter(Boolean)
+    .sort((a, b) => a.fileName.localeCompare(b.fileName));
+}
+
 function sendJson(response, statusCode, payload) {
   response.statusCode = statusCode;
   response.setHeader("content-type", "application/json; charset=utf-8");
   response.end(JSON.stringify(payload));
 }
 
-export function diapaudioSamplePlugin({ sampleZipPath = process.env.DIAPAUDIO_SAMPLE_ZIP } = {}) {
+function toManifestSample(sampleFile, index) {
+  const id = String(index);
+  return {
+    id,
+    fileName: sampleFile.fileName,
+    sizeBytes: sampleFile.sizeBytes,
+    lastModifiedMs: sampleFile.lastModifiedMs,
+    contentType: "application/zip",
+    sampleUrl: `${SAMPLE_BASE_PATH}/samples/${id}.zip`,
+  };
+}
+
+export function diapaudioSamplePlugin({
+  sampleZipPath = process.env.DIAPAUDIO_SAMPLE_ZIP,
+  sampleDirPath = process.env.DIAPAUDIO_SAMPLE_DIR || "sample",
+} = {}) {
   return {
     name: "diapaudio-sample-server",
     apply: "serve",
     configureServer(server) {
-      let sampleFile = null;
+      let sampleFiles = [];
 
       try {
-        sampleFile = resolveSampleFile(server.config.root, sampleZipPath);
+        sampleFiles = resolveSampleFiles(server.config.root, {
+          sampleZipPath,
+          sampleDirPath,
+        });
       } catch (error) {
         server.config.logger.warn(`[diapaudio-sample] ${error.message}`);
         return;
       }
 
-      if (!sampleFile) {
+      if (!sampleFiles.length) {
         return;
       }
 
-      server.config.logger.info(`[diapaudio-sample] Serving ${sampleFile.fileName}`);
+      const manifestSamples = sampleFiles.map(toManifestSample);
+      const samplesById = new Map(
+        manifestSamples.map((sample, index) => [sample.id, sampleFiles[index]])
+      );
+
+      server.config.logger.info(
+        `[diapaudio-sample] Serving ${sampleFiles.length} sample ZIP(s)`
+      );
 
       server.middlewares.use((request, response, next) => {
         const requestUrl = request.originalUrl || request.url || "";
@@ -78,16 +138,19 @@ export function diapaudioSamplePlugin({ sampleZipPath = process.env.DIAPAUDIO_SA
         if (pathname === `${SAMPLE_BASE_PATH}/manifest.json`) {
           sendJson(response, 200, {
             available: true,
-            fileName: sampleFile.fileName,
-            sizeBytes: sampleFile.sizeBytes,
-            lastModifiedMs: sampleFile.lastModifiedMs,
-            contentType: "application/zip",
-            sampleUrl: `${SAMPLE_BASE_PATH}/sample.zip`,
+            samples: manifestSamples,
           });
           return;
         }
 
-        if (pathname === `${SAMPLE_BASE_PATH}/sample.zip`) {
+        const samplesPrefix = `${SAMPLE_BASE_PATH}/samples/`;
+        const sampleId =
+          pathname.startsWith(samplesPrefix) && pathname.endsWith(".zip")
+            ? pathname.slice(samplesPrefix.length, -".zip".length)
+            : null;
+        const sampleFile = sampleId == null ? null : samplesById.get(sampleId);
+
+        if (sampleFile) {
           response.statusCode = 200;
           response.setHeader("content-type", "application/zip");
           response.setHeader("content-length", String(sampleFile.sizeBytes));

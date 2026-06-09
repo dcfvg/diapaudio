@@ -55,22 +55,36 @@ describe("Dropzone", () => {
     expect(Boolean(importActions.compareDocumentPosition(instructions) & 4)).toBe(true);
   });
 
-  it("renders the local sample button when a manifest is available", async () => {
+  it("renders local sample ZIP options when a manifest is available", async () => {
     const onLoadLocalSample = vi.fn();
     const user = userEvent.setup();
+    const firstSample = {
+      id: "sample-1",
+      fileName: "first-sample.zip",
+      sizeBytes: 1024 * 1024,
+      sampleUrl: "/__diapaudio_sample__/samples/sample-1.zip",
+    };
+    const secondSample = {
+      id: "sample-2",
+      fileName: "sample.zip",
+      sizeBytes: 2 * 1024 * 1024,
+      sampleUrl: "/__diapaudio_sample__/samples/sample-2.zip",
+    };
     renderWithProviders(
       <Dropzone
         {...defaultProps}
-        sampleManifest={{ fileName: "sample.zip", sizeBytes: 1024 * 1024 }}
+        sampleManifest={{ available: true, samples: [firstSample, secondSample] }}
         onLoadLocalSample={onLoadLocalSample}
       />
     );
 
-    await user.click(screen.getByRole("button", { name: /Load local sample/i }));
+    await user.click(screen.getByRole("button", { name: /Load sample\.zip/i }));
 
-    expect(screen.getByText(/sample\.zip/)).toBeTruthy();
-    expect(screen.getByText(/1 MB/)).toBeTruthy();
-    expect(onLoadLocalSample).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Local samples")).toBeTruthy();
+    expect(screen.getByText(/first-sample\.zip/)).toBeTruthy();
+    expect(screen.getByText("sample.zip")).toBeTruthy();
+    expect(screen.getByText(/2.0 MB/)).toBeTruthy();
+    expect(onLoadLocalSample).toHaveBeenCalledWith(secondSample);
   });
 
   it("calls onBrowseClick with correct ref when folder button is clicked", async () => {

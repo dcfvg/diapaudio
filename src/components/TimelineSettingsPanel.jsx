@@ -43,6 +43,7 @@ export default function TimelineSettingsPanel({
   const imageHoldHintId = "timeline-image-hold-hint";
   const snapGridHintId = "timeline-grid-step-hint";
   const snapGridLabelId = "timeline-grid-step-label";
+  const autoSkipHintId = "timeline-auto-skip-hint";
 
   useEffect(() => {
     if (!open) {
@@ -222,6 +223,7 @@ export default function TimelineSettingsPanel({
             <input
               type="checkbox"
               checked={autoSkipVoids}
+              aria-describedby={autoSkipHintId}
               onChange={(event) => onToggleAutoSkipVoids(event.target.checked)}
             />
             <span>{t("tooltipAutoSkipCheckbox")}</span>
@@ -235,6 +237,9 @@ export default function TimelineSettingsPanel({
             />
             <span>{t("showClockLabel")}</span>
           </label>
+          <span className="timeline-settings__hint timeline-settings__toggle-hint" id={autoSkipHintId}>
+            {t("timelineSettingsAutoSkipHint")}
+          </span>
         </div>
 
         <div className="timeline-settings__group timeline-settings__exports">

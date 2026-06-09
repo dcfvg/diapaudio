@@ -1,5 +1,8 @@
 import { toTimestamp } from "../utils/dateUtils.js";
 
+export const TIMELINE_VOID_MIN_MS = 10_000;
+export const TIMELINE_VOID_COMPRESSED_MS = 1000;
+
 const EMPTY_TIMELINE_INDEX = Object.freeze({
   imageTimes: Object.freeze([]),
   audioRanges: Object.freeze([]),
@@ -29,6 +32,13 @@ function sortedUniqueFinite(values) {
     }
   }
   return unique;
+}
+
+function clampValue(value, min, max) {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.min(Math.max(value, min), max);
 }
 
 export function getImageTimeMs(image) {
@@ -93,6 +103,40 @@ export function buildMediaTimelineIndex(mediaData) {
     audioStartTimes,
     eventTimes,
   };
+}
+
+export function mergeAudioRanges(audioRanges) {
+  if (!Array.isArray(audioRanges) || !audioRanges.length) {
+    return [];
+  }
+
+  const sortedRanges = audioRanges
+    .map((range) => ({
+      startMs: Number.isFinite(range?.startMs) ? range.startMs : null,
+      endMs: Number.isFinite(range?.endMs) ? range.endMs : null,
+    }))
+    .filter((range) => Number.isFinite(range.startMs) && Number.isFinite(range.endMs))
+    .filter((range) => range.endMs > range.startMs)
+    .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
+
+  const merged = [];
+  sortedRanges.forEach((range) => {
+    const previous = merged[merged.length - 1];
+    if (previous && range.startMs <= previous.endMs) {
+      previous.endMs = Math.max(previous.endMs, range.endMs);
+      return;
+    }
+    merged.push({ ...range });
+  });
+  return merged;
+}
+
+export function buildMediaCoverageRanges(mediaTimelineIndex, mediaCoverageRanges = []) {
+  const audioCoverage = Array.isArray(mediaTimelineIndex?.audioRanges)
+    ? mediaTimelineIndex.audioRanges
+    : [];
+  const visualCoverage = Array.isArray(mediaCoverageRanges) ? mediaCoverageRanges : [];
+  return mergeAudioRanges([...audioCoverage, ...visualCoverage]);
 }
 
 export function findFirstAtOrAfter(sortedValues, target) {
@@ -160,6 +204,39 @@ export function findNextImageTime(imageTimes, absoluteMs) {
   return index >= 0 ? imageTimes[index] : null;
 }
 
+export function findAutoSkipTarget(mediaTimelineIndex, absoluteMs, options = {}) {
+  if (!mediaTimelineIndex || !Number.isFinite(absoluteMs)) {
+    return undefined;
+  }
+
+  const safeOptions = typeof options === "object" && options ? options : {};
+  const safeMinVoidMs = Number.isFinite(safeOptions.minVoidMs)
+    ? safeOptions.minVoidMs
+    : TIMELINE_VOID_MIN_MS;
+  const coverageRanges = buildMediaCoverageRanges(
+    mediaTimelineIndex,
+    safeOptions.mediaCoverageRanges
+  );
+
+  let previousEndMs = null;
+  for (const range of coverageRanges) {
+    if (absoluteMs >= range.startMs && absoluteMs <= range.endMs) {
+      return undefined;
+    }
+    if (absoluteMs < range.startMs) {
+      const gapStartMs = Number.isFinite(previousEndMs) ? previousEndMs : absoluteMs;
+      return range.startMs - gapStartMs > safeMinVoidMs ? range.startMs : undefined;
+    }
+    previousEndMs = Math.max(previousEndMs ?? range.endMs, range.endMs);
+  }
+
+  if (!coverageRanges.length) {
+    return undefined;
+  }
+
+  return null;
+}
+
 export function hasAudioCoverage(audioRanges, absoluteMs) {
   if (!Array.isArray(audioRanges) || !audioRanges.length || !Number.isFinite(absoluteMs)) {
     return false;
@@ -178,4 +255,279 @@ export function hasAudioCoverage(audioRanges, absoluteMs) {
 
   const rangeIndex = low - 1;
   return rangeIndex >= 0 && audioRanges[rangeIndex].maxEndMs >= absoluteMs;
+}
+
+function addClippedVoidRange(voidRanges, gapStartMs, gapEndMs, startMs, endMs, minVoidMs) {
+  if (
+    !Number.isFinite(gapStartMs) ||
+    !Number.isFinite(gapEndMs) ||
+    gapEndMs <= gapStartMs ||
+    gapEndMs - gapStartMs <= minVoidMs
+  ) {
+    return;
+  }
+
+  const clippedStartMs = clampValue(gapStartMs, startMs, endMs);
+  const clippedEndMs = clampValue(gapEndMs, startMs, endMs);
+  if (clippedEndMs > clippedStartMs) {
+    voidRanges.push({
+      startMs: clippedStartMs,
+      endMs: clippedEndMs,
+      sourceStartMs: gapStartMs,
+      sourceEndMs: gapEndMs,
+      targetMs: gapEndMs,
+    });
+  }
+}
+
+function buildVoidRanges(coverageRanges, startMs, endMs, minVoidMs) {
+  if (!Array.isArray(coverageRanges) || !coverageRanges.length) {
+    return [];
+  }
+
+  const voidRanges = [];
+  let previousEndMs = null;
+
+  for (const range of coverageRanges) {
+    if (range.endMs <= startMs) {
+      previousEndMs = Math.max(previousEndMs ?? range.endMs, range.endMs);
+      continue;
+    }
+
+    if (range.startMs >= endMs) {
+      addClippedVoidRange(
+        voidRanges,
+        previousEndMs ?? startMs,
+        range.startMs,
+        startMs,
+        endMs,
+        minVoidMs
+      );
+      break;
+    }
+
+    addClippedVoidRange(
+      voidRanges,
+      previousEndMs ?? startMs,
+      range.startMs,
+      startMs,
+      endMs,
+      minVoidMs
+    );
+    previousEndMs = Math.max(previousEndMs ?? range.endMs, range.endMs);
+  }
+
+  return voidRanges;
+}
+
+function findCoveringRange(ranges, startMs, endMs) {
+  if (!Array.isArray(ranges) || !ranges.length) {
+    return null;
+  }
+
+  const midpoint = startMs + (endMs - startMs) / 2;
+  return ranges.find((range) => midpoint >= range.startMs && midpoint <= range.endMs) || null;
+}
+
+function buildIdentityProjection(startMs, endMs) {
+  const durationMs = Math.max(endMs - startMs, 1);
+  const projection = {
+    enabled: false,
+    startMs,
+    endMs,
+    durationMs,
+    projectedDurationMs: durationMs,
+    intervals: [
+      {
+        type: "media",
+        startMs,
+        endMs,
+        durationMs,
+        projectedStartMs: 0,
+        projectedEndMs: durationMs,
+        projectedDurationMs: durationMs,
+      },
+    ],
+    voids: [],
+  };
+  attachProjectionMethods(projection);
+  return projection;
+}
+
+function attachProjectionMethods(projection) {
+  projection.timeToProjectedMs = (absoluteMs) => timeToProjectedMs(projection, absoluteMs);
+  projection.projectedToTimeMs = (projectedMs) => projectedToTimeMs(projection, projectedMs);
+  projection.timeToPercent = (absoluteMs) => {
+    if (!Number.isFinite(projection.projectedDurationMs) || projection.projectedDurationMs <= 0) {
+      return 0;
+    }
+    return clampValue(
+      (projection.timeToProjectedMs(absoluteMs) / projection.projectedDurationMs) * 100,
+      0,
+      100
+    );
+  };
+  projection.percentToTime = (percent) => {
+    const ratio = clampValue(percent, 0, 100) / 100;
+    return projection.projectedToTimeMs(ratio * projection.projectedDurationMs);
+  };
+  projection.isVoidTime = (absoluteMs) =>
+    projection.voids.some((range) => absoluteMs > range.startMs && absoluteMs < range.endMs);
+  return projection;
+}
+
+function findIntervalByTime(intervals, absoluteMs) {
+  if (!Array.isArray(intervals) || !intervals.length) {
+    return null;
+  }
+
+  let low = 0;
+  let high = intervals.length;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (intervals[mid].endMs < absoluteMs) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+
+  return intervals[Math.min(low, intervals.length - 1)] || null;
+}
+
+function findIntervalByProjected(intervals, projectedMs) {
+  if (!Array.isArray(intervals) || !intervals.length) {
+    return null;
+  }
+
+  let low = 0;
+  let high = intervals.length;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (intervals[mid].projectedEndMs < projectedMs) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+
+  return intervals[Math.min(low, intervals.length - 1)] || null;
+}
+
+function timeToProjectedMs(projection, absoluteMs) {
+  const clamped = clampValue(absoluteMs, projection.startMs, projection.endMs);
+  const interval = findIntervalByTime(projection.intervals, clamped);
+  if (!interval) {
+    return 0;
+  }
+
+  if (interval.type === "void") {
+    const ratio = (clamped - interval.startMs) / Math.max(interval.durationMs, 1);
+    return interval.projectedStartMs + ratio * interval.projectedDurationMs;
+  }
+
+  return interval.projectedStartMs + (clamped - interval.startMs);
+}
+
+function projectedToTimeMs(projection, projectedMs) {
+  const clamped = clampValue(projectedMs, 0, projection.projectedDurationMs);
+  const interval = findIntervalByProjected(projection.intervals, clamped);
+  if (!interval) {
+    return projection.startMs;
+  }
+
+  if (interval.type === "void") {
+    return Number.isFinite(interval.targetMs) ? interval.targetMs : interval.endMs;
+  }
+
+  return clampValue(interval.startMs + (clamped - interval.projectedStartMs), interval.startMs, interval.endMs);
+}
+
+export function buildTimelineProjection({
+  startMs,
+  endMs,
+  mediaTimelineIndex,
+  mediaCoverageRanges = [],
+  enabled = false,
+  minVoidMs = TIMELINE_VOID_MIN_MS,
+  compressedVoidMs = TIMELINE_VOID_COMPRESSED_MS,
+} = {}) {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return buildIdentityProjection(0, 1);
+  }
+
+  if (!enabled || !mediaTimelineIndex) {
+    return buildIdentityProjection(startMs, endMs);
+  }
+
+  const safeMinVoidMs = Math.max(Number.isFinite(minVoidMs) ? minVoidMs : TIMELINE_VOID_MIN_MS, 0);
+  const safeCompressedVoidMs = Math.max(
+    Number.isFinite(compressedVoidMs) ? compressedVoidMs : TIMELINE_VOID_COMPRESSED_MS,
+    1
+  );
+  const coverageRanges = buildMediaCoverageRanges(mediaTimelineIndex, mediaCoverageRanges);
+  const globalVoidRanges = buildVoidRanges(coverageRanges, startMs, endMs, safeMinVoidMs);
+  const boundaries = [startMs, endMs];
+
+  coverageRanges.forEach((range) => {
+    if (range.endMs <= startMs || range.startMs >= endMs) {
+      return;
+    }
+    boundaries.push(clampValue(range.startMs, startMs, endMs));
+    boundaries.push(clampValue(range.endMs, startMs, endMs));
+  });
+  globalVoidRanges.forEach((range) => {
+    boundaries.push(range.startMs);
+    boundaries.push(range.endMs);
+  });
+
+  const sortedBoundaries = sortedUniqueFinite(boundaries)
+    .filter((value) => value >= startMs && value <= endMs)
+    .sort((a, b) => a - b);
+
+  const intervals = [];
+  let projectedCursor = 0;
+  for (let index = 0; index < sortedBoundaries.length - 1; index += 1) {
+    const intervalStartMs = sortedBoundaries[index];
+    const intervalEndMs = sortedBoundaries[index + 1];
+    const durationMs = intervalEndMs - intervalStartMs;
+    if (!Number.isFinite(durationMs) || durationMs <= 0) {
+      continue;
+    }
+
+    const voidRange = findCoveringRange(globalVoidRanges, intervalStartMs, intervalEndMs);
+    const isVoid = Boolean(voidRange);
+    const projectedDurationMs = isVoid ? Math.min(durationMs, safeCompressedVoidMs) : durationMs;
+    const interval = {
+      type: isVoid ? "void" : "media",
+      startMs: intervalStartMs,
+      endMs: intervalEndMs,
+      sourceStartMs: voidRange?.sourceStartMs,
+      sourceEndMs: voidRange?.sourceEndMs,
+      targetMs: voidRange?.targetMs,
+      durationMs,
+      projectedStartMs: projectedCursor,
+      projectedEndMs: projectedCursor + projectedDurationMs,
+      projectedDurationMs,
+    };
+    intervals.push(interval);
+    projectedCursor += projectedDurationMs;
+  }
+
+  const voids = intervals.filter((interval) => interval.type === "void");
+  if (!voids.length) {
+    return buildIdentityProjection(startMs, endMs);
+  }
+
+  const projection = {
+    enabled: true,
+    startMs,
+    endMs,
+    durationMs: endMs - startMs,
+    projectedDurationMs: Math.max(projectedCursor, 1),
+    intervals,
+    voids,
+  };
+  attachProjectionMethods(projection);
+  return projection;
 }

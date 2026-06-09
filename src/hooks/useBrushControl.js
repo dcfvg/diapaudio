@@ -17,6 +17,7 @@ export function useBrushControl({
   viewEndMs,
   setTimelineViewRange,
   minDurationMs = MIN_DURATION_MS,
+  axisProjection = null,
   onInteraction = null,
 }) {
   const brushDragRef = useRef(null);
@@ -78,13 +79,21 @@ export function useBrushControl({
         summaryEndMs,
         summaryDurationMs,
         minDurationMs,
+        axisProjection,
       });
 
       if (nextRange) {
         setTimelineViewRange(nextRange.startMs, nextRange.endMs);
       }
     },
-    [summaryDurationMs, summaryStartMs, summaryEndMs, setTimelineViewRange, minDurationMs]
+    [
+      summaryDurationMs,
+      summaryStartMs,
+      summaryEndMs,
+      setTimelineViewRange,
+      minDurationMs,
+      axisProjection,
+    ]
   );
 
   /**
@@ -120,15 +129,44 @@ export function resolveBrushDragRange({
   summaryEndMs,
   summaryDurationMs,
   minDurationMs = MIN_DURATION_MS,
+  axisProjection = null,
 }) {
   if (!Number.isFinite(summaryDurationMs) || summaryDurationMs <= 0) return null;
   if (!Number.isFinite(trackWidth) || trackWidth <= 0) return null;
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null;
   if (!Number.isFinite(summaryStartMs) || !Number.isFinite(summaryEndMs)) return null;
 
+  const usesProjection =
+    axisProjection?.enabled &&
+    typeof axisProjection.timeToProjectedMs === "function" &&
+    typeof axisProjection.projectedToTimeMs === "function" &&
+    typeof axisProjection.percentToTime === "function" &&
+    Number.isFinite(axisProjection.projectedDurationMs) &&
+    axisProjection.projectedDurationMs > 0;
+
   if (mode === "move") {
     const viewDuration = endMs - startMs;
     const deltaPx = pointerClientX - pointerStart;
+    if (usesProjection) {
+      const startProjected = axisProjection.timeToProjectedMs(startMs);
+      const endProjected = axisProjection.timeToProjectedMs(endMs);
+      const viewProjectedDuration = Math.max(endProjected - startProjected, 1);
+      const deltaProjectedMs = (deltaPx / trackWidth) * axisProjection.projectedDurationMs;
+      const maxProjectedStart = Math.max(0, axisProjection.projectedDurationMs - viewProjectedDuration);
+      const nextProjectedStart = clamp(startProjected + deltaProjectedMs, 0, maxProjectedStart);
+      const nextProjectedEnd = nextProjectedStart + viewProjectedDuration;
+      let nextStart = axisProjection.projectedToTimeMs(nextProjectedStart);
+      let nextEnd = axisProjection.projectedToTimeMs(nextProjectedEnd);
+      if (!Number.isFinite(nextStart) || !Number.isFinite(nextEnd)) {
+        return null;
+      }
+      if (nextEnd <= nextStart) {
+        nextStart = clamp(nextStart, summaryStartMs, Math.max(summaryStartMs, summaryEndMs - viewDuration));
+        nextEnd = clamp(nextStart + viewDuration, nextStart + minDurationMs, summaryEndMs);
+      }
+      return nextEnd > nextStart ? { startMs: nextStart, endMs: nextEnd } : null;
+    }
+
     const deltaMs = (deltaPx / trackWidth) * summaryDurationMs;
     const maxStart = summaryEndMs - viewDuration;
     const nextStart = clamp(startMs + deltaMs, summaryStartMs, maxStart);
@@ -136,7 +174,9 @@ export function resolveBrushDragRange({
   }
 
   const ratio = clamp((pointerClientX - trackLeft) / trackWidth, 0, 1);
-  const pointerMs = summaryStartMs + ratio * summaryDurationMs;
+  const pointerMs = usesProjection
+    ? axisProjection.percentToTime(ratio * 100)
+    : summaryStartMs + ratio * summaryDurationMs;
 
   if (mode === "start") {
     const nextStart = clamp(pointerMs, summaryStartMs, endMs - minDurationMs);

@@ -7,6 +7,15 @@ import "./Dropzone.css";
 import { sanitizeHtml } from "../utils/sanitizeHtml.js";
 import { useDropzone } from "react-dropzone";
 
+function formatSampleSize(sizeBytes) {
+  if (!Number.isFinite(sizeBytes)) {
+    return null;
+  }
+
+  const megabytes = sizeBytes / 1024 / 1024;
+  return `${megabytes >= 10 ? Math.round(megabytes) : megabytes.toFixed(1)} MB`;
+}
+
 function Dropzone({
   className,
   isLoading,
@@ -51,9 +60,7 @@ function Dropzone({
   const progressValue = Number.isFinite(progressPercent)
     ? Math.max(0, Math.min(100, progressPercent))
     : undefined;
-  const sampleSizeText = Number.isFinite(sampleManifest?.sizeBytes)
-    ? `${Math.round(sampleManifest.sizeBytes / 1024 / 1024)} MB`
-    : null;
+  const sampleOptions = Array.isArray(sampleManifest?.samples) ? sampleManifest.samples : [];
 
   const accept = useMemo(
     () => ({
@@ -180,20 +187,30 @@ function Dropzone({
           {t("buttonFiles")}
         </button>
       </div>
-      {sampleManifest ? (
+      {sampleOptions.length ? (
         <div className="dropzone__sample">
-          <button
-            type="button"
-            className="dropzone__sample-button"
-            onClick={onLoadLocalSample}
-            disabled={isLoading || sampleLoading}
-          >
-            <Icon name="archive" size={16} className="dropzone__sample-icon" />
-            {sampleLoading ? t("loadingLocalSample") : t("loadLocalSample")}
-          </button>
-          <span className="dropzone__sample-meta">
-            {[sampleManifest.fileName, sampleSizeText].filter(Boolean).join(" · ")}
-          </span>
+          <span className="dropzone__sample-title">{t("localSamplesTitle")}</span>
+          <div className="dropzone__sample-options">
+            {sampleOptions.map((sample) => {
+              const sampleSizeText = formatSampleSize(sample.sizeBytes);
+              return (
+                <button
+                  key={sample.id || sample.sampleUrl || sample.fileName}
+                  type="button"
+                  className="dropzone__sample-button"
+                  onClick={() => onLoadLocalSample(sample)}
+                  disabled={isLoading || sampleLoading}
+                  aria-label={t("loadNamedLocalSample", { name: sample.fileName })}
+                >
+                  <Icon name="archive" size={16} className="dropzone__sample-icon" />
+                  <span className="dropzone__sample-name">{sample.fileName}</span>
+                  {sampleSizeText ? (
+                    <span className="dropzone__sample-meta">{sampleSizeText}</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : null}
     </div>

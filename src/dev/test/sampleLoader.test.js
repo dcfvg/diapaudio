@@ -27,8 +27,13 @@ describe("sampleLoader", () => {
   it("loads a sample manifest", async () => {
     const manifest = {
       available: true,
-      fileName: "fixture.zip",
-      sampleUrl: `${SAMPLE_ENDPOINT}/sample.zip`,
+      samples: [
+        {
+          id: "0",
+          fileName: "fixture.zip",
+          sampleUrl: `${SAMPLE_ENDPOINT}/samples/0.zip`,
+        },
+      ],
     };
     const fetchImpl = vi.fn().mockResolvedValue({
       status: 200,
@@ -37,6 +42,19 @@ describe("sampleLoader", () => {
     });
 
     await expect(fetchSampleManifest({ fetchImpl })).resolves.toEqual(manifest);
+  });
+
+  it("ignores manifests without ZIP samples", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        available: true,
+        samples: [{ fileName: "missing-url.zip" }],
+      }),
+    });
+
+    await expect(fetchSampleManifest({ fetchImpl })).resolves.toBeNull();
   });
 
   it("converts the sample ZIP response into a File", async () => {

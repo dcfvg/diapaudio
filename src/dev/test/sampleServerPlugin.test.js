@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { cwd } from "node:process";
-import { resolveSampleFile } from "../../../scripts/vite-sample-plugin.mjs";
+import { resolveSampleFile, resolveSampleFiles } from "../../../scripts/vite-sample-plugin.mjs";
 
 const rootPath = cwd();
 const fixturePath = path.join(rootPath, "src/test/fixtures/local-sample-fixture.zip");
@@ -16,5 +16,13 @@ describe("vite sample plugin helpers", () => {
 
   it("returns null when no sample path is configured", () => {
     expect(resolveSampleFile(rootPath, "")).toBeNull();
+  });
+
+  it("lists ZIP samples from a directory", () => {
+    const sampleFiles = resolveSampleFiles(rootPath, {
+      sampleDirPath: "src/test/fixtures",
+    });
+
+    expect(sampleFiles.map((file) => file.fileName)).toEqual(["local-sample-fixture.zip"]);
   });
 });

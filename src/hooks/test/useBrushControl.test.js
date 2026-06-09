@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolveBrushDragRange } from "../useBrushControl.js";
+import { buildMediaTimelineIndex, buildTimelineProjection } from "../../media/timelineEvents.js";
 
 const DEFAULT_ARGS = {
   pointerStart: 500,
@@ -111,5 +112,39 @@ describe("resolveBrushDragRange", () => {
         pointerClientX: clientXForPercent(0.6),
       })
     ).toEqual({ startMs: 0, endMs: 10_000 });
+  });
+
+  it("uses compressed-axis pointer mapping for handle drags", () => {
+    const axisProjection = buildTimelineProjection({
+      startMs: 0,
+      endMs: 40_000,
+      enabled: true,
+      mediaTimelineIndex: buildMediaTimelineIndex({
+        images: [],
+        audioTracks: [
+          {
+            adjustedStartTime: new Date(0),
+            adjustedEndTime: new Date(10_000),
+          },
+          {
+            adjustedStartTime: new Date(30_000),
+            adjustedEndTime: new Date(40_000),
+          },
+        ],
+      }),
+    });
+
+    expect(
+      resolveBrushDragRange({
+        ...DEFAULT_ARGS,
+        mode: "end",
+        startMs: 0,
+        endMs: 40_000,
+        summaryEndMs: 40_000,
+        summaryDurationMs: 40_000,
+        pointerClientX: clientXForPercent(0.5),
+        axisProjection,
+      })
+    ).toEqual({ startMs: 0, endMs: 30_000 });
   });
 });

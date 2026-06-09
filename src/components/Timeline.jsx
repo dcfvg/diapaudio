@@ -35,8 +35,25 @@ import { useBrushControl } from "../hooks/useBrushControl.js";
 import { TICK_STEPS_MS } from "../constants/timeline";
 import { EMPTY_ARRAY } from "../constants/common.js";
 import { clamp } from "../utils/numberUtils.js";
+import { buildMediaTimelineIndex, buildTimelineProjection } from "../media/timelineEvents.js";
+
+const TIMELINE_VOID_TARGET_WIDTH_PX = 24;
 
 const isTrackRangeLoaded = (range, activeIndex) => range.index === activeIndex && range.track?.url;
+
+function computeCompressedVoidMs(startMs, endMs, widthPx) {
+  if (
+    !Number.isFinite(startMs) ||
+    !Number.isFinite(endMs) ||
+    endMs <= startMs ||
+    !Number.isFinite(widthPx) ||
+    widthPx <= 0
+  ) {
+    return undefined;
+  }
+
+  return ((endMs - startMs) / widthPx) * TIMELINE_VOID_TARGET_WIDTH_PX;
+}
 
 /**
  * Filter track ranges that are visible in the current viewport
@@ -68,6 +85,7 @@ function Timeline() {
   const speed = useSettingsStore((state) => state.speed);
   const snapToGrid = useSettingsStore((state) => state.snapToGrid);
   const snapGridSeconds = useSettingsStore((state) => state.snapGridSeconds);
+  const autoSkipVoids = useSettingsStore((state) => state.autoSkipVoids);
 
   // Playback state/selectors
   const playing = usePlaybackStore((state) => state.playing);
@@ -91,10 +109,11 @@ function Timeline() {
   const [timelineWidthPx, setTimelineWidthPx] = useState(null);
 
   // Use custom hooks
-  const { snapToMedia, findTrackAtTime, positionPercent } = useTimelineSnapping();
+  const { snapToMedia, findTrackAtTime } = useTimelineSnapping();
 
   // Get base timeline first (will extend with segments later)
   const baseTimeline = mediaData?.timeline;
+  const mediaTimelineIndex = useMemo(() => buildMediaTimelineIndex(mediaData), [mediaData]);
 
   // Summary bounds represent the scrollable range - use content bounds (no padding)
   // This ensures tracks and brush align properly with timeline edges
@@ -146,6 +165,7 @@ function Timeline() {
   );
 
   const scheduleSegments = scheduleIndex.segments || EMPTY_ARRAY;
+  const scheduledEntries = scheduleIndex.entries || EMPTY_ARRAY;
 
   // Extend timeline with schedule segments and snap settings for snapping logic
   const timeline = useMemo(() => {
@@ -157,8 +177,6 @@ function Timeline() {
       snapGridMs,
     };
   }, [baseTimeline, scheduleSegments, snapToGrid, snapGridMs]);
-
-  const scheduledEntries = scheduleIndex.entries || EMPTY_ARRAY;
 
   // On initial load (no timelineView), show the full content range
   // This makes tracks align to edges and brush window span full width
@@ -182,6 +200,56 @@ function Timeline() {
       ? Math.max(summaryEndMs - summaryStartMs, 1)
       : null;
 
+  const summaryCompressedVoidMs = useMemo(
+    () => computeCompressedVoidMs(summaryStartMs, summaryEndMs, timelineWidthPx),
+    [summaryStartMs, summaryEndMs, timelineWidthPx]
+  );
+
+  const viewCompressedVoidMs = useMemo(
+    () => computeCompressedVoidMs(viewStartMs, viewEndMs, timelineWidthPx),
+    [viewStartMs, viewEndMs, timelineWidthPx]
+  );
+
+  const summaryProjection = useMemo(
+    () =>
+      buildTimelineProjection({
+        startMs: summaryStartMs,
+        endMs: summaryEndMs,
+        mediaTimelineIndex,
+        mediaCoverageRanges: scheduledEntries,
+        enabled: Boolean(autoSkipVoids),
+        compressedVoidMs: summaryCompressedVoidMs,
+      }),
+    [
+      summaryStartMs,
+      summaryEndMs,
+      mediaTimelineIndex,
+      scheduledEntries,
+      autoSkipVoids,
+      summaryCompressedVoidMs,
+    ]
+  );
+
+  const viewProjection = useMemo(
+    () =>
+      buildTimelineProjection({
+        startMs: viewStartMs,
+        endMs: viewEndMs,
+        mediaTimelineIndex,
+        mediaCoverageRanges: scheduledEntries,
+        enabled: Boolean(autoSkipVoids),
+        compressedVoidMs: viewCompressedVoidMs,
+      }),
+    [
+      viewStartMs,
+      viewEndMs,
+      mediaTimelineIndex,
+      scheduledEntries,
+      autoSkipVoids,
+      viewCompressedVoidMs,
+    ]
+  );
+
   const resolvedAbsoluteMs = Number.isFinite(absoluteTime)
     ? absoluteTime
     : Number.isFinite(viewStartMs)
@@ -192,6 +260,7 @@ function Timeline() {
 
   // All hooks must be called unconditionally
   const ticks = useMemo(() => computeTicks(viewStartMs, viewEndMs), [viewStartMs, viewEndMs]);
+  const visibleTicks = useMemo(() => filterProjectedTicks(ticks, viewProjection), [ticks, viewProjection]);
 
   const visibleImageSet = useMemo(() => new Set(displayedImages || []), [displayedImages]);
 
@@ -226,8 +295,14 @@ function Timeline() {
     if (!scheduledEntries.length || !Number.isFinite(viewStartMs) || !Number.isFinite(viewEndMs)) {
       return [];
     }
-    return aggregateEntriesByPixel(scheduledEntries, viewStartMs, viewEndMs, timelineWidthPx);
-  }, [scheduledEntries, viewStartMs, viewEndMs, timelineWidthPx]);
+    return aggregateEntriesByPixel(
+      scheduledEntries,
+      viewStartMs,
+      viewEndMs,
+      timelineWidthPx,
+      viewProjection
+    );
+  }, [scheduledEntries, viewStartMs, viewEndMs, timelineWidthPx, viewProjection]);
 
   const imageRowHeightPx = 13;
   const imageRowMarginPx = 1;
@@ -256,23 +331,23 @@ function Timeline() {
   );
 
   const cursorPercent = Number.isFinite(resolvedAbsoluteMs)
-    ? positionPercent(resolvedAbsoluteMs, viewStartMs, viewDurationMs)
+    ? viewProjection.timeToPercent(resolvedAbsoluteMs)
     : null;
 
   const brushStartPercent =
     Number.isFinite(viewStartMs) &&
     Number.isFinite(summaryStartMs) &&
-    Number.isFinite(summaryDurationMs) &&
-    summaryDurationMs > 0
-      ? clamp(((viewStartMs - summaryStartMs) / summaryDurationMs) * 100, 0, 100)
+    Number.isFinite(summaryProjection.projectedDurationMs) &&
+    summaryProjection.projectedDurationMs > 0
+      ? summaryProjection.timeToPercent(viewStartMs)
       : 0;
 
   const brushEndPercent =
     Number.isFinite(viewEndMs) &&
     Number.isFinite(summaryStartMs) &&
-    Number.isFinite(summaryDurationMs) &&
-    summaryDurationMs > 0
-      ? clamp(((viewEndMs - summaryStartMs) / summaryDurationMs) * 100, 0, 100)
+    Number.isFinite(summaryProjection.projectedDurationMs) &&
+    summaryProjection.projectedDurationMs > 0
+      ? summaryProjection.timeToPercent(viewEndMs)
       : 100;
 
   const brushWidthPercent = Math.max(brushEndPercent - brushStartPercent, 0.5);
@@ -282,13 +357,46 @@ function Timeline() {
     width: `${Math.min(brushWidthPercent, 100)}%`,
   };
 
-  const brushDisabled = !Number.isFinite(summaryDurationMs) || summaryDurationMs <= 0;
+  const brushDisabled =
+    !Number.isFinite(summaryProjection.projectedDurationMs) ||
+    summaryProjection.projectedDurationMs <= 0;
 
   // Track user interactions for auto-scroll behavior
   const lastInteractionRef = useRef(0);
   const markUserInteraction = useCallback(() => {
     lastInteractionRef.current = Date.now();
   }, []);
+
+  const seekToTimelineAbsolute = useCallback(
+    (absoluteMs, options = {}) => seekToAbsolute(mediaData, absoluteMs, options),
+    [seekToAbsolute, mediaData]
+  );
+
+  const handleVoidCutPointerDown = useCallback(
+    (event, targetMs) => {
+      if (event.button != null && event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      markUserInteraction();
+      seekToTimelineAbsolute(targetMs, { autoplay: true });
+    },
+    [markUserInteraction, seekToTimelineAbsolute]
+  );
+
+  const handleVoidCutKeyDown = useCallback(
+    (event, targetMs) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      markUserInteraction();
+      seekToTimelineAbsolute(targetMs, { autoplay: true });
+    },
+    [markUserInteraction, seekToTimelineAbsolute]
+  );
 
   // Use timeline interaction hook
   const { hoverState, setHoverState, handlePointerDown, handlePointerMove, handlePointerUp } =
@@ -300,13 +408,11 @@ function Timeline() {
       timeline,
       imageSegments: scheduleSegments,
       images: mediaData?.images || [],
-      seekToAbsolute: useCallback(
-        (absoluteMs, options = {}) => seekToAbsolute(mediaData, absoluteMs, options),
-        [seekToAbsolute, mediaData]
-      ),
+      seekToAbsolute: seekToTimelineAbsolute,
       playing,
       snapToMedia,
       findTrackAtTime,
+      axisProjection: viewProjection,
       onInteraction: markUserInteraction,
     });
 
@@ -348,8 +454,39 @@ function Timeline() {
     viewStartMs,
     viewEndMs,
     setTimelineViewRange,
+    axisProjection: summaryProjection,
     onInteraction: markUserInteraction,
   });
+
+  const voidCutMarkers = useMemo(() => {
+    if (!viewProjection.enabled || !viewProjection.voids.length) {
+      return [];
+    }
+    return viewProjection.voids.map((range, index) => {
+      const left = viewProjection.timeToPercent(range.startMs);
+      const right = viewProjection.timeToPercent(range.endMs);
+      const sourceStartMs = Number.isFinite(range.sourceStartMs)
+        ? range.sourceStartMs
+        : range.startMs;
+      const sourceEndMs = Number.isFinite(range.sourceEndMs)
+        ? range.sourceEndMs
+        : range.endMs;
+      const startLabel = formatClockWithSeconds(new Date(sourceStartMs));
+      const endLabel = formatClockWithSeconds(new Date(sourceEndMs));
+      return {
+        key: `void-${index}-${range.startMs}-${range.endMs}`,
+        startMs: range.startMs,
+        endMs: range.endMs,
+        left,
+        width: Math.max(right - left, 0.1),
+        targetMs: Number.isFinite(range.targetMs) ? range.targetMs : range.endMs,
+        label: t("timelineSkippedBlankTitle", {
+          start: startLabel,
+          end: endLabel,
+        }),
+      };
+    });
+  }, [viewProjection, t]);
 
   // Auto-scroll timeline when playing - track last user interaction
   useEffect(() => {
@@ -442,7 +579,10 @@ function Timeline() {
         Math.max(summaryEndMs - summaryStartMs, 1)
       );
 
-      const focusTime = viewStartMs + ratio * currentDuration;
+      const focusTime =
+        viewProjection?.enabled && typeof viewProjection.percentToTime === "function"
+          ? viewProjection.percentToTime(ratio * 100)
+          : viewStartMs + ratio * currentDuration;
       let newStart = Math.round(focusTime - ratio * newDuration);
       let newEnd = newStart + newDuration;
 
@@ -467,6 +607,7 @@ function Timeline() {
       summaryEndMs,
       setTimelineViewRange,
       markUserInteraction,
+      viewProjection,
     ]
   );
 
@@ -504,15 +645,21 @@ function Timeline() {
 
   return (
     <div
-      className="timeline__main"
+      className={`timeline__main ${viewProjection.enabled ? "timeline__main--compressed" : ""}`}
       id="timeline-main"
       ref={containerRef}
       style={layoutVars}
     >
+      {viewProjection.enabled ? (
+        <p id="timeline-compressed-axis-note" className="visually-hidden">
+          {t("timelineCompressedAxisNote")}
+        </p>
+      ) : null}
       <div
         className="timeline__interaction"
         id="timeline-interaction"
         ref={interactionRef}
+        aria-describedby={viewProjection.enabled ? "timeline-compressed-axis-note" : undefined}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -521,18 +668,40 @@ function Timeline() {
       >
         <div className="timeline__gradient" id="timeline-gradient"></div>
         <div className="timeline__gridlines" id="timeline-gridlines">
-          {ticks.map((tick) => (
+          {visibleTicks.map((tick) => (
             <div
               key={`grid-${tick}`}
               className="timeline__gridline"
               style={{
-                left: `${positionPercent(tick, viewStartMs, viewDurationMs)}%`,
+                left: `${viewProjection.timeToPercent(tick)}%`,
               }}
             />
           ))}
         </div>
+        {voidCutMarkers.length ? (
+          <div className="timeline__void-cuts">
+            {voidCutMarkers.map((marker) => (
+              <div
+                key={marker.key}
+                className="timeline__void-cut"
+                title={marker.label}
+                role="button"
+                tabIndex={0}
+                aria-label={marker.label}
+                data-start-ms={marker.startMs}
+                data-end-ms={marker.endMs}
+                style={{
+                  left: `${marker.left}%`,
+                  width: `${marker.width}%`,
+                }}
+                onPointerDown={(event) => handleVoidCutPointerDown(event, marker.targetMs)}
+                onKeyDown={(event) => handleVoidCutKeyDown(event, marker.targetMs)}
+              />
+            ))}
+          </div>
+        ) : null}
         <div className="timeline__axis" id="timeline-axis">
-          {ticks.map((tick) => {
+          {visibleTicks.map((tick) => {
             const date = new Date(tick);
             // Show seconds only if view duration is less than 1 hour
             const showSeconds = viewDurationMs && viewDurationMs < TIMELINE_HOUR_THRESHOLD_MS;
@@ -543,7 +712,7 @@ function Timeline() {
                 key={`tick-${tick}`}
                 className="timeline__axis-tick"
                 style={{
-                  left: `${positionPercent(tick, viewStartMs, viewDurationMs)}%`,
+                  left: `${viewProjection.timeToPercent(tick)}%`,
                 }}
               >
                 {label}
@@ -562,8 +731,8 @@ function Timeline() {
             if (!Number.isFinite(range.startMs) || !Number.isFinite(range.endMs)) {
               return null;
             }
-            const left = positionPercent(range.startMs, viewStartMs, viewDurationMs);
-            const right = positionPercent(range.endMs, viewStartMs, viewDurationMs);
+            const left = viewProjection.timeToPercent(range.startMs);
+            const right = viewProjection.timeToPercent(range.endMs);
             const width = clamp(right - left, 0, 100 - left);
             const classes = ["timeline-track"];
             if (range.index === activeTrackIndex) {
@@ -632,18 +801,23 @@ function Timeline() {
               return null;
             }
 
-            const left = positionPercent(entry.startMs, viewStartMs, viewDurationMs);
-            const right = positionPercent(entry.endMs, viewStartMs, viewDurationMs);
+            const left = viewProjection.timeToPercent(entry.startMs);
+            const right = viewProjection.timeToPercent(entry.endMs);
             const widthPercent = clamp(right - left, 0, 100 - left);
             const widthPx = Number.isFinite(timelineWidthPx)
               ? (widthPercent / 100) * timelineWidthPx
               : 0;
             const isGrouped = entry.aggregatedCount > 1;
             const showGroupLabel = isGrouped && widthPx >= 30;
+            const concurrency = Math.max(entry.maxConcurrency || 1, 1);
+            const slotIndex = Math.max(entry.slotIndex || 0, 0);
 
             const classes = ["timeline-image"];
             if (isGrouped) {
               classes.push("timeline-image--grouped");
+            }
+            if (concurrency > 1) {
+              classes.push("timeline-image--stacked");
             }
             if (
               visibleImageSet.has(entry.image) ||
@@ -652,8 +826,6 @@ function Timeline() {
               classes.push("timeline-image--active");
             }
 
-            const concurrency = Math.max(entry.maxConcurrency || 1, 1);
-            const slotIndex = Math.max(entry.slotIndex || 0, 0);
             const marginPx = concurrency > 1 ? imageRowMarginPx : 0;
             const totalMargin = marginPx * Math.max(concurrency - 1, 0);
             const heightPx = Math.max((imageRowHeightPx - totalMargin) / concurrency, 1);
@@ -798,6 +970,27 @@ function computeTicks(startMs, endMs) {
     ticks.push(tick);
   }
   return ticks;
+}
+
+function filterProjectedTicks(ticks, projection, minDistancePercent = 3) {
+  if (!Array.isArray(ticks) || !ticks.length || !projection?.enabled) {
+    return ticks || [];
+  }
+
+  const visible = [];
+  let previousPercent = Number.NEGATIVE_INFINITY;
+  ticks.forEach((tick) => {
+    if (projection.isVoidTime(tick)) {
+      return;
+    }
+    const percent = projection.timeToPercent(tick);
+    if (percent - previousPercent < minDistancePercent) {
+      return;
+    }
+    visible.push(tick);
+    previousPercent = percent;
+  });
+  return visible;
 }
 
 export default memo(Timeline);

@@ -224,7 +224,7 @@ function toPublicAggregateEntry(entry) {
   return publicEntry;
 }
 
-export function aggregateEntriesByPixel(entries, viewStartMs, viewEndMs, widthPx) {
+export function aggregateEntriesByPixel(entries, viewStartMs, viewEndMs, widthPx, projection) {
   const visible = filterEntriesInView(entries, viewStartMs, viewEndMs);
   const durationMs = viewEndMs - viewStartMs;
   if (
@@ -239,8 +239,16 @@ export function aggregateEntriesByPixel(entries, viewStartMs, viewEndMs, widthPx
 
   const metrics = visible
     .map((entry) => {
-      const leftPx = Math.max(0, ((entry.startMs - viewStartMs) / durationMs) * widthPx);
-      const rightPx = Math.min(widthPx, ((entry.endMs - viewStartMs) / durationMs) * widthPx);
+      const leftPercent =
+        projection?.enabled && typeof projection.timeToPercent === "function"
+          ? projection.timeToPercent(entry.startMs)
+          : ((entry.startMs - viewStartMs) / durationMs) * 100;
+      const rightPercent =
+        projection?.enabled && typeof projection.timeToPercent === "function"
+          ? projection.timeToPercent(entry.endMs)
+          : ((entry.endMs - viewStartMs) / durationMs) * 100;
+      const leftPx = Math.max(0, (leftPercent / 100) * widthPx);
+      const rightPx = Math.min(widthPx, (rightPercent / 100) * widthPx);
       return {
         entry,
         leftPx,

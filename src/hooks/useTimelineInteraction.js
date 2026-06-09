@@ -17,6 +17,7 @@ export function useTimelineInteraction({
   playing,
   snapToMedia,
   findTrackAtTime,
+  axisProjection = null,
   onInteraction = null,
 }) {
   const [hoverState, setHoverState] = useState(null);
@@ -69,7 +70,10 @@ export function useTimelineInteraction({
       const rect = container.getBoundingClientRect();
       const width = rect.width || 1;
       const ratio = clamp((clientX - rect.left) / width, 0, 1);
-      const rawMs = viewStartMs + viewDurationMs * ratio;
+      const rawMs =
+        axisProjection?.enabled && typeof axisProjection.percentToTime === "function"
+          ? axisProjection.percentToTime(ratio * 100)
+          : viewStartMs + viewDurationMs * ratio;
       if (!Number.isFinite(rawMs)) {
         setHoverState(null);
         return null;
@@ -77,7 +81,10 @@ export function useTimelineInteraction({
 
       const snappedMs = applySnap ? snapToMedia(rawMs, viewDurationMs, width, timeline) : rawMs;
       const displayMs = snappedMs ?? rawMs;
-      const leftPercent = clamp(((displayMs - viewStartMs) / viewDurationMs) * 100, 0, 100);
+      const leftPercent =
+        axisProjection?.enabled && typeof axisProjection.timeToPercent === "function"
+          ? axisProjection.timeToPercent(displayMs)
+          : clamp(((displayMs - viewStartMs) / viewDurationMs) * 100, 0, 100);
       const hoverTrack = findTrackAtTime(timeline?.trackRanges || [], displayMs);
       const composition = resolveComposition(displayMs);
       const hoverImages = composition?.images || [];
@@ -112,6 +119,7 @@ export function useTimelineInteraction({
       snapToMedia,
       findTrackAtTime,
       resolveComposition,
+      axisProjection,
     ]
   );
 

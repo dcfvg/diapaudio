@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMediaTimelineIndex,
+  buildTimelineProjection,
+  findAutoSkipTarget,
   findNextEventTime,
   findNextImageTime,
   findPrevEventTime,
@@ -103,5 +105,187 @@ describe("timeline event index", () => {
     expect(hasAudioCoverage(index.audioRanges, 5_500)).toBe(true);
     expect(hasAudioCoverage(index.audioRanges, 19_000)).toBe(true);
     expect(hasAudioCoverage(index.audioRanges, 20_001)).toBe(false);
+  });
+});
+
+describe("compressed timeline projection", () => {
+  function buildGapIndex() {
+    return buildMediaTimelineIndex({
+      images: [],
+      audioTracks: [
+        {
+          adjustedStartTime: new Date(0),
+          adjustedEndTime: new Date(10_000),
+        },
+        {
+          adjustedStartTime: new Date(30_000),
+          adjustedEndTime: new Date(40_000),
+        },
+      ],
+    });
+  }
+
+  it("keeps an identity projection when disabled", () => {
+    const projection = buildTimelineProjection({
+      startMs: 0,
+      endMs: 40_000,
+      mediaTimelineIndex: buildGapIndex(),
+      enabled: false,
+    });
+
+    expect(projection.enabled).toBe(false);
+    expect(projection.timeToPercent(20_000)).toBe(50);
+    expect(projection.percentToTime(75)).toBe(30_000);
+  });
+
+  it("compresses an audio gap and maps the cut to the next media event", () => {
+    const projection = buildTimelineProjection({
+      startMs: 0,
+      endMs: 40_000,
+      mediaTimelineIndex: buildGapIndex(),
+      enabled: true,
+    });
+
+    expect(projection.enabled).toBe(true);
+    expect(projection.voids).toHaveLength(1);
+    expect(projection.voids[0]).toMatchObject({ startMs: 10_000, endMs: 30_000 });
+    expect(projection.projectedDurationMs).toBe(21_000);
+    expect(projection.timeToProjectedMs(30_000)).toBe(11_000);
+    expect(projection.projectedToTimeMs(10_500)).toBe(30_000);
+  });
+
+  it("does not compress blanks of 10 seconds or less", () => {
+    const projection = buildTimelineProjection({
+      startMs: 0,
+      endMs: 30_000,
+      mediaTimelineIndex: buildMediaTimelineIndex({
+        images: [],
+        audioTracks: [
+          {
+            adjustedStartTime: new Date(0),
+            adjustedEndTime: new Date(10_000),
+          },
+          {
+            adjustedStartTime: new Date(19_900),
+            adjustedEndTime: new Date(30_000),
+          },
+        ],
+      }),
+      enabled: true,
+    });
+
+    expect(projection.enabled).toBe(false);
+    expect(projection.voids).toHaveLength(0);
+  });
+
+  it("compresses blanks strictly longer than 10 seconds", () => {
+    const index = buildMediaTimelineIndex({
+      images: [],
+      audioTracks: [
+        {
+          adjustedStartTime: new Date(0),
+          adjustedEndTime: new Date(10_000),
+        },
+        {
+          adjustedStartTime: new Date(20_100),
+          adjustedEndTime: new Date(30_100),
+        },
+      ],
+    });
+    const projection = buildTimelineProjection({
+      startMs: 0,
+      endMs: 30_100,
+      mediaTimelineIndex: index,
+      enabled: true,
+    });
+
+    expect(projection.enabled).toBe(true);
+    expect(projection.voids).toHaveLength(1);
+    expect(projection.voids[0]).toMatchObject({ startMs: 10_000, endMs: 20_100 });
+    expect(findAutoSkipTarget(index, 11_000)).toBe(20_100);
+  });
+
+  it("preserves displayed photo segments before starting a skipped blank", () => {
+    const mediaCoverageRanges = [{ startMs: 12_000, endMs: 30_000 }];
+    const index = buildMediaTimelineIndex({
+      images: [{ timeMs: 12_000 }],
+      audioTracks: [
+        {
+          adjustedStartTime: new Date(0),
+          adjustedEndTime: new Date(10_000),
+        },
+        {
+          adjustedStartTime: new Date(42_000),
+          adjustedEndTime: new Date(52_000),
+        },
+      ],
+    });
+    const projection = buildTimelineProjection({
+      startMs: 0,
+      endMs: 52_000,
+      mediaTimelineIndex: index,
+      mediaCoverageRanges,
+      enabled: true,
+    });
+
+    expect(projection.voids).toHaveLength(1);
+    expect(projection.voids[0]).toMatchObject({ startMs: 30_000, endMs: 42_000 });
+    expect(projection.timeToProjectedMs(42_000)).toBe(31_000);
+    expect(projection.projectedToTimeMs(30_500)).toBe(42_000);
+    expect(findAutoSkipTarget(index, 20_000, { mediaCoverageRanges })).toBeUndefined();
+    expect(findAutoSkipTarget(index, 31_000, { mediaCoverageRanges })).toBe(42_000);
+  });
+
+  it("keeps a zoomed view inside a long blank compressed to the next media event", () => {
+    const projection = buildTimelineProjection({
+      startMs: 31_000,
+      endMs: 40_000,
+      mediaTimelineIndex: buildMediaTimelineIndex({
+        images: [],
+        audioTracks: [
+          {
+            adjustedStartTime: new Date(0),
+            adjustedEndTime: new Date(30_000),
+          },
+          {
+            adjustedStartTime: new Date(42_000),
+            adjustedEndTime: new Date(52_000),
+          },
+        ],
+      }),
+      enabled: true,
+    });
+
+    expect(projection.enabled).toBe(true);
+    expect(projection.voids).toHaveLength(1);
+    expect(projection.voids[0]).toMatchObject({ startMs: 31_000, endMs: 40_000 });
+    expect(projection.percentToTime(50)).toBe(42_000);
+  });
+
+  it("keeps time to projected position monotone and clamps bounds", () => {
+    const projection = buildTimelineProjection({
+      startMs: 0,
+      endMs: 40_000,
+      mediaTimelineIndex: buildGapIndex(),
+      enabled: true,
+    });
+
+    const positions = [0, 5_000, 10_000, 20_000, 30_000, 40_000].map((timeMs) =>
+      projection.timeToProjectedMs(timeMs)
+    );
+
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(projection.timeToPercent(-100)).toBe(0);
+    expect(projection.timeToPercent(50_000)).toBe(100);
+    expect(projection.percentToTime(-10)).toBe(0);
+    expect(projection.percentToTime(110)).toBe(40_000);
+  });
+
+  it("uses the same skip decision for playback and projection semantics", () => {
+    const index = buildGapIndex();
+
+    expect(findAutoSkipTarget(index, 5_000)).toBeUndefined();
+    expect(findAutoSkipTarget(index, 20_000)).toBe(30_000);
+    expect(findAutoSkipTarget(index, 45_000)).toBeNull();
   });
 });

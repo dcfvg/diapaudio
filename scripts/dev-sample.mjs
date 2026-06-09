@@ -3,38 +3,37 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const sampleDir = path.join(root, "sample");
+const sampleDir = path.resolve(root, process.env.DIAPAUDIO_SAMPLE_DIR || "sample");
 
-function findSampleZip() {
+function listSampleZips() {
   const configured = process.env.DIAPAUDIO_SAMPLE_ZIP;
   if (configured) {
-    return path.resolve(root, configured);
+    const sampleZip = path.resolve(root, configured);
+    return existsSync(sampleZip) && statSync(sampleZip).isFile() ? [sampleZip] : [];
   }
 
-  if (!existsSync(sampleDir)) {
-    return null;
+  if (!existsSync(sampleDir) || !statSync(sampleDir).isDirectory()) {
+    return [];
   }
 
-  const candidates = readdirSync(sampleDir)
-    .filter((name) => name.toLowerCase().endsWith(".zip"))
+  return readdirSync(sampleDir)
+    .filter((name) => path.extname(name).toLowerCase() === ".zip")
     .map((name) => path.join(sampleDir, name))
     .filter((filePath) => statSync(filePath).isFile())
     .sort((a, b) => a.localeCompare(b));
-
-  return candidates[0] || null;
 }
 
-const sampleZip = findSampleZip();
+const sampleZips = listSampleZips();
 
-if (!sampleZip || !existsSync(sampleZip)) {
-  console.error("No sample ZIP found. Put one .zip file in ./sample or set DIAPAUDIO_SAMPLE_ZIP.");
+if (!sampleZips.length) {
+  console.error("No sample ZIP found. Put one or more .zip files in ./sample.");
   process.exit(1);
 }
 
 const child = spawn("vite", ["--host", "127.0.0.1"], {
   env: {
     ...process.env,
-    DIAPAUDIO_SAMPLE_ZIP: sampleZip,
+    DIAPAUDIO_SAMPLE_DIR: sampleDir,
   },
   stdio: "inherit",
   shell: process.platform === "win32",
