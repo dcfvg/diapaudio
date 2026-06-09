@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import Modal from "./Modal.jsx";
 import "./ProgressModal.css";
 import { sanitizeHtml } from "../utils/sanitizeHtml.js";
@@ -14,12 +15,13 @@ export default function ProgressModal({
   cancellable = false,
   onCancel,
 }) {
+  const { t } = useTranslation();
   const safePercent = Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : null;
   const actions = [];
   if (cancellable && typeof onCancel === "function") {
     actions.push({
       key: "cancel",
-      label: "Cancel",
+      label: t("cancelButton"),
       onClick: onCancel,
     });
   }
@@ -38,6 +40,7 @@ export default function ProgressModal({
       actions={actions}
       disableBackdropClose={!cancellable}
       className="modal-overlay--progress"
+      closeLabel={t("closeButton")}
     >
       <div className="progress-modal" role="status" aria-live="polite">
         {safePercent !== null ? (

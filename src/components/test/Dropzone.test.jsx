@@ -44,6 +44,17 @@ describe("Dropzone", () => {
     expect(screen.getByText("Choose files")).toBeTruthy();
   });
 
+  it("places import actions before the longer preparation instructions", () => {
+    const { container } = renderWithProviders(<Dropzone {...defaultProps} />);
+
+    const importActions = container.querySelector(".dropzone__primary-actions");
+    const instructions = container.querySelector(".dropzone__assist");
+
+    expect(importActions).toBeTruthy();
+    expect(instructions).toBeTruthy();
+    expect(Boolean(importActions.compareDocumentPosition(instructions) & 4)).toBe(true);
+  });
+
   it("renders the local sample button when a manifest is available", async () => {
     const onLoadLocalSample = vi.fn();
     const user = userEvent.setup();

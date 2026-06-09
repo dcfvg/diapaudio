@@ -44,6 +44,7 @@
 
 .language-selector__select {
   padding: 0.35rem 0.7rem;
+  min-height: 40px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: var(--radius-sm);
@@ -192,6 +193,12 @@
   margin-top: var(--space-sm);
 }
 
+.dropzone__primary-actions {
+  max-width: 760px;
+  align-self: center;
+  margin-top: 0;
+}
+
 .dropzone__cta-text {
   margin: 0;
   color: var(--text-primary);
@@ -217,13 +224,16 @@
 .dropzone__sample-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2xs);
   border: 0;
   background: transparent;
   color: var(--color-accent-alt);
   font-size: 0.82rem;
   cursor: pointer;
-  padding: 0.25rem 0.4rem;
+  min-height: 40px;
+  padding: 0.4rem 0.65rem;
+  border-radius: var(--radius-pill);
 }
 
 .dropzone__sample-button:hover:not(:disabled),
@@ -254,6 +264,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
+  min-height: 40px;
   padding: 0.55rem 1.4rem;
   border-radius: var(--radius-pill);
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -350,6 +361,10 @@
     flex-direction: column;
     align-items: stretch;
     gap: var(--space-sm);
+  }
+
+  .dropzone__primary-actions {
+    width: 100%;
   }
 
   .dropzone__browse {

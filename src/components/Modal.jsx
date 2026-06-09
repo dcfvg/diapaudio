@@ -69,6 +69,7 @@ export default function Modal({
   disableBackdropClose = false,
   labelledBy,
   describeBy,
+  closeLabel = "Close",
 }) {
   const modalContentRef = useRef(null);
   const restoreFocusRef = useRef(null);
@@ -242,7 +243,7 @@ export default function Modal({
               <button
                 type="button"
                 className="modal__close"
-                aria-label="Close"
+                aria-label={closeLabel}
                 onClick={onClose}
               >
                 ×

@@ -3,6 +3,7 @@ import React from 'react';
 import { renderWithProviders } from '../../test/test-utils.jsx';
 import KeyboardShortcutsHelp from '../KeyboardShortcutsHelp.jsx';
 import { screen } from '@testing-library/react';
+import { setLanguage } from '../../i18n/index.js';
 
 describe('KeyboardShortcutsHelp', () => {
   const defaultProps = {
@@ -40,7 +41,11 @@ describe('KeyboardShortcutsHelp', () => {
 
   it('displays toggle help instruction in footer', () => {
     renderWithProviders(<KeyboardShortcutsHelp {...defaultProps} />);
-    expect(screen.getByText(/Press.*to toggle this help/)).toBeTruthy();
+    expect(screen.getByText((_, element) =>
+      element?.classList.contains('keyboard-shortcuts-footer') &&
+      element.textContent.includes('Press') &&
+      element.textContent.includes('to toggle this help')
+    )).toBeTruthy();
   });
 
   it('displays shortcut descriptions', () => {
@@ -74,5 +79,23 @@ describe('KeyboardShortcutsHelp', () => {
     // Check for key combinations and their descriptions
     expect(screen.getByText('J')).toBeTruthy();
     expect(screen.getByText('Jump to next media (audio or image)')).toBeTruthy();
+  });
+
+  it('localizes modal chrome and categories', async () => {
+    await setLanguage('fr');
+    try {
+      renderWithProviders(<KeyboardShortcutsHelp {...defaultProps} />);
+
+      expect(screen.getByText('Raccourcis clavier')).toBeTruthy();
+      expect(screen.getByRole('heading', { name: 'Lecture' })).toBeTruthy();
+      expect(screen.getByLabelText('Fermer')).toBeTruthy();
+      expect(screen.getByText((_, element) =>
+        element?.classList.contains('keyboard-shortcuts-footer') &&
+        element.textContent.includes('Appuyer sur') &&
+        element.textContent.includes('pour afficher ou masquer cette aide')
+      )).toBeTruthy();
+    } finally {
+      await setLanguage('en');
+    }
   });
 });

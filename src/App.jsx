@@ -1126,6 +1126,8 @@ function AppShell() {
                       ref={settingsButtonRef}
                       onClick={() => setSettingsOpen((prev) => !prev)}
                       aria-label={t("timelineSettings")}
+                      aria-expanded={settingsOpen}
+                      aria-controls="timeline-settings-panel"
                       title={t("timelineSettings")}
                     >
                       <Icon name="settings" size={20} />
@@ -1159,6 +1161,7 @@ function AppShell() {
                 disabled={!mediaData}
                 onClose={() => setSettingsOpen(false)}
                 onShowKeyboardHelp={handleOpenKeyboardHelp}
+                triggerRef={settingsButtonRef}
                 t={t}
               />
             </Suspense>

@@ -1,5 +1,11 @@
-import { useId } from "react";
-import { DEFAULT_IMAGE_HOLD_MS, MIN_IMAGE_DISPLAY_DEFAULT_MS } from "../media/constants.js";
+import { useEffect, useId, useRef } from "react";
+import {
+  DEFAULT_IMAGE_HOLD_MS,
+  IMAGE_HOLD_MAX_MS,
+  IMAGE_HOLD_MIN_MS,
+  MIN_IMAGE_DISPLAY_DEFAULT_MS,
+  MIN_IMAGE_DISPLAY_MIN_MS,
+} from "../media/constants.js";
 import Icon from "./Icon.jsx";
 import "./TimelineSettingsPanel.css";
 
@@ -27,9 +33,52 @@ export default function TimelineSettingsPanel({
   disabled,
   onClose,
   onShowKeyboardHelp,
+  triggerRef,
   t,
 }) {
   const titleId = useId();
+  const closeButtonRef = useRef(null);
+  const delayHintId = "timeline-delay-hint";
+  const imageDisplayHintId = "timeline-image-display-hint";
+  const imageHoldHintId = "timeline-image-hold-hint";
+  const snapGridHintId = "timeline-grid-step-hint";
+  const snapGridLabelId = "timeline-grid-step-label";
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const requestFrame =
+      typeof requestAnimationFrame === "function" ? requestAnimationFrame : setTimeout;
+    const cancelFrame =
+      typeof cancelAnimationFrame === "function" ? cancelAnimationFrame : clearTimeout;
+    const restoreFocusTarget = triggerRef?.current;
+
+    const focusFrame = requestFrame(() => {
+      closeButtonRef.current?.focus({ preventScroll: true });
+    });
+
+    const handleKeyDown = (event) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      event.preventDefault();
+      onClose?.();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      cancelFrame(focusFrame);
+      document.removeEventListener("keydown", handleKeyDown);
+      if (restoreFocusTarget && typeof restoreFocusTarget.focus === "function") {
+        requestFrame(() => {
+          restoreFocusTarget.focus({ preventScroll: true });
+        });
+      }
+    };
+  }, [onClose, open, triggerRef]);
 
   if (!open) {
     return null;
@@ -37,6 +86,7 @@ export default function TimelineSettingsPanel({
 
   return (
     <aside
+      id="timeline-settings-panel"
       className="timeline-settings-panel"
       aria-labelledby={titleId}
       role="complementary"
@@ -51,6 +101,7 @@ export default function TimelineSettingsPanel({
         <button
           type="button"
           className="timeline-settings-panel__close"
+          ref={closeButtonRef}
           aria-label={t("closeButton")}
           onClick={onClose}
         >
@@ -69,11 +120,14 @@ export default function TimelineSettingsPanel({
             inputMode="numeric"
             autoComplete="off"
             placeholder="0:00"
+            aria-describedby={delayHintId}
             onChange={onDelayChange}
             onBlur={onCommitDelay}
             onKeyDown={onDelayKeyDown}
           />
-          <span className="timeline-settings__hint">{t("timelineSettingsDelayHint")}</span>
+          <span className="timeline-settings__hint" id={delayHintId}>
+            {t("timelineSettingsDelayHint")}
+          </span>
         </div>
 
         <div className="timeline-settings__compact-grid">
@@ -88,12 +142,15 @@ export default function TimelineSettingsPanel({
                 min="1"
                 step="1"
                 value={imageDisplaySeconds}
+                aria-describedby={imageDisplayHintId}
                 onChange={(event) => onImageDisplayChange(event.target.value)}
               />
               <span className="timeline-settings__unit">s</span>
             </div>
-            <span className="timeline-settings__hint">
-              {t("timelineSettingsDefault")}: {Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000)}s
+            <span className="timeline-settings__hint" id={imageDisplayHintId}>
+              {t("timelineSettingsImageDisplayHint")} {t("timelineSettingsMinimum")}:{" "}
+              {Math.round(MIN_IMAGE_DISPLAY_MIN_MS / 1000)}s. {t("timelineSettingsDefault")}:{" "}
+              {Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000)}s
             </span>
           </div>
 
@@ -109,11 +166,14 @@ export default function TimelineSettingsPanel({
                 max="180"
                 step="1"
                 value={imageHoldSeconds}
+                aria-describedby={imageHoldHintId}
                 onChange={(event) => onImageHoldChange(event.target.value)}
               />
               <span className="timeline-settings__unit">s</span>
             </div>
-            <span className="timeline-settings__hint">
+            <span className="timeline-settings__hint" id={imageHoldHintId}>
+              {t("timelineSettingsImageHoldHint")} {t("timelineSettingsRange")}:{" "}
+              {Math.round(IMAGE_HOLD_MIN_MS / 1000)}-{Math.round(IMAGE_HOLD_MAX_MS / 1000)}s.{" "}
               {t("timelineSettingsDefault")}: {Math.round(DEFAULT_IMAGE_HOLD_MS / 1000)}s
             </span>
           </div>
@@ -132,6 +192,13 @@ export default function TimelineSettingsPanel({
               />
               <span>{t("timelineSettingsSnapToGrid")}</span>
             </label>
+            <label
+              className="visually-hidden"
+              htmlFor="timeline-grid-step-input"
+              id={snapGridLabelId}
+            >
+              {t("timelineSettingsSnapGridStep")}
+            </label>
             <input
               id="timeline-grid-step-input"
               className="timeline-settings__step-input"
@@ -139,11 +206,15 @@ export default function TimelineSettingsPanel({
               min="1"
               step="1"
               value={String(snapGridSeconds ?? "1")}
+              aria-labelledby={snapGridLabelId}
+              aria-describedby={snapGridHintId}
               onChange={(e) => onSnapGridSecondsChange?.(e.target.value)}
               disabled={!snapToGrid}
             />
           </div>
-          <span className="timeline-settings__hint">{t("timelineSettingsSnapToGridHint")}</span>
+          <span className="timeline-settings__hint" id={snapGridHintId}>
+            {t("timelineSettingsSnapToGridHint")} {t("timelineSettingsMinimum")}: 1s.
+          </span>
         </div>
 
         <div className="timeline-settings__toggle-grid">

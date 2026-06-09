@@ -49,6 +49,17 @@ describe('Modal', () => {
     expect(screen.getByLabelText('Close')).toBeInTheDocument();
   });
 
+  it('uses a custom close button label when provided', () => {
+    const onClose = () => {};
+    renderWithProviders(
+      <Modal open={true} title="Test Modal" onClose={onClose} closeLabel="Fermer">
+        Content
+      </Modal>
+    );
+
+    expect(screen.getByLabelText('Fermer')).toBeInTheDocument();
+  });
+
   it('calls onClose when close button clicked', async () => {
     let closed = false;
     const onClose = () => {

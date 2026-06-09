@@ -120,6 +120,11 @@ function Dropzone({
     return className;
   }, [className, isDragActive]);
 
+  const importActionsClassName = useMemo(
+    () => [dropzoneCtaClassName, "dropzone__primary-actions"].filter(Boolean).join(" "),
+    [dropzoneCtaClassName]
+  );
+
   const stepItems = useMemo(
     () => [
       {
@@ -142,6 +147,56 @@ function Dropzone({
       sanitizedStepText1,
       sanitizedStepText2,
     ]
+  );
+
+  const importActions = (
+    <div className={importActionsClassName} role="group" aria-label={t("importActionsLabel")}>
+      <div className="dropzone__buttons">
+        <button
+          type="button"
+          className="dropzone__browse"
+          id="browse-folder"
+          onClick={() => onBrowseClick(folderInputRef)}
+        >
+          <Icon name="folder" size={18} className="dropzone__browse-icon" />
+          {t("buttonFolder")}
+        </button>
+        <button
+          type="button"
+          className="dropzone__browse"
+          id="browse-zip"
+          onClick={() => onBrowseClick(zipInputRef)}
+        >
+          <Icon name="archive" size={18} className="dropzone__browse-icon" />
+          {t("buttonZip")}
+        </button>
+        <button
+          type="button"
+          className="dropzone__browse"
+          id="browse-files"
+          onClick={() => onBrowseClick(filesInputRef)}
+        >
+          <Icon name="document" size={18} className="dropzone__browse-icon" />
+          {t("buttonFiles")}
+        </button>
+      </div>
+      {sampleManifest ? (
+        <div className="dropzone__sample">
+          <button
+            type="button"
+            className="dropzone__sample-button"
+            onClick={onLoadLocalSample}
+            disabled={isLoading || sampleLoading}
+          >
+            <Icon name="archive" size={16} className="dropzone__sample-icon" />
+            {sampleLoading ? t("loadingLocalSample") : t("loadLocalSample")}
+          </button>
+          <span className="dropzone__sample-meta">
+            {[sampleManifest.fileName, sampleSizeText].filter(Boolean).join(" · ")}
+          </span>
+        </div>
+      ) : null}
+    </div>
   );
 
   return (
@@ -167,6 +222,8 @@ function Dropzone({
           <p className="dropzone__lead">{t("tagline")}</p>
         </div>
 
+        {importActions}
+
         <div className="dropzone__assist" aria-label={t("stepsTitle")}>
           <ol className="dropzone__steps">
             {stepItems.map((step, index) => (
@@ -178,55 +235,6 @@ function Dropzone({
                   className="dropzone__step-summary"
                   dangerouslySetInnerHTML={{ __html: step.html }}
                 />
-                {index === 2 && (
-                  <div className={dropzoneCtaClassName} role="group" aria-label={t("dropMessage")}>
-                    <div className="dropzone__buttons">
-                      <button
-                        type="button"
-                        className="dropzone__browse"
-                        id="browse-folder"
-                        onClick={() => onBrowseClick(folderInputRef)}
-                      >
-                        <Icon name="folder" size={18} className="dropzone__browse-icon" />
-                        {t("buttonFolder")}
-                      </button>
-                      <button
-                        type="button"
-                        className="dropzone__browse"
-                        id="browse-zip"
-                        onClick={() => onBrowseClick(zipInputRef)}
-                      >
-                        <Icon name="archive" size={18} className="dropzone__browse-icon" />
-                        {t("buttonZip")}
-                      </button>
-                      <button
-                        type="button"
-                        className="dropzone__browse"
-                        id="browse-files"
-                        onClick={() => onBrowseClick(filesInputRef)}
-                      >
-                        <Icon name="document" size={18} className="dropzone__browse-icon" />
-                        {t("buttonFiles")}
-                      </button>
-                    </div>
-                    {sampleManifest ? (
-                      <div className="dropzone__sample">
-                        <button
-                          type="button"
-                          className="dropzone__sample-button"
-                          onClick={onLoadLocalSample}
-                          disabled={isLoading || sampleLoading}
-                        >
-                          <Icon name="archive" size={16} className="dropzone__sample-icon" />
-                          {sampleLoading ? t("loadingLocalSample") : t("loadLocalSample")}
-                        </button>
-                        <span className="dropzone__sample-meta">
-                          {[sampleManifest.fileName, sampleSizeText].filter(Boolean).join(" · ")}
-                        </span>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
               </li>
             ))}
           </ol>

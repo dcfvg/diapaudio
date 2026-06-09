@@ -1,4 +1,5 @@
 import { useMemo, memo } from "react";
+import { useTranslation } from "react-i18next";
 import { useMediaStore } from "../state/useMediaStore.js";
 import Modal from "./Modal.jsx";
 import Icon from "./Icon.jsx";
@@ -6,6 +7,7 @@ import "./TimelineNotices.css";
 import { sanitizeHtml } from "../utils/sanitizeHtml.js";
 
 function TimelineNotices({ open, onClose }) {
+  const { t } = useTranslation();
   const anomalies = useMediaStore((state) => state.anomalies);
 
   const notices = useMemo(
@@ -19,12 +21,13 @@ function TimelineNotices({ open, onClose }) {
     <Modal
       open={open}
       onClose={onClose}
-      title="Timeline notices"
+      title={t("timelineNoticesTitle")}
       icon={<Icon name="warning" size={20} />}
+      closeLabel={t("closeButton")}
       actions={[
         {
           key: "close",
-          label: "Close",
+          label: t("closeButton"),
           variant: "primary",
           onClick: onClose,
         },

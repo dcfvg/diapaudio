@@ -1,8 +1,11 @@
+import { useTranslation } from "react-i18next";
 import Modal from "./Modal.jsx";
 import Icon from "./Icon.jsx";
 import "./ErrorModal.css";
 
-export default function ErrorModal({ open, error, onClose, title = "Something went wrong" }) {
+export default function ErrorModal({ open, error, onClose, title }) {
+  const { t } = useTranslation();
+
   if (!error) {
     return null;
   }
@@ -10,19 +13,20 @@ export default function ErrorModal({ open, error, onClose, title = "Something we
   const message =
     typeof error === "string"
       ? error
-      : error?.message || "An unexpected error occurred. Please try again.";
+      : error?.message || t("errorModalDefaultMessage");
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={title}
+      title={title || t("errorModalTitle")}
       icon={<Icon name="warning" size={22} />}
       variant="danger"
+      closeLabel={t("closeButton")}
       actions={[
         {
           key: "close",
-          label: "Close",
+          label: t("closeButton"),
           variant: "primary",
           onClick: onClose,
         },
@@ -31,7 +35,7 @@ export default function ErrorModal({ open, error, onClose, title = "Something we
       <p>{message}</p>
       {error?.stack ? (
         <details className="error-modal__details">
-          <summary>Technical details</summary>
+          <summary>{t("errorModalTechnicalDetails")}</summary>
           <pre>{error.stack}</pre>
         </details>
       ) : null}

@@ -83,9 +83,14 @@ export const translations = {
     exportButton: "Export for Premiere",
     exportZipButton: "Download ZIP",
     closeButton: "Close",
+    cancelButton: "Cancel",
+    importActionsLabel: "Import media",
+    errorModalDefaultMessage: "An unexpected error occurred. Please try again.",
+    errorModalTechnicalDetails: "Technical details",
 
     // Timeline
     timelineNotice: "No overlapping images found.",
+    timelineNoticesTitle: "Timeline notices",
     timelineNoticesButton: "{{count}} timeline notice",
     timelineNoticesButton_plural: "{{count}} timeline notices",
     overlapHandlingInfo:
@@ -103,8 +108,11 @@ export const translations = {
     timelineSettingsCompositionInterval: "Composition change (s)",
     timelineSettingsCompositionIntervalHint: "Minimum seconds between layout updates",
     timelineSettingsDefault: "Default",
+    timelineSettingsMinimum: "Minimum",
+    timelineSettingsRange: "Range",
     timelineSettingsSnapToGrid: "Align",
     timelineSettingsSnapToGridHint: "Snap photos to the nearest grid step.",
+    timelineSettingsSnapGridStep: "Grid step in seconds",
     timelineSettingsExportPremiere: "Premiere package",
     timelineSettingsExportXml: "Export Premiere XML",
     timelineSettingsExportXmlOnly: "XML only",
@@ -141,6 +149,12 @@ export const translations = {
     tooltipExportZIP: "Download all media files as a ZIP archive",
 
     // Keyboard shortcuts
+    keyboardShortcutsTitle: "Keyboard shortcuts",
+    shortcutCategoryPlayback: "Playback",
+    shortcutCategoryDisplay: "Display",
+    shortcutCategoryHelp: "Help",
+    keyboardShortcutsFooterPrefix: "Press",
+    keyboardShortcutsFooterSuffix: "to toggle this help",
     shortcutPlayPause: "Play / Pause",
     shortcutSeekBackward: "Seek backward 10 seconds",
     shortcutSeekForward: "Seek forward 10 seconds",
@@ -246,9 +260,14 @@ export const translations = {
     exportButton: "Exporter pour Premiere",
     exportZipButton: "Télécharger ZIP",
     closeButton: "Fermer",
+    cancelButton: "Annuler",
+    importActionsLabel: "Importer des médias",
+    errorModalDefaultMessage: "Une erreur inattendue est survenue. Veuillez réessayer.",
+    errorModalTechnicalDetails: "Détails techniques",
 
     // Timeline
     timelineNotice: "Aucune image superposée trouvée.",
+    timelineNoticesTitle: "Alertes de chronologie",
     timelineNoticesButton: "{{count}} alerte de chronologie",
     timelineNoticesButton_plural: "{{count}} alertes de chronologie",
     overlapHandlingInfo:
@@ -267,8 +286,11 @@ export const translations = {
     timelineSettingsCompositionIntervalHint:
       "Secondes minimales entre deux changements de disposition",
     timelineSettingsDefault: "Défaut",
+    timelineSettingsMinimum: "Minimum",
+    timelineSettingsRange: "Plage",
     timelineSettingsSnapToGrid: "Aligner",
     timelineSettingsSnapToGridHint: "Place les photos sur la grille la plus proche.",
+    timelineSettingsSnapGridStep: "Pas de grille en secondes",
     timelineSettingsExportPremiere: "Package Premiere",
     timelineSettingsExportXml: "Exporter le XML Premiere",
     timelineSettingsExportXmlOnly: "XML seul",
@@ -305,6 +327,12 @@ export const translations = {
     tooltipExportZIP: "Télécharger tous les fichiers médias dans une archive ZIP",
 
     // Keyboard shortcuts
+    keyboardShortcutsTitle: "Raccourcis clavier",
+    shortcutCategoryPlayback: "Lecture",
+    shortcutCategoryDisplay: "Affichage",
+    shortcutCategoryHelp: "Aide",
+    keyboardShortcutsFooterPrefix: "Appuyer sur",
+    keyboardShortcutsFooterSuffix: "pour afficher ou masquer cette aide",
     shortcutPlayPause: "Lecture / Pause",
     shortcutSeekBackward: "Reculer de 10 secondes",
     shortcutSeekForward: "Avancer de 10 secondes",
@@ -413,9 +441,14 @@ export const translations = {
     exportButton: "Exportar para Premiere",
     exportZipButton: "Descargar ZIP",
     closeButton: "Cerrar",
+    cancelButton: "Cancelar",
+    importActionsLabel: "Importar medios",
+    errorModalDefaultMessage: "Ocurrió un error inesperado. Inténtalo de nuevo.",
+    errorModalTechnicalDetails: "Detalles técnicos",
 
     // Timeline
     timelineNotice: "No se encontraron imágenes superpuestas.",
+    timelineNoticesTitle: "Avisos de cronología",
     timelineNoticesButton: "{{count}} alerta de cronología",
     timelineNoticesButton_plural: "{{count}} alertas de cronología",
     overlapHandlingInfo:
@@ -433,8 +466,11 @@ export const translations = {
     timelineSettingsCompositionInterval: "Cambio de composición (s)",
     timelineSettingsCompositionIntervalHint: "Segundos mínimos entre cambios de diseño",
     timelineSettingsDefault: "Defecto",
+    timelineSettingsMinimum: "Mínimo",
+    timelineSettingsRange: "Rango",
     timelineSettingsSnapToGrid: "Alinear",
     timelineSettingsSnapToGridHint: "Ajusta las fotos al paso de cuadrícula más cercano.",
+    timelineSettingsSnapGridStep: "Paso de cuadrícula en segundos",
     timelineSettingsExportPremiere: "Paquete Premiere",
     timelineSettingsExportXml: "Exportar XML de Premiere",
     timelineSettingsExportXmlOnly: "Solo XML",
@@ -471,6 +507,12 @@ export const translations = {
     tooltipExportZIP: "Descargar todos los archivos multimedia como archivo ZIP",
 
     // Keyboard shortcuts
+    keyboardShortcutsTitle: "Atajos de teclado",
+    shortcutCategoryPlayback: "Reproducción",
+    shortcutCategoryDisplay: "Visualización",
+    shortcutCategoryHelp: "Ayuda",
+    keyboardShortcutsFooterPrefix: "Pulsa",
+    keyboardShortcutsFooterSuffix: "para mostrar u ocultar esta ayuda",
     shortcutPlayPause: "Reproducir / Pausar",
     shortcutSeekBackward: "Retroceder 10 segundos",
     shortcutSeekForward: "Avanzar 10 segundos",
