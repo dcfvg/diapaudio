@@ -53,7 +53,7 @@ body {
 }
 
 .viewer__content {
-  --settings-panel-width: 336px;
+  --settings-panel-width: 380px;
   display: flex;
   flex-direction: column;
   gap: 0;

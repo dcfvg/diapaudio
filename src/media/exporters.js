@@ -1,6 +1,7 @@
 import { BlobReader, BlobWriter, TextReader, ZipWriter } from "@zip.js/zip.js";
 import { exportPremiereXml, exportPremiereXmlPackage } from "./premiereExport.js";
 import { formatDelay } from "./delay.js";
+import { ARCHIVE_SETTINGS_FILE_NAME, serializeArchiveSettings } from "./archiveSettings.js";
 import { toTimestamp, formatTimestampForFilename } from "../utils/dateUtils.js";
 import * as logger from "../utils/logger.js";
 
@@ -28,7 +29,12 @@ export async function exportFinalCutProXml(options) {
   return exportPremiereXml(options);
 }
 
-export async function exportZipArchive({ mediaData, delaySeconds = 0, onProgress = null }) {
+export async function exportZipArchive({
+  mediaData,
+  delaySeconds = 0,
+  settings = null,
+  onProgress = null,
+}) {
   if (!mediaData?.images?.length) {
     throw new Error("No media to export.");
   }
@@ -48,7 +54,7 @@ export async function exportZipArchive({ mediaData, delaySeconds = 0, onProgress
   const zipFilename = `diapaudio_${startLabel}-${endLabel}.zip`;
 
   const audioTracks = mediaData.audioTracks || [];
-  const totalItems = 1 + audioTracks.length + sortedImages.length;
+  const totalItems = 2 + audioTracks.length + sortedImages.length;
   let processedItems = 0;
 
   const reportProgress = (details = "") => {
@@ -68,6 +74,10 @@ export async function exportZipArchive({ mediaData, delaySeconds = 0, onProgress
   await zipWriter.add("_delay.txt", new TextReader(formatDelay(delaySeconds || 0)));
   processedItems++;
   reportProgress("Added delay file");
+
+  await zipWriter.add(ARCHIVE_SETTINGS_FILE_NAME, new TextReader(serializeArchiveSettings(settings)));
+  processedItems++;
+  reportProgress("Added settings file");
 
   for (let i = 0; i < audioTracks.length; i += 1) {
     const track = audioTracks[i];

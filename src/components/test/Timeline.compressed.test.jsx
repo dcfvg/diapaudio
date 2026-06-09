@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent } from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "../../test/test-utils.jsx";
 import { useMediaStore } from "../../state/useMediaStore.js";
 import { usePlaybackStore } from "../../state/usePlaybackStore.js";
@@ -77,7 +77,7 @@ describe("Timeline compressed blanks", () => {
     expect(parseFloat(tracks[1].style.left)).toBe(75);
   });
 
-  it("renders a // cut and moves later media earlier on the compressed axis", () => {
+  it("renders a cut marker and moves later media earlier on the compressed axis", () => {
     setupTimeline({ autoSkipVoids: true });
 
     const { container } = renderWithProviders(<Timeline />);
@@ -90,7 +90,46 @@ describe("Timeline compressed blanks", () => {
     expect(secondTrackLeft).toBeLessThan(55);
   });
 
-  it("clicking a // cut seeks to the next media event", () => {
+  it("uses the minimum photo display time as the blank threshold", () => {
+    setupTimeline({
+      autoSkipVoids: true,
+      audioRanges: [
+        [0, 10_000],
+        [17_000, 40_000],
+      ],
+      settings: {
+        imageDisplaySeconds: 6,
+        speed: 1,
+      },
+    });
+
+    const { container } = renderWithProviders(<Timeline />);
+    const cut = container.querySelector(".timeline__void-cut");
+
+    expect(cut).toBeInTheDocument();
+    expect(cut).toHaveAttribute("data-start-ms", "10000");
+    expect(cut).toHaveAttribute("data-end-ms", "17000");
+  });
+
+  it("keeps blanks equal to the minimum photo display time linear", () => {
+    setupTimeline({
+      autoSkipVoids: true,
+      audioRanges: [
+        [0, 10_000],
+        [16_000, 40_000],
+      ],
+      settings: {
+        imageDisplaySeconds: 6,
+        speed: 1,
+      },
+    });
+
+    const { container } = renderWithProviders(<Timeline />);
+
+    expect(container.querySelector(".timeline__void-cut")).not.toBeInTheDocument();
+  });
+
+  it("clicking a cut marker seeks to the next media event", () => {
     const seekToAbsolute = vi.fn();
     const { mediaData } = setupTimeline({ autoSkipVoids: true, seekToAbsolute });
 
@@ -102,7 +141,42 @@ describe("Timeline compressed blanks", () => {
     expect(seekToAbsolute).toHaveBeenCalledWith(mediaData, 30_000, { autoplay: true });
   });
 
-  it("starts the // cut after a held photo segment ends", () => {
+  it("keeps the resume time label hidden when the fixed marker has no room", async () => {
+    const rectSpy = vi
+      .spyOn(globalThis.HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(() => ({
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        right: 1000,
+        bottom: 100,
+        width: 1000,
+        height: 100,
+        toJSON: () => ({}),
+      }));
+
+    try {
+      setupTimeline({
+        autoSkipVoids: true,
+        audioRanges: [
+          [0, 10_000],
+          [1_000_000, 1_010_000],
+        ],
+      });
+
+      const { container } = renderWithProviders(<Timeline />);
+
+      await waitFor(() => {
+        expect(container.querySelector(".timeline__void-cut")).toBeInTheDocument();
+      });
+      expect(container.querySelector(".timeline__void-cut-label")).not.toBeInTheDocument();
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it("starts the cut marker after a held photo segment ends", () => {
     setupTimeline({
       autoSkipVoids: true,
       audioRanges: [
@@ -111,7 +185,7 @@ describe("Timeline compressed blanks", () => {
       ],
       images: [{ timeMs: 12_000, name: "Held photo" }],
       settings: {
-        imageDisplaySeconds: 1,
+        imageDisplaySeconds: 2,
         imageHoldSeconds: 18,
         compositionIntervalSeconds: 60,
         snapToGrid: false,
@@ -122,11 +196,11 @@ describe("Timeline compressed blanks", () => {
     const cuts = container.querySelectorAll(".timeline__void-cut");
 
     expect(cuts).toHaveLength(1);
-    expect(cuts[0]).toHaveAttribute("data-start-ms", "31000");
+    expect(cuts[0]).toHaveAttribute("data-start-ms", "32000");
     expect(cuts[0]).toHaveAttribute("data-end-ms", "42000");
   });
 
-  it("keeps // cuts based on actual photo hold windows, not composition alignment", () => {
+  it("keeps cut markers based on actual photo hold windows, not composition alignment", () => {
     setupTimeline({
       autoSkipVoids: true,
       audioRanges: [
@@ -138,7 +212,7 @@ describe("Timeline compressed blanks", () => {
         { timeMs: 80_000, name: "Second photo" },
       ],
       settings: {
-        imageDisplaySeconds: 1,
+        imageDisplaySeconds: 2,
         imageHoldSeconds: 18,
         compositionIntervalSeconds: 120,
         snapToGrid: false,
@@ -149,9 +223,9 @@ describe("Timeline compressed blanks", () => {
     const cuts = container.querySelectorAll(".timeline__void-cut");
 
     expect(cuts).toHaveLength(2);
-    expect(cuts[0]).toHaveAttribute("data-start-ms", "31000");
+    expect(cuts[0]).toHaveAttribute("data-start-ms", "32000");
     expect(cuts[0]).toHaveAttribute("data-end-ms", "80000");
-    expect(cuts[1]).toHaveAttribute("data-start-ms", "99000");
+    expect(cuts[1]).toHaveAttribute("data-start-ms", "100000");
     expect(cuts[1]).toHaveAttribute("data-end-ms", "140000");
   });
 });

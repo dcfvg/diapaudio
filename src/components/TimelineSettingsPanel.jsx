@@ -149,9 +149,10 @@ export default function TimelineSettingsPanel({
               <span className="timeline-settings__unit">s</span>
             </div>
             <span className="timeline-settings__hint" id={imageDisplayHintId}>
-              {t("timelineSettingsImageDisplayHint")} {t("timelineSettingsMinimum")}:{" "}
-              {Math.round(MIN_IMAGE_DISPLAY_MIN_MS / 1000)}s. {t("timelineSettingsDefault")}:{" "}
-              {Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000)}s
+              {t("timelineSettingsImageDisplayHint", {
+                min: Math.round(MIN_IMAGE_DISPLAY_MIN_MS / 1000),
+                default: Math.round(MIN_IMAGE_DISPLAY_DEFAULT_MS / 1000),
+              })}
             </span>
           </div>
 
@@ -173,9 +174,11 @@ export default function TimelineSettingsPanel({
               <span className="timeline-settings__unit">s</span>
             </div>
             <span className="timeline-settings__hint" id={imageHoldHintId}>
-              {t("timelineSettingsImageHoldHint")} {t("timelineSettingsRange")}:{" "}
-              {Math.round(IMAGE_HOLD_MIN_MS / 1000)}-{Math.round(IMAGE_HOLD_MAX_MS / 1000)}s.{" "}
-              {t("timelineSettingsDefault")}: {Math.round(DEFAULT_IMAGE_HOLD_MS / 1000)}s
+              {t("timelineSettingsImageHoldHint", {
+                min: Math.round(IMAGE_HOLD_MIN_MS / 1000),
+                max: Math.round(IMAGE_HOLD_MAX_MS / 1000),
+                default: Math.round(DEFAULT_IMAGE_HOLD_MS / 1000),
+              })}
             </span>
           </div>
         </div>
@@ -214,7 +217,7 @@ export default function TimelineSettingsPanel({
             />
           </div>
           <span className="timeline-settings__hint" id={snapGridHintId}>
-            {t("timelineSettingsSnapToGridHint")} {t("timelineSettingsMinimum")}: 1s.
+            {t("timelineSettingsSnapToGridHint")}
           </span>
         </div>
 

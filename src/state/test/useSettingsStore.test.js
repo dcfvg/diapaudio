@@ -71,6 +71,35 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().delayUserOverride).toBe(false);
   });
 
+  it('applies imported archive settings without changing delay override state', () => {
+    useSettingsStore.getState().setDelaySeconds(12);
+
+    const applied = useSettingsStore.getState().applyImportedSettings({
+      speed: 2,
+      autoSkipVoids: true,
+      snapToGrid: false,
+      imageDisplaySeconds: 4,
+      imageHoldSeconds: 12,
+    });
+
+    expect(applied).toMatchObject({
+      speed: 2,
+      autoSkipVoids: true,
+      snapToGrid: false,
+      imageDisplaySeconds: 4,
+      imageHoldSeconds: 12,
+    });
+    expect(useSettingsStore.getState()).toMatchObject({
+      speed: 2,
+      autoSkipVoids: true,
+      snapToGrid: false,
+      imageDisplaySeconds: 4,
+      imageHoldSeconds: 12,
+      delaySeconds: 12,
+      delayUserOverride: true,
+    });
+  });
+
   it('updates imageHoldSeconds', () => {
     useSettingsStore.getState().setImageHoldSeconds(60);
     expect(useSettingsStore.getState().imageHoldSeconds).toBe(60);

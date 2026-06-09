@@ -1,5 +1,6 @@
 import { BlobWriter, ZipWriter, TextReader, BlobReader } from "@zip.js/zip.js";
 import { formatDelay } from "./delay.js";
+import { ARCHIVE_SETTINGS_FILE_NAME, serializeArchiveSettings } from "./archiveSettings.js";
 import { formatTimestampForFilename } from "../utils/dateUtils.js";
 import * as logger from "../utils/logger.js";
 
@@ -10,9 +11,10 @@ import * as logger from "../utils/logger.js";
  * @param {object} mediaData - Media data with images and audioTracks
  * @param {number} delaySeconds - Delay value to include in _delay.txt
  * @param {function} onProgress - Progress callback (percent, statusKey, details)
+ * @param {object} settings - User-facing settings to include in _settings.yml
  * @returns {Promise<void>}
  */
-export async function exportZipArchive(mediaData, delaySeconds, onProgress) {
+export async function exportZipArchive(mediaData, delaySeconds, onProgress, settings = null) {
   if (!mediaData || !mediaData.images || mediaData.images.length === 0) {
     throw new Error("No media loaded to export");
   }
@@ -42,6 +44,7 @@ export async function exportZipArchive(mediaData, delaySeconds, onProgress) {
     // Add _delay.txt file
     onProgress?.(5, "processingFiles", "Adding delay file...");
     await zipWriter.add("_delay.txt", new TextReader(delayContent));
+    await zipWriter.add(ARCHIVE_SETTINGS_FILE_NAME, new TextReader(serializeArchiveSettings(settings)));
 
     // Add all media files (images and audio)
     const totalFiles = mediaData.images.length + (mediaData.audioTracks?.length || 0);

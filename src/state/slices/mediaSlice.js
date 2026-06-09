@@ -10,6 +10,13 @@ function getPersistedDelaySeconds() {
   return Number.isFinite(value) ? value : 0;
 }
 
+function applyImportedArchiveSettings(result) {
+  if (!result?.archiveSettings) {
+    return null;
+  }
+  return useSettingsStore.getState().applyImportedSettings?.(result.archiveSettings) ?? null;
+}
+
 export const createMediaSlice = (set, get) => ({
   mediaData: null,
   delaySeconds: getPersistedDelaySeconds(),
@@ -77,6 +84,7 @@ export const createMediaSlice = (set, get) => ({
         progress: _progressManager,
         t: translate,
       });
+      applyImportedArchiveSettings(result);
       const settings = useSettingsStore.getState();
       const payload = buildMediaData(result, delaySeconds, {
         preferExistingDelay: Boolean(settings.delayUserOverride),
@@ -107,6 +115,7 @@ export const createMediaSlice = (set, get) => ({
         progress: _progressManager,
         t: translate,
       });
+      applyImportedArchiveSettings(result);
 
       const existingTracks = mediaData.audioTracks || [];
       const existingImages = mediaData.images || [];

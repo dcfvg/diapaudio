@@ -17,6 +17,8 @@ export const translations = {
       "Multiple delay files detected ({{count}}); using the last one: {{delay}}",
     multipleDelayFilesDetectedAddition:
       "Multiple delay files detected in addition ({{count}}); using the last one: {{delay}}",
+    multipleSettingsFilesDetected:
+      "Multiple settings files detected ({{count}}); using the last one.",
     removedDuplicateAudio: "Removed {{count}} duplicate audio file(s) in this drop",
     removedDuplicateImage: "Removed {{count}} duplicate image file(s) in this drop",
 
@@ -102,21 +104,21 @@ export const translations = {
     timelineSettings: "Settings",
     timelineSettingsTitle: "Settings",
     timelineSettingsSubtitle: "Playback and export",
-    timelineSettingsDelayHint: "Use 0:30 for photos later, -0:30 for earlier.",
-    timelineSettingsImageDisplay: "Minimum time per photo",
-    timelineSettingsImageDisplayHint: "Shortest display time",
-    timelineSettingsImageHold: "Keep last photo",
-    timelineSettingsImageHoldHint: "How long it remains visible",
+    timelineSettingsDelayHint: "Positive moves photos later; negative moves them earlier.",
+    timelineSettingsImageDisplay: "Time per photo",
+    timelineSettingsImageDisplayHint: "Minimum: {{min}}s. Default: {{default}}s.",
+    timelineSettingsImageHold: "Last photo",
+    timelineSettingsImageHoldHint: "Keep it visible {{min}}-{{max}}s after capture. Default: {{default}}s.",
     timelineSettingsCompositionInterval: "Composition change (s)",
     timelineSettingsCompositionIntervalHint: "Minimum seconds between layout updates",
     timelineSettingsDefault: "Default",
     timelineSettingsMinimum: "Minimum",
     timelineSettingsRange: "Range",
-    timelineSettingsSnapToGrid: "Align photos",
-    timelineSettingsSnapToGridHint: "Snap photos to the nearest grid step.",
+    timelineSettingsSnapToGrid: "Align",
+    timelineSettingsSnapToGridHint: "Nearest grid step, minimum 1s.",
     timelineSettingsSnapGridStep: "Grid step in seconds",
     timelineSettingsAutoSkipHint:
-      "During playback, moments without sound or a new photo are skipped and marked // on the timeline.",
+      "During playback, moments without sound or a new photo are skipped and marked by a dotted line.",
     timelineSettingsExportPremiere: "Export for Premiere (ZIP)",
     timelineSettingsExportXml: "Export Premiere XML",
     timelineSettingsExportXmlOnly: "Export XML only",
@@ -131,7 +133,7 @@ export const translations = {
     timelineImageGroupShort: "{{count}} img",
     timelineImageGroupShort_plural: "{{count}} img",
     timelineCompressedAxisNote:
-      "The timeline is compressed. Cuts marked // show skipped moments without sound or a new photo.",
+      "The timeline is compressed. Dotted marks show skipped moments without sound or a new photo.",
     timelineSkippedBlankTitle: "Skipped blank: {{start}} to {{end}}",
 
     // Tooltips
@@ -149,7 +151,7 @@ export const translations = {
     tooltipSpeed: "Playback speed",
     tooltipSpeedSelect: "Speed",
     tooltipAutoSkip: "Skip moments without sound or a new photo",
-    tooltipAutoSkipCheckbox: "Skip moments without media",
+    tooltipAutoSkipCheckbox: "Skip blanks",
     tooltipShowClock: "Show clock",
     showClockLabel: "Clock",
     tooltipExportXML: "Export timeline as Premiere-compatible Final Cut Pro XML",
@@ -194,6 +196,8 @@ export const translations = {
       "Plusieurs fichiers de délai détectés ({{count}}) ; utilisation du dernier : {{delay}}",
     multipleDelayFilesDetectedAddition:
       "Plusieurs fichiers de délai détectés en plus ({{count}}) ; utilisation du dernier : {{delay}}",
+    multipleSettingsFilesDetected:
+      "Plusieurs fichiers de réglages détectés ({{count}}) ; utilisation du dernier.",
     removedDuplicateAudio: "Suppression de {{count}} fichier(s) audio en double dans cet import",
     removedDuplicateImage: "Suppression de {{count}} fichier(s) image en double dans cet import",
 
@@ -286,22 +290,23 @@ export const translations = {
     timelineSettings: "Réglages",
     timelineSettingsTitle: "Réglages",
     timelineSettingsSubtitle: "Lecture et export",
-    timelineSettingsDelayHint: "0:30 décale les photos plus tard, -0:30 plus tôt.",
-    timelineSettingsImageDisplay: "Temps minimum par photo",
-    timelineSettingsImageDisplayHint: "Durée minimale d’affichage",
-    timelineSettingsImageHold: "Garder la dernière photo",
-    timelineSettingsImageHoldHint: "Durée pendant laquelle elle reste visible",
+    timelineSettingsDelayHint: "Positif : photos plus tard. Négatif : plus tôt.",
+    timelineSettingsImageDisplay: "Temps par photo",
+    timelineSettingsImageDisplayHint: "Minimum : {{min}} s. Défaut : {{default}} s.",
+    timelineSettingsImageHold: "Dernière photo",
+    timelineSettingsImageHoldHint:
+      "Visible {{min}}-{{max}} s après sa prise. Défaut : {{default}} s.",
     timelineSettingsCompositionInterval: "Changement de composition (s)",
     timelineSettingsCompositionIntervalHint:
       "Secondes minimales entre deux changements de disposition",
     timelineSettingsDefault: "Défaut",
     timelineSettingsMinimum: "Minimum",
     timelineSettingsRange: "Plage",
-    timelineSettingsSnapToGrid: "Aligner les photos",
-    timelineSettingsSnapToGridHint: "Place les photos sur la grille la plus proche.",
+    timelineSettingsSnapToGrid: "Aligner",
+    timelineSettingsSnapToGridHint: "Grille la plus proche, minimum 1 s.",
     timelineSettingsSnapGridStep: "Pas de grille en secondes",
     timelineSettingsAutoSkipHint:
-      "Pendant la lecture, les passages sans son ni nouvelle photo sont sautés et marqués // sur la timeline.",
+      "Pendant la lecture, les passages sans son ni nouvelle photo sont sautés et marqués par un trait pointillé.",
     timelineSettingsExportPremiere: "Exporter pour Premiere (ZIP)",
     timelineSettingsExportXml: "Exporter le XML Premiere",
     timelineSettingsExportXmlOnly: "Exporter le XML seul",
@@ -316,7 +321,7 @@ export const translations = {
     timelineImageGroupShort: "{{count}} img",
     timelineImageGroupShort_plural: "{{count}} img",
     timelineCompressedAxisNote:
-      "La timeline est compressée. Les coupures // marquent les passages sans son ni nouvelle photo.",
+      "La timeline est compressée. Les traits pointillés marquent les passages sans son ni nouvelle photo.",
     timelineSkippedBlankTitle: "Blanc évité : {{start}} à {{end}}",
 
     // Tooltips
@@ -334,7 +339,7 @@ export const translations = {
     tooltipSpeed: "Vitesse de lecture",
     tooltipSpeedSelect: "Vitesse",
     tooltipAutoSkip: "Sauter les passages sans son ni nouvelle photo",
-    tooltipAutoSkipCheckbox: "Sauter les passages sans média",
+    tooltipAutoSkipCheckbox: "Sauter les blancs",
     tooltipShowClock: "Afficher l'horloge",
     showClockLabel: "Horloge",
     tooltipExportXML: "Exporter la chronologie en XML Final Cut Pro compatible Premiere",
@@ -379,6 +384,8 @@ export const translations = {
       "Varios archivos de retraso detectados ({{count}}); usando el último: {{delay}}",
     multipleDelayFilesDetectedAddition:
       "Varios archivos de retraso detectados además ({{count}}); usando el último: {{delay}}",
+    multipleSettingsFilesDetected:
+      "Varios archivos de ajustes detectados ({{count}}); usando el último.",
     removedDuplicateAudio:
       "Eliminado {{count}} archivo(s) de audio duplicado(s) en esta importación",
     removedDuplicateImage:
@@ -474,21 +481,22 @@ export const translations = {
     timelineSettings: "Ajustes",
     timelineSettingsTitle: "Ajustes",
     timelineSettingsSubtitle: "Reproducción y exportación",
-    timelineSettingsDelayHint: "0:30 mueve las fotos más tarde, -0:30 más temprano.",
-    timelineSettingsImageDisplay: "Tiempo mínimo por foto",
-    timelineSettingsImageDisplayHint: "Tiempo mínimo visible",
-    timelineSettingsImageHold: "Mantener última foto",
-    timelineSettingsImageHoldHint: "Cuánto tiempo sigue visible",
+    timelineSettingsDelayHint: "Positivo: fotos más tarde. Negativo: más temprano.",
+    timelineSettingsImageDisplay: "Tiempo por foto",
+    timelineSettingsImageDisplayHint: "Mínimo: {{min}}s. Predeterminado: {{default}}s.",
+    timelineSettingsImageHold: "Última foto",
+    timelineSettingsImageHoldHint:
+      "Visible {{min}}-{{max}}s tras la captura. Predeterminado: {{default}}s.",
     timelineSettingsCompositionInterval: "Cambio de composición (s)",
     timelineSettingsCompositionIntervalHint: "Segundos mínimos entre cambios de diseño",
     timelineSettingsDefault: "Defecto",
     timelineSettingsMinimum: "Mínimo",
     timelineSettingsRange: "Rango",
-    timelineSettingsSnapToGrid: "Alinear fotos",
-    timelineSettingsSnapToGridHint: "Ajusta las fotos al paso de cuadrícula más cercano.",
+    timelineSettingsSnapToGrid: "Alinear",
+    timelineSettingsSnapToGridHint: "Paso de cuadrícula más cercano, mínimo 1s.",
     timelineSettingsSnapGridStep: "Paso de cuadrícula en segundos",
     timelineSettingsAutoSkipHint:
-      "Durante la reproducción, los momentos sin sonido ni foto nueva se saltan y se marcan // en la cronología.",
+      "Durante la reproducción, los momentos sin sonido ni foto nueva se saltan y se marcan con una línea punteada.",
     timelineSettingsExportPremiere: "Exportar para Premiere (ZIP)",
     timelineSettingsExportXml: "Exportar XML de Premiere",
     timelineSettingsExportXmlOnly: "Exportar solo XML",
@@ -503,7 +511,7 @@ export const translations = {
     timelineImageGroupShort: "{{count}} img",
     timelineImageGroupShort_plural: "{{count}} img",
     timelineCompressedAxisNote:
-      "La cronología está comprimida. Los cortes // marcan momentos sin sonido ni foto nueva.",
+      "La cronología está comprimida. Las marcas punteadas señalan momentos sin sonido ni foto nueva.",
     timelineSkippedBlankTitle: "Vacío saltado: {{start}} a {{end}}",
 
     // Tooltips
@@ -521,7 +529,7 @@ export const translations = {
     tooltipSpeed: "Velocidad de reproducción",
     tooltipSpeedSelect: "Velocidad",
     tooltipAutoSkip: "Saltar momentos sin sonido ni foto nueva",
-    tooltipAutoSkipCheckbox: "Saltar momentos sin medios",
+    tooltipAutoSkipCheckbox: "Saltar vacíos",
     tooltipShowClock: "Mostrar reloj",
     showClockLabel: "Reloj",
     tooltipExportXML: "Exportar línea de tiempo como XML de Final Cut Pro compatible con Premiere",

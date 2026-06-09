@@ -101,29 +101,21 @@ export function diapaudioSamplePlugin({
     name: "diapaudio-sample-server",
     apply: "serve",
     configureServer(server) {
-      let sampleFiles = [];
+      const getSampleFiles = () => {
+        try {
+          return resolveSampleFiles(server.config.root, {
+            sampleZipPath,
+            sampleDirPath,
+          });
+        } catch (error) {
+          server.config.logger.warn(`[diapaudio-sample] ${error.message}`);
+          return [];
+        }
+      };
 
-      try {
-        sampleFiles = resolveSampleFiles(server.config.root, {
-          sampleZipPath,
-          sampleDirPath,
-        });
-      } catch (error) {
-        server.config.logger.warn(`[diapaudio-sample] ${error.message}`);
-        return;
-      }
-
-      if (!sampleFiles.length) {
-        return;
-      }
-
-      const manifestSamples = sampleFiles.map(toManifestSample);
-      const samplesById = new Map(
-        manifestSamples.map((sample, index) => [sample.id, sampleFiles[index]])
-      );
-
+      const initialSampleFiles = getSampleFiles();
       server.config.logger.info(
-        `[diapaudio-sample] Serving ${sampleFiles.length} sample ZIP(s)`
+        `[diapaudio-sample] Serving ${initialSampleFiles.length} sample ZIP(s)`
       );
 
       server.middlewares.use((request, response, next) => {
@@ -135,9 +127,12 @@ export function diapaudioSamplePlugin({
           return;
         }
 
+        const sampleFiles = getSampleFiles();
+        const manifestSamples = sampleFiles.map(toManifestSample);
+
         if (pathname === `${SAMPLE_BASE_PATH}/manifest.json`) {
           sendJson(response, 200, {
-            available: true,
+            available: manifestSamples.length > 0,
             samples: manifestSamples,
           });
           return;
@@ -148,7 +143,8 @@ export function diapaudioSamplePlugin({
           pathname.startsWith(samplesPrefix) && pathname.endsWith(".zip")
             ? pathname.slice(samplesPrefix.length, -".zip".length)
             : null;
-        const sampleFile = sampleId == null ? null : samplesById.get(sampleId);
+        const sampleIndex = sampleId == null ? -1 : Number(sampleId);
+        const sampleFile = Number.isInteger(sampleIndex) ? sampleFiles[sampleIndex] : null;
 
         if (sampleFile) {
           response.statusCode = 200;

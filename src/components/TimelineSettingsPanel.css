@@ -5,8 +5,8 @@
   bottom: 0;
   z-index: 40;
   display: flex;
-  width: var(--settings-panel-width, 336px);
-  max-width: min(336px, calc(100vw - 16px));
+  width: var(--settings-panel-width, 380px);
+  max-width: min(380px, calc(100vw - 16px));
   flex-direction: column;
   color: var(--text-secondary);
   background: rgba(12, 16, 24, 0.96);
@@ -117,6 +117,9 @@
   color: var(--text-primary);
   font-size: 0.78rem;
   font-weight: var(--font-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .timeline-settings__group input[type="text"],
@@ -193,7 +196,10 @@
 
 .timeline-settings__toggle span {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: var(--line-height-tight);
+  white-space: nowrap;
 }
 
 .timeline-settings__exports {
@@ -282,7 +288,7 @@
 @media (max-width: 720px) {
   .timeline-settings-panel {
     top: 0;
-    width: min(336px, calc(100vw - 16px));
+    width: min(380px, calc(100vw - 16px));
     max-width: calc(100vw - 16px);
     border-radius: var(--radius-md) 0 0 var(--radius-md);
   }

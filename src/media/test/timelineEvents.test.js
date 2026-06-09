@@ -205,6 +205,70 @@ describe("compressed timeline projection", () => {
     expect(findAutoSkipTarget(index, 11_000)).toBe(20_100);
   });
 
+  it("uses a custom blank threshold for projection and auto-skip", () => {
+    const index = buildMediaTimelineIndex({
+      images: [],
+      audioTracks: [
+        {
+          adjustedStartTime: new Date(0),
+          adjustedEndTime: new Date(10_000),
+        },
+        {
+          adjustedStartTime: new Date(17_000),
+          adjustedEndTime: new Date(40_000),
+        },
+      ],
+    });
+    const projection = buildTimelineProjection({
+      startMs: 0,
+      endMs: 40_000,
+      mediaTimelineIndex: index,
+      enabled: true,
+      minVoidMs: 6_000,
+    });
+
+    expect(projection.enabled).toBe(true);
+    expect(projection.voids).toHaveLength(1);
+    expect(projection.voids[0]).toMatchObject({ startMs: 10_000, endMs: 17_000 });
+    expect(findAutoSkipTarget(index, 11_000, { minVoidMs: 6_000 })).toBe(17_000);
+    expect(findAutoSkipTarget(index, 11_000, { minVoidMs: 7_000 })).toBeUndefined();
+  });
+
+  it("keeps displayed cut widths consistent for short and long skipped blanks", () => {
+    const projection = buildTimelineProjection({
+      startMs: 0,
+      endMs: 210_000,
+      mediaTimelineIndex: buildMediaTimelineIndex({
+        images: [],
+        audioTracks: [
+          {
+            adjustedStartTime: new Date(0),
+            adjustedEndTime: new Date(10_000),
+          },
+          {
+            adjustedStartTime: new Date(22_000),
+            adjustedEndTime: new Date(32_000),
+          },
+          {
+            adjustedStartTime: new Date(200_000),
+            adjustedEndTime: new Date(210_000),
+          },
+        ],
+      }),
+      enabled: true,
+      compressedVoidPx: 24,
+      viewportWidthPx: 240,
+    });
+
+    expect(projection.voids).toHaveLength(2);
+    const widths = projection.voids.map(
+      (range) => projection.timeToPercent(range.endMs) - projection.timeToPercent(range.startMs)
+    );
+
+    expect(widths[0]).toBeCloseTo(10, 5);
+    expect(widths[1]).toBeCloseTo(10, 5);
+  });
+
   it("preserves displayed photo segments before starting a skipped blank", () => {
     const mediaCoverageRanges = [{ startMs: 12_000, endMs: 30_000 }];
     const index = buildMediaTimelineIndex({

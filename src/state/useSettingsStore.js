@@ -10,6 +10,7 @@ import {
   MAX_COMPOSITION_CHANGE_INTERVAL_MS,
   MIN_COMPOSITION_CHANGE_INTERVAL_MS,
 } from "../media/constants.js";
+import { normalizeArchiveSettings } from "../media/archiveSettings.js";
 
 /**
  * Persistent settings store - the ONLY store that persists across page reloads.
@@ -123,6 +124,14 @@ export const useSettingsStore = create(
       setShowClock: (enabled) => set({ showClock: Boolean(enabled) }),
       setClockMode: (mode) => set({ clockMode: mode === "digital" ? "digital" : "analog" }),
       setTimelinePinned: (enabled) => set({ timelinePinned: Boolean(enabled) }),
+      applyImportedSettings: (settings) => {
+        const normalized = normalizeArchiveSettings(settings);
+        if (!normalized) {
+          return null;
+        }
+        set(normalized);
+        return normalized;
+      },
     }),
     {
       name: "diapaudio-settings",

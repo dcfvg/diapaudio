@@ -35,4 +35,35 @@ describe("prepareMediaFromFiles", () => {
     expect(result.images[0].timestamp).toBeInstanceOf(Date);
     expect(URL.createObjectURL).toHaveBeenCalledWith(image);
   });
+
+  it("loads flat YAML archive settings from a dropped file", async () => {
+    const settings = new File(
+      [
+        [
+          "speed: 2",
+          "skip_blanks: yes",
+          "align_photos: no",
+          "minimum_photo_time_seconds: 4",
+          "keep_last_photo_seconds: 12",
+        ].join("\n"),
+      ],
+      "_settings.yml",
+      { type: "text/yaml" }
+    );
+    const image = new File(["image"], "IMG_20250115_143025.jpg", {
+      type: "image/jpeg",
+      lastModified: new Date("2025-01-15T14:30:25Z").getTime(),
+    });
+
+    const result = await prepareMediaFromFiles([settings, image]);
+
+    expect(result.archiveSettings).toMatchObject({
+      speed: 2,
+      autoSkipVoids: true,
+      snapToGrid: false,
+      imageDisplaySeconds: 4,
+      imageHoldSeconds: 12,
+    });
+    expect(result.images).toHaveLength(1);
+  });
 });

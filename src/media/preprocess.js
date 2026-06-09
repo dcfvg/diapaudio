@@ -6,6 +6,7 @@ import {
   shouldSkipEntry,
 } from "./fileUtils.js";
 import { parseDelayField, formatDelay } from "./delay.js";
+import { isArchiveSettingsFileName, parseArchiveSettings } from "./archiveSettings.js";
 import { createAudioTrack, loadAllAudioDurations } from "./audio.js";
 import {
   parseTimestampFromName, // Keep for createFileKey function
@@ -63,8 +64,34 @@ export async function prepareMediaFromFiles(files, options = {}) {
   const { expanded, zipCount, extractedCount } = await expandZipFiles(files, { progress, t });
   let effectiveFiles = expanded.length ? expanded : files.slice();
 
-  // Load delay configuration if present
-  progress?.update(5, "readingFolder", "Checking for delay file...");
+  // Load saved settings and delay configuration if present.
+  progress?.update(5, "readingFolder", "Checking for settings files...");
+  const settingsFiles = effectiveFiles.filter((file) =>
+    isArchiveSettingsFileName(getBaseName(getFilePath(file)))
+  );
+  let archiveSettings = null;
+  if (settingsFiles.length > 0) {
+    const chosenSettingsFile = settingsFiles[settingsFiles.length - 1];
+    try {
+      const text = await chosenSettingsFile.text();
+      const parsed = parseArchiveSettings(text);
+      if (parsed) {
+        archiveSettings = parsed;
+        if (settingsFiles.length > 1) {
+          const message = translateKey("multipleSettingsFilesDetected", {
+            count: settingsFiles.length,
+          });
+          addAnomaly(anomalies, message, { type: "settings" });
+          onAnomaly?.(message, { type: "settings" });
+        }
+      } else {
+        logger.warn(`Invalid archive settings format in ${chosenSettingsFile.name}`);
+      }
+    } catch (error) {
+      logger.error(`Error reading ${chosenSettingsFile.name}:`, error);
+    }
+  }
+
   const delayFiles = effectiveFiles.filter(
     (file) => getBaseName(getFilePath(file)) === "_delay.txt"
   );
@@ -464,6 +491,7 @@ export async function prepareMediaFromFiles(files, options = {}) {
     audioTracks,
     images: validImages,
     delaySeconds,
+    archiveSettings,
     anomalies,
     duplicates: {
       audio: skippedAudioDuplicates.length,

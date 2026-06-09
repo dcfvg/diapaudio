@@ -175,6 +175,7 @@ function AppShell() {
     [mediaData?.images, mediaScheduleOptions]
   );
   const mediaCoverageRanges = mediaScheduleIndex.entries || EMPTY_ARRAY;
+  const mediaVoidMinMs = mediaScheduleOptions.minVisibleMs;
 
   // Get audio element getter and state setters from playback store
   const getAudioElement = usePlaybackStore((state) => state.getAudioElement);
@@ -410,6 +411,7 @@ function AppShell() {
         if (autoSkipVoids && mediaData) {
           const nextEvent = findAutoSkipTarget(mediaTimelineIndex, nextAbsolute, {
             mediaCoverageRanges,
+            minVoidMs: mediaVoidMinMs,
           });
 
           if (Number.isFinite(nextEvent)) {
@@ -482,7 +484,7 @@ function AppShell() {
       cancelled = true;
       stopTicker();
     };
-  }, [mediaData, mediaTimelineIndex, mediaCoverageRanges, playing]);
+  }, [mediaData, mediaTimelineIndex, mediaCoverageRanges, mediaVoidMinMs, playing]);
 
   // Initialize playback state when media changes
   useEffect(() => {
@@ -963,6 +965,7 @@ function AppShell() {
       await exportZipArchive({
         mediaData,
         delaySeconds,
+        settings: useSettingsStore.getState(),
         onProgress: (percent, statusKey, details) => {
           setZipProgress({
             percent,

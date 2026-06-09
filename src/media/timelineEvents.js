@@ -354,6 +354,41 @@ function buildIdentityProjection(startMs, endMs) {
   return projection;
 }
 
+function resolveCompressedVoidMs({
+  startMs,
+  endMs,
+  voidRanges,
+  compressedVoidMs,
+  compressedVoidPx,
+  viewportWidthPx,
+}) {
+  const fallback = Math.max(
+    Number.isFinite(compressedVoidMs) ? compressedVoidMs : TIMELINE_VOID_COMPRESSED_MS,
+    1
+  );
+  if (
+    !Array.isArray(voidRanges) ||
+    !voidRanges.length ||
+    !Number.isFinite(compressedVoidPx) ||
+    !Number.isFinite(viewportWidthPx) ||
+    compressedVoidPx <= 0 ||
+    viewportWidthPx <= 0
+  ) {
+    return fallback;
+  }
+
+  const voidCount = voidRanges.length;
+  const targetPx = Math.min(compressedVoidPx, viewportWidthPx / Math.max(voidCount * 2, 1));
+  const totalVoidMs = voidRanges.reduce(
+    (sum, range) => sum + Math.max((range?.endMs ?? 0) - (range?.startMs ?? 0), 0),
+    0
+  );
+  const mediaDurationMs = Math.max(endMs - startMs - totalVoidMs, 1);
+  const remainingWidthPx = Math.max(viewportWidthPx - targetPx * voidCount, 1);
+
+  return Math.max((targetPx * mediaDurationMs) / remainingWidthPx, 1);
+}
+
 function attachProjectionMethods(projection) {
   projection.timeToProjectedMs = (absoluteMs) => timeToProjectedMs(projection, absoluteMs);
   projection.projectedToTimeMs = (projectedMs) => projectedToTimeMs(projection, projectedMs);
@@ -451,6 +486,8 @@ export function buildTimelineProjection({
   enabled = false,
   minVoidMs = TIMELINE_VOID_MIN_MS,
   compressedVoidMs = TIMELINE_VOID_COMPRESSED_MS,
+  compressedVoidPx,
+  viewportWidthPx,
 } = {}) {
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
     return buildIdentityProjection(0, 1);
@@ -461,12 +498,16 @@ export function buildTimelineProjection({
   }
 
   const safeMinVoidMs = Math.max(Number.isFinite(minVoidMs) ? minVoidMs : TIMELINE_VOID_MIN_MS, 0);
-  const safeCompressedVoidMs = Math.max(
-    Number.isFinite(compressedVoidMs) ? compressedVoidMs : TIMELINE_VOID_COMPRESSED_MS,
-    1
-  );
   const coverageRanges = buildMediaCoverageRanges(mediaTimelineIndex, mediaCoverageRanges);
   const globalVoidRanges = buildVoidRanges(coverageRanges, startMs, endMs, safeMinVoidMs);
+  const safeCompressedVoidMs = resolveCompressedVoidMs({
+    startMs,
+    endMs,
+    voidRanges: globalVoidRanges,
+    compressedVoidMs,
+    compressedVoidPx,
+    viewportWidthPx,
+  });
   const boundaries = [startMs, endMs];
 
   coverageRanges.forEach((range) => {
@@ -497,7 +538,7 @@ export function buildTimelineProjection({
 
     const voidRange = findCoveringRange(globalVoidRanges, intervalStartMs, intervalEndMs);
     const isVoid = Boolean(voidRange);
-    const projectedDurationMs = isVoid ? Math.min(durationMs, safeCompressedVoidMs) : durationMs;
+    const projectedDurationMs = isVoid ? safeCompressedVoidMs : durationMs;
     const interval = {
       type: isVoid ? "void" : "media",
       startMs: intervalStartMs,

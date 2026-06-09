@@ -200,16 +200,6 @@ function Timeline() {
       ? Math.max(summaryEndMs - summaryStartMs, 1)
       : null;
 
-  const summaryCompressedVoidMs = useMemo(
-    () => computeCompressedVoidMs(summaryStartMs, summaryEndMs, timelineWidthPx),
-    [summaryStartMs, summaryEndMs, timelineWidthPx]
-  );
-
-  const viewCompressedVoidMs = useMemo(
-    () => computeCompressedVoidMs(viewStartMs, viewEndMs, timelineWidthPx),
-    [viewStartMs, viewEndMs, timelineWidthPx]
-  );
-
   const summaryProjection = useMemo(
     () =>
       buildTimelineProjection({
@@ -218,7 +208,10 @@ function Timeline() {
         mediaTimelineIndex,
         mediaCoverageRanges: scheduledEntries,
         enabled: Boolean(autoSkipVoids),
-        compressedVoidMs: summaryCompressedVoidMs,
+        minVoidMs: minVisibleMs,
+        compressedVoidMs: computeCompressedVoidMs(summaryStartMs, summaryEndMs, timelineWidthPx),
+        compressedVoidPx: TIMELINE_VOID_TARGET_WIDTH_PX,
+        viewportWidthPx: timelineWidthPx,
       }),
     [
       summaryStartMs,
@@ -226,7 +219,8 @@ function Timeline() {
       mediaTimelineIndex,
       scheduledEntries,
       autoSkipVoids,
-      summaryCompressedVoidMs,
+      minVisibleMs,
+      timelineWidthPx,
     ]
   );
 
@@ -238,7 +232,10 @@ function Timeline() {
         mediaTimelineIndex,
         mediaCoverageRanges: scheduledEntries,
         enabled: Boolean(autoSkipVoids),
-        compressedVoidMs: viewCompressedVoidMs,
+        minVoidMs: minVisibleMs,
+        compressedVoidMs: computeCompressedVoidMs(viewStartMs, viewEndMs, timelineWidthPx),
+        compressedVoidPx: TIMELINE_VOID_TARGET_WIDTH_PX,
+        viewportWidthPx: timelineWidthPx,
       }),
     [
       viewStartMs,
@@ -246,7 +243,8 @@ function Timeline() {
       mediaTimelineIndex,
       scheduledEntries,
       autoSkipVoids,
-      viewCompressedVoidMs,
+      minVisibleMs,
+      timelineWidthPx,
     ]
   );
 
@@ -473,20 +471,27 @@ function Timeline() {
         : range.endMs;
       const startLabel = formatClockWithSeconds(new Date(sourceStartMs));
       const endLabel = formatClockWithSeconds(new Date(sourceEndMs));
+      const targetMs = Number.isFinite(range.targetMs) ? range.targetMs : range.endMs;
+      const resumeLabel = formatClockWithSeconds(new Date(targetMs));
+      const width = Math.max(right - left, 0.1);
+      const widthPx = Number.isFinite(timelineWidthPx) ? (width / 100) * timelineWidthPx : 0;
+      const resumeLabelMinWidthPx = resumeLabel.length * 6 + 22;
       return {
         key: `void-${index}-${range.startMs}-${range.endMs}`,
         startMs: range.startMs,
         endMs: range.endMs,
         left,
-        width: Math.max(right - left, 0.1),
-        targetMs: Number.isFinite(range.targetMs) ? range.targetMs : range.endMs,
+        width,
+        targetMs,
+        resumeLabel,
+        showResumeLabel: widthPx / 2 >= resumeLabelMinWidthPx,
         label: t("timelineSkippedBlankTitle", {
           start: startLabel,
           end: endLabel,
         }),
       };
     });
-  }, [viewProjection, t]);
+  }, [viewProjection, timelineWidthPx, t]);
 
   // Auto-scroll timeline when playing - track last user interaction
   useEffect(() => {
@@ -696,7 +701,11 @@ function Timeline() {
                 }}
                 onPointerDown={(event) => handleVoidCutPointerDown(event, marker.targetMs)}
                 onKeyDown={(event) => handleVoidCutKeyDown(event, marker.targetMs)}
-              />
+              >
+                {marker.showResumeLabel ? (
+                  <span className="timeline__void-cut-label">{marker.resumeLabel}</span>
+                ) : null}
+              </div>
             ))}
           </div>
         ) : null}
