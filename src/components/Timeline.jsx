@@ -348,7 +348,6 @@ function Timeline() {
     viewStartMs,
     viewEndMs,
     setTimelineViewRange,
-    anchorMs: resolvedAbsoluteMs,
     onInteraction: markUserInteraction,
   });
 

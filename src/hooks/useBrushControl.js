@@ -16,7 +16,6 @@ export function useBrushControl({
   viewStartMs,
   viewEndMs,
   setTimelineViewRange,
-  anchorMs = null,
   minDurationMs = MIN_DURATION_MS,
   onInteraction = null,
 }) {
@@ -36,14 +35,6 @@ export function useBrushControl({
       const track = brushTrackRef.current;
       if (!track) return;
       const rect = track.getBoundingClientRect();
-      const anchorClamped =
-        Number.isFinite(anchorMs) && Number.isFinite(summaryStartMs) && Number.isFinite(summaryEndMs)
-          ? clamp(anchorMs, summaryStartMs, summaryEndMs)
-          : null;
-      const anchorWithinView =
-        anchorClamped != null && Number.isFinite(viewStartMs) && Number.isFinite(viewEndMs)
-          ? clamp(anchorClamped, viewStartMs, viewEndMs)
-          : anchorClamped;
 
       brushDragRef.current = {
         mode,
@@ -53,11 +44,10 @@ export function useBrushControl({
         pointerStart: event.clientX,
         trackLeft: rect.left,
         trackWidth: rect.width || 1,
-        anchorMs: anchorWithinView,
       };
       track.setPointerCapture?.(event.pointerId);
     },
-    [brushDisabled, summaryDurationMs, viewStartMs, viewEndMs, brushTrackRef, anchorMs, summaryStartMs, summaryEndMs, onInteraction]
+    [brushDisabled, summaryDurationMs, viewStartMs, viewEndMs, brushTrackRef, onInteraction]
   );
 
   /**
@@ -75,99 +65,23 @@ export function useBrushControl({
         return;
       }
 
-      const { trackWidth, trackLeft, startMs, endMs, mode, pointerStart, anchorMs: dragAnchorRaw } =
-        drag;
-      if (!trackWidth) return;
+      const { mode, pointerStart, trackLeft, trackWidth, startMs, endMs } = drag;
+      const nextRange = resolveBrushDragRange({
+        mode,
+        pointerClientX: event.clientX,
+        pointerStart,
+        trackLeft,
+        trackWidth,
+        startMs,
+        endMs,
+        summaryStartMs,
+        summaryEndMs,
+        summaryDurationMs,
+        minDurationMs,
+      });
 
-      const anchor =
-        Number.isFinite(dragAnchorRaw) && Number.isFinite(summaryStartMs) && Number.isFinite(summaryEndMs)
-          ? clamp(dragAnchorRaw, summaryStartMs, summaryEndMs)
-          : null;
-      const minHalfSpan = minDurationMs / 2;
-      const leftCapacity =
-        anchor != null && Number.isFinite(summaryStartMs) ? anchor - summaryStartMs : null;
-      const rightCapacity =
-        anchor != null && Number.isFinite(summaryEndMs) ? summaryEndMs - anchor : null;
-
-      if (mode === "move") {
-        // Move the entire window
-        const viewDuration = endMs - startMs;
-        if (!Number.isFinite(viewDuration) || viewDuration <= 0) return;
-        const deltaPx = event.clientX - pointerStart;
-        const deltaMs = (deltaPx / trackWidth) * summaryDurationMs;
-        const maxStart = summaryEndMs - viewDuration;
-        const nextStart = clamp(startMs + deltaMs, summaryStartMs, maxStart);
-        setTimelineViewRange(nextStart, nextStart + viewDuration);
-        return;
-      }
-
-      // Compute pointer absolute time
-      let ratio = (event.clientX - trackLeft) / trackWidth;
-      ratio = clamp(ratio, 0, 1);
-      let pointerMs = summaryStartMs + ratio * summaryDurationMs;
-
-      const canSymmetric =
-        anchor != null &&
-        ((mode === "start" && rightCapacity != null && rightCapacity >= minHalfSpan) ||
-          (mode === "end" && leftCapacity != null && leftCapacity >= minHalfSpan));
-
-      if ((mode === "start" || mode === "end") && canSymmetric) {
-        const summarySpan = summaryEndMs - summaryStartMs;
-        if (!Number.isFinite(summarySpan) || summarySpan <= 0) {
-          return;
-        }
-
-        if (mode === "start") {
-          pointerMs = Math.min(pointerMs, anchor - minHalfSpan);
-        } else {
-          pointerMs = Math.max(pointerMs, anchor + minHalfSpan);
-        }
-        pointerMs = clamp(pointerMs, summaryStartMs, summaryEndMs);
-
-        let halfSpan = Math.abs(pointerMs - anchor);
-        halfSpan = Math.max(minHalfSpan, halfSpan);
-        halfSpan = Math.min(halfSpan, summarySpan / 2);
-
-        let nextStart = anchor - halfSpan;
-        let nextEnd = anchor + halfSpan;
-
-        if (nextStart < summaryStartMs) {
-          const shift = summaryStartMs - nextStart;
-          nextStart += shift;
-          nextEnd += shift;
-        }
-        if (nextEnd > summaryEndMs) {
-          const shift = nextEnd - summaryEndMs;
-          nextStart -= shift;
-          nextEnd -= shift;
-        }
-
-        nextStart = clamp(nextStart, summaryStartMs, summaryEndMs - minDurationMs);
-        nextEnd = clamp(nextEnd, nextStart + minDurationMs, summaryEndMs);
-
-        if (nextEnd - nextStart < minDurationMs) {
-          nextEnd = nextStart + minDurationMs;
-          if (nextEnd > summaryEndMs) {
-            nextEnd = summaryEndMs;
-            nextStart = summaryEndMs - minDurationMs;
-          }
-        }
-
-        setTimelineViewRange(nextStart, nextEnd);
-        return;
-      }
-
-      if (mode === "start") {
-        // Fallback: independent start handle
-        pointerMs = clamp(pointerMs, summaryStartMs, endMs - minDurationMs);
-        setTimelineViewRange(pointerMs, endMs);
-        return;
-      }
-
-      if (mode === "end") {
-        // Fallback: independent end handle
-        pointerMs = clamp(pointerMs, startMs + minDurationMs, summaryEndMs);
-        setTimelineViewRange(startMs, pointerMs);
+      if (nextRange) {
+        setTimelineViewRange(nextRange.startMs, nextRange.endMs);
       }
     },
     [summaryDurationMs, summaryStartMs, summaryEndMs, setTimelineViewRange, minDurationMs]
@@ -192,4 +106,47 @@ export function useBrushControl({
     handleBrushPointerMove,
     handleBrushPointerUp,
   };
+}
+
+export function resolveBrushDragRange({
+  mode,
+  pointerClientX,
+  pointerStart,
+  trackLeft,
+  trackWidth,
+  startMs,
+  endMs,
+  summaryStartMs,
+  summaryEndMs,
+  summaryDurationMs,
+  minDurationMs = MIN_DURATION_MS,
+}) {
+  if (!Number.isFinite(summaryDurationMs) || summaryDurationMs <= 0) return null;
+  if (!Number.isFinite(trackWidth) || trackWidth <= 0) return null;
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null;
+  if (!Number.isFinite(summaryStartMs) || !Number.isFinite(summaryEndMs)) return null;
+
+  if (mode === "move") {
+    const viewDuration = endMs - startMs;
+    const deltaPx = pointerClientX - pointerStart;
+    const deltaMs = (deltaPx / trackWidth) * summaryDurationMs;
+    const maxStart = summaryEndMs - viewDuration;
+    const nextStart = clamp(startMs + deltaMs, summaryStartMs, maxStart);
+    return { startMs: nextStart, endMs: nextStart + viewDuration };
+  }
+
+  const ratio = clamp((pointerClientX - trackLeft) / trackWidth, 0, 1);
+  const pointerMs = summaryStartMs + ratio * summaryDurationMs;
+
+  if (mode === "start") {
+    const nextStart = clamp(pointerMs, summaryStartMs, endMs - minDurationMs);
+    return { startMs: nextStart, endMs };
+  }
+
+  if (mode === "end") {
+    const nextEnd = clamp(pointerMs, startMs + minDurationMs, summaryEndMs);
+    return { startMs, endMs: nextEnd };
+  }
+
+  return null;
 }

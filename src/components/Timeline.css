@@ -641,25 +641,36 @@
 
 .timeline__brush-handle {
   position: absolute;
-  top: 50%;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.5);
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.35);
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  display: flex;
+  align-items: center;
+  border-radius: 999px;
+  background: transparent;
   cursor: ew-resize;
   touch-action: none;
   pointer-events: auto;
+  z-index: 2;
+}
+
+.timeline__brush-handle::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.35);
 }
 
 .timeline__brush-handle--start {
   left: 0;
-  transform: translate(-50%, -50%);
+  justify-content: flex-start;
 }
 
 .timeline__brush-handle--end {
   right: 0;
-  transform: translate(50%, -50%);
+  justify-content: flex-end;
 }
 
 .timeline__brush--disabled .timeline__brush-track {
