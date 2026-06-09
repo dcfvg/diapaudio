@@ -80,7 +80,7 @@ export function buildMediaData(result, existingDelay = 0, options = {}) {
   });
 
   const allFiles = (result.files || []).map((file) => {
-    const fileName = file.name || file.webkitRelativePath || file.path || "";
+    const fileName = file.webkitRelativePath || file.path || file.sourcePath || file.name || "";
     const fileTimestamp = null;
     return {
       name: fileName,

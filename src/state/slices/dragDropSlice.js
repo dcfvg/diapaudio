@@ -39,7 +39,17 @@ export const createDragDropSlice = (set, get) => ({
 
     if (!fileBuffer.length) {
       const fallbackFiles = Array.from(dataTransfer.files || []);
-      if (!fallbackFiles.length) return;
+      if (!fallbackFiles.length) {
+        if (directoryEntries.length) {
+          _progressManager.reset();
+          set({
+            loading: false,
+            error: new Error(translate("errorNoMediaFiles")),
+            progress: { percent: 0, statusKey: "", details: "" },
+          });
+        }
+        return;
+      }
       if (mode === "append") {
         await appendFromFiles(fallbackFiles);
       } else {

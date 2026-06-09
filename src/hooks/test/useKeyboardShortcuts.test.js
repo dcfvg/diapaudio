@@ -49,6 +49,19 @@ describe('useKeyboardShortcuts', () => {
       expect(callbacks.onPlayPause).toHaveBeenCalledTimes(1);
     });
 
+    it('should ignore play/pause shortcuts for guarded interactive targets', () => {
+      const shouldIgnoreEvent = vi.fn(() => true);
+
+      renderHook(() => useKeyboardShortcuts({ ...callbacks, shouldIgnoreEvent }));
+
+      const event = { preventDefault: vi.fn(), target: document.createElement('input') };
+      global.hotkeyCallbacks['space'](event);
+
+      expect(shouldIgnoreEvent).toHaveBeenCalledWith(event);
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(callbacks.onPlayPause).not.toHaveBeenCalled();
+    });
+
     it('should not register play/pause shortcuts when disabled', () => {
       renderHook(() => useKeyboardShortcuts({ ...callbacks, disabled: true }));
 

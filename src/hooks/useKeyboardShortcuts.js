@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 /**
@@ -12,6 +13,7 @@ import { useHotkeys } from "react-hotkeys-hook";
  * @param {Function} options.onSpeedDecrease - Decrease playback speed
  * @param {Function} options.onToggleFullscreen - Toggle fullscreen mode
  * @param {Function} options.onShowHelp - Show keyboard shortcuts help
+ * @param {Function} options.shouldIgnoreEvent - Ignore shortcuts for editable/interactive targets
  * @param {boolean} options.disabled - Disable all shortcuts
  */
 export function useKeyboardShortcuts({
@@ -24,132 +26,132 @@ export function useKeyboardShortcuts({
   onSpeedDecrease,
   onToggleFullscreen,
   onShowHelp,
+  shouldIgnoreEvent,
   disabled = false,
 } = {}) {
+  const runShortcut = useCallback((event, callback, ...args) => {
+    if (shouldIgnoreEvent?.(event)) {
+      return;
+    }
+    event.preventDefault();
+    callback?.(...args);
+  }, [shouldIgnoreEvent]);
+
   // Space - Play/Pause
   useHotkeys(
     "space",
     (event) => {
-      event.preventDefault();
-      onPlayPause?.();
+      runShortcut(event, onPlayPause);
     },
     {
       enabled: !disabled && !!onPlayPause,
       enableOnFormTags: false, // Don't trigger when focused on inputs
     },
-    [onPlayPause, disabled]
+    [onPlayPause, runShortcut, disabled]
   );
 
   // Left Arrow - Seek backward (10 seconds)
   useHotkeys(
     "left",
     (event) => {
-      event.preventDefault();
-      onSeekBackward?.(10000);
+      runShortcut(event, onSeekBackward, 10000);
     },
     {
       enabled: !disabled && !!onSeekBackward,
       enableOnFormTags: false,
     },
-    [onSeekBackward, disabled]
+    [onSeekBackward, runShortcut, disabled]
   );
 
   // Right Arrow - Seek forward (10 seconds)
   useHotkeys(
     "right",
     (event) => {
-      event.preventDefault();
-      onSeekForward?.(10000);
+      runShortcut(event, onSeekForward, 10000);
     },
     {
       enabled: !disabled && !!onSeekForward,
       enableOnFormTags: false,
     },
-    [onSeekForward, disabled]
+    [onSeekForward, runShortcut, disabled]
   );
 
   // Up Arrow - Increase playback speed
   useHotkeys(
     "up",
     (event) => {
-      event.preventDefault();
-      onSpeedIncrease?.();
+      runShortcut(event, onSpeedIncrease);
     },
     {
       enabled: !disabled && !!onSpeedIncrease,
       enableOnFormTags: false,
     },
-    [onSpeedIncrease, disabled]
+    [onSpeedIncrease, runShortcut, disabled]
   );
 
   // Down Arrow - Decrease playback speed
   useHotkeys(
     "down",
     (event) => {
-      event.preventDefault();
-      onSpeedDecrease?.();
+      runShortcut(event, onSpeedDecrease);
     },
     {
       enabled: !disabled && !!onSpeedDecrease,
       enableOnFormTags: false,
     },
-    [onSpeedDecrease, disabled]
+    [onSpeedDecrease, runShortcut, disabled]
   );
 
   // F - Toggle fullscreen
   useHotkeys(
     "f",
     (event) => {
-      event.preventDefault();
-      onToggleFullscreen?.();
+      runShortcut(event, onToggleFullscreen);
     },
     {
       enabled: !disabled && !!onToggleFullscreen,
       enableOnFormTags: false,
     },
-    [onToggleFullscreen, disabled]
+    [onToggleFullscreen, runShortcut, disabled]
   );
 
   // ? - Show keyboard shortcuts help
   useHotkeys(
     "shift+/",
     (event) => {
-      event.preventDefault();
-      onShowHelp?.();
+      runShortcut(event, onShowHelp);
     },
     {
       enabled: !disabled && !!onShowHelp,
       enableOnFormTags: false,
     },
-    [onShowHelp, disabled]
+    [onShowHelp, runShortcut, disabled]
   );
 
   // J - Jump to next media (audio start or image)
   useHotkeys(
     "j",
     (event) => {
-      event.preventDefault();
-      onNextMedia?.();
+      runShortcut(event, onNextMedia);
     },
     {
       enabled: !disabled && !!onNextMedia,
       enableOnFormTags: false,
     },
-    [onNextMedia, disabled]
+    [onNextMedia, runShortcut, disabled]
   );
 
   // K - Jump to previous media (audio start or image)
   useHotkeys(
     "k",
     (event) => {
-      event.preventDefault();
-      onPrevMedia?.();
+      runShortcut(event, onPrevMedia);
     },
     {
       enabled: !disabled && !!onPrevMedia,
       enableOnFormTags: false,
     },
-    [onPrevMedia, disabled]
+    [onPrevMedia, runShortcut, disabled]
   );
 }
 

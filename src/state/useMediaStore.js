@@ -31,6 +31,8 @@ const initialState = {
   progress: { percent: 0, statusKey: "", details: "" },
   objectUrls: [],
   timelineView: null,
+  mediaLoadId: 0,
+  mediaLoadMode: null,
 };
 
 const mediaStoreImpl = (set, get) => ({

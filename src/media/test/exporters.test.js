@@ -112,4 +112,85 @@ describe("exporters", () => {
     expect(settingsCall[1].text).toContain("minimum_photo_time_seconds: 4");
     expect(settingsCall[1].text).not.toContain("{");
   });
+
+  it("flattens source directories in media ZIP exports while keeping names unique", async () => {
+    const { exportZipArchive } = await import("../exporters.js");
+
+    await exportZipArchive({
+      mediaData: {
+        images: [
+          {
+            name: "IMG_20250115_143025.jpg",
+            originalName: "camera-a/IMG_20250115_143025.jpg",
+            url: "blob:test/image-a.jpg",
+            originalTimestamp: new Date("2025-01-15T14:30:25Z"),
+          },
+          {
+            name: "IMG_20250115_143025.jpg",
+            originalName: "camera-b/IMG_20250115_143025.jpg",
+            url: "blob:test/image-b.jpg",
+            originalTimestamp: new Date("2025-01-15T14:31:25Z"),
+          },
+        ],
+        audioTracks: [],
+      },
+    });
+
+    const addedNames = zipMocks.add.mock.calls.map(([name]) => name);
+    expect(addedNames).toContain("IMG_20250115_143025.jpg");
+    expect(addedNames).toContain("IMG_20250115_143025-2.jpg");
+    expect(addedNames).not.toContain("camera-a/IMG_20250115_143025.jpg");
+    expect(addedNames).not.toContain("camera-b/IMG_20250115_143025.jpg");
+  });
+
+  it("suffixes colliding media ZIP export paths", async () => {
+    const { exportZipArchive } = await import("../exporters.js");
+
+    await exportZipArchive({
+      mediaData: {
+        images: [
+          {
+            name: "same.jpg",
+            originalName: "same.jpg",
+            url: "blob:test/image-a.jpg",
+            originalTimestamp: new Date("2025-01-15T14:30:25Z"),
+          },
+          {
+            name: "same.jpg",
+            originalName: "same.jpg",
+            url: "blob:test/image-b.jpg",
+            originalTimestamp: new Date("2025-01-15T14:31:25Z"),
+          },
+        ],
+        audioTracks: [],
+      },
+    });
+
+    const addedNames = zipMocks.add.mock.calls.map(([name]) => name);
+    expect(addedNames).toContain("same.jpg");
+    expect(addedNames).toContain("same-2.jpg");
+  });
+
+  it("normalizes unicode source paths when adding files to media ZIP exports", async () => {
+    const { exportZipArchive } = await import("../exporters.js");
+    const decomposed = "2025-10-08 - Boissellerie/Me\u0301rove\u0301e.jpg";
+
+    await exportZipArchive({
+      mediaData: {
+        images: [
+          {
+            name: "Me\u0301rove\u0301e.jpg",
+            originalName: decomposed,
+            url: "blob:test/image.jpg",
+            originalTimestamp: new Date("2025-01-15T14:30:25Z"),
+          },
+        ],
+        audioTracks: [],
+      },
+    });
+
+    const addedNames = zipMocks.add.mock.calls.map(([name]) => name);
+    expect(addedNames).toContain("Mérovée.jpg");
+    expect(addedNames).not.toContain(decomposed);
+  });
 });

@@ -144,6 +144,9 @@
 }
 
 .timeline {
+  --timeline-audio-active: var(--color-accent);
+  --timeline-audio-active-alt: #b39155;
+  --timeline-audio-active-soft: var(--color-accent-soft);
   background: rgba(12, 12, 12, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
@@ -316,26 +319,13 @@
   top: 4px;
   bottom: 4px;
   left: 50%;
-  width: 1px;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    rgba(225, 230, 238, 0.82) 0,
-    rgba(225, 230, 238, 0.82) 2px,
-    transparent 2px,
-    transparent 5px
-  );
+  border-left: 2px dotted rgba(225, 230, 238, 0.82);
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.32);
   transform: translateX(-50%);
 }
 
 .timeline__void-cut:hover::before {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.95) 0,
-    rgba(255, 255, 255, 0.95) 2px,
-    transparent 2px,
-    transparent 5px
-  );
+  border-left-color: rgba(255, 255, 255, 0.95);
 }
 
 .timeline__void-cut:focus-visible {
@@ -442,10 +432,14 @@
 }
 
 .timeline-track--active {
-  background: linear-gradient(to right, var(--color-accent), var(--color-accent-alt));
+  background: linear-gradient(
+    to right,
+    var(--timeline-audio-active),
+    var(--timeline-audio-active-alt)
+  );
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.35),
-    0 0 16px var(--color-accent-soft);
+    0 0 16px var(--timeline-audio-active-soft);
 }
 
 .timeline-track--highlighted {
@@ -469,6 +463,19 @@
 
 .timeline-track--pending .timeline-track__label {
   color: rgba(255, 255, 255, 0.72);
+}
+
+.timeline-track.timeline-track--active {
+  z-index: 4;
+  opacity: 0.98;
+  background: linear-gradient(
+    to right,
+    var(--timeline-audio-active),
+    var(--timeline-audio-active-alt)
+  );
+  box-shadow:
+    0 0 0 1px rgba(9, 7, 3, 0.5),
+    0 0 18px var(--timeline-audio-active-soft);
 }
 
 .timeline-image {
@@ -873,8 +880,8 @@
 }
 
 .timeline__mini-tracks .timeline-track.timeline-track--active {
-  background: var(--color-accent);
-  box-shadow: 0 0 10px var(--color-accent-soft);
+  background: var(--timeline-audio-active);
+  box-shadow: 0 0 10px var(--timeline-audio-active-soft);
 }
 
 .timeline__mini-tracks .timeline-track.timeline-track--highlighted {

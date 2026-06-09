@@ -36,7 +36,7 @@ import * as logger from "../utils/logger.js";
 function createFileKey(file, filePath) {
   const fileName = filePath;
   const fileSize = file.size || 0;
-  const fileTimestamp = parseTimestampFromName(filePath);
+  const fileTimestamp = parseTimestampFromName(getBaseName(filePath));
   const timestampKey = fileTimestamp ? toTimestamp(fileTimestamp) : "no_timestamp";
   return `${fileName}_${fileSize}_${timestampKey}`;
 }
@@ -49,6 +49,19 @@ function addAnomaly(anomalies, message, meta = {}) {
   });
 }
 
+function getTimestampParseName(file) {
+  return getBaseName(getFilePath(file));
+}
+
+function revokePreparedObjectUrls(objectUrls) {
+  if (typeof URL === "undefined" || typeof URL.revokeObjectURL !== "function") {
+    return;
+  }
+  for (const url of objectUrls) {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export async function prepareMediaFromFiles(files, options = {}) {
   const { progress, t, onDelayLoaded, onAnomaly } = options;
 
@@ -57,6 +70,7 @@ export async function prepareMediaFromFiles(files, options = {}) {
 
   const translateKey = (key, params) => translate(t, key, params);
 
+  try {
   progress?.update(0, "readingFolder", "Starting...");
 
   // Dynamically import ZIP handling only when needed
@@ -202,12 +216,12 @@ export async function prepareMediaFromFiles(files, options = {}) {
   progress?.update(20, "processingFiles", `Processing ${uniqueAudioFiles.length} audio files...`);
 
   // OPTIMIZATION: Batch parse filenames (10x faster than individual calls)
-  const audioFilePaths = uniqueAudioFiles.map(getFilePath);
-  const audioBatchResults = await parseTimestampBatch(audioFilePaths);
+  const audioTimestampNames = uniqueAudioFiles.map(getTimestampParseName);
+  const audioBatchResults = await parseTimestampBatch(audioTimestampNames);
   const audioFilenameTimestamps = audioBatchResults.map((result) => result?.date || null);
 
   // QUALITY INDICATOR: Check confidence levels for all files
-  const allFilePaths = [...audioFilePaths, ...uniqueImageFiles.map(getFilePath)];
+  const allFilePaths = [...audioTimestampNames, ...uniqueImageFiles.map(getTimestampParseName)];
   const confidenceGroups = await parseAndGroupByConfidence(allFilePaths);
 
   // Warn about low-confidence detections
@@ -304,14 +318,14 @@ export async function prepareMediaFromFiles(files, options = {}) {
   progress?.update(50, "processingFiles", `Processing ${uniqueImageFiles.length} images...`);
 
   // OPTIMIZATION: Batch parse image filenames (10x faster)
-  const imageFilePaths = uniqueImageFiles.map(getFilePath);
-  const imageBatchResults = await parseTimestampBatch(imageFilePaths);
+  const imageTimestampNames = uniqueImageFiles.map(getTimestampParseName);
+  const imageBatchResults = await parseTimestampBatch(imageTimestampNames);
   // Extract Date objects from batch results
   const imageFilenameTimestamps = imageBatchResults.map((result) => result?.date || null);
 
   // DEBUG: Log image filename parsing results
   const imagesWithFilenameTimestamps = imageFilenameTimestamps.filter(t => t).length;
-  logger.info(`Parsed ${imagesWithFilenameTimestamps}/${imageFilePaths.length} image file timestamps from filenames`);
+  logger.info(`Parsed ${imagesWithFilenameTimestamps}/${imageTimestampNames.length} image file timestamps from filenames`);
   
   // Identify images needing EXIF extraction
   const imagesNeedingMetadata = uniqueImageFiles.filter((_, i) => !imageFilenameTimestamps[i]);
@@ -352,6 +366,7 @@ export async function prepareMediaFromFiles(files, options = {}) {
 
       return {
         name: file.name,
+        originalName: getFilePath(file) || file.name,
         url,
         originalTimestamp: timestamp, // Store the parsed timestamp (from filename or EXIF)
         timestamp, // Will be adjusted for monotonic ordering later
@@ -504,6 +519,10 @@ export async function prepareMediaFromFiles(files, options = {}) {
     objectUrls,
     files: effectiveFiles,
   };
+  } catch (error) {
+    revokePreparedObjectUrls(objectUrls);
+    throw error;
+  }
 }
 
 export default prepareMediaFromFiles;

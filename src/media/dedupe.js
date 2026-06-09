@@ -1,12 +1,14 @@
 // Utilities to detect and remove duplicates across loads
 
-function normalizeBaseName(name = "") {
+function normalizeSourceName(name = "") {
   try {
-    const base = String(name).split(/[\\/]/).pop() || ""; // strip directories
-    const withoutExt = base.replace(/\.[^.]+$/i, "");
+    const normalizedPath = String(name).replace(/\\/g, "/");
+    const withoutExt = normalizedPath.replace(/\.[^/.]+$/i, "");
     return withoutExt
       .toLowerCase()
-      .replace(/[^a-z0-9]+/gi, "") // remove separators/punctuation
+      .replace(/[^a-z0-9/]+/gi, "")
+      .replace(/\/+/g, "/")
+      .replace(/^\/|\/$/g, "")
       .trim();
   } catch {
     return "";
@@ -37,7 +39,7 @@ function isDurationClose(a, b, toleranceSeconds = 0) {
 
 // Build a fuzzy signature for audio tracks using name + timestamp + duration (when available)
 function audioSignature(track) {
-  const base = normalizeBaseName(track?.originalName || track?.label || "");
+  const base = normalizeSourceName(track?.originalName || track?.label || "");
   const ts = timeMs(track?.fileTimestamp);
   const dur = Number(track?.duration);
   // No bucketing: exact duration value for strict comparison
@@ -64,7 +66,7 @@ export function dedupeAudioTracks(tracks = []) {
     }
     // If duration missing on either, do a softer comparison before removing
     const candidate = seen.get(key);
-    const nameClose = normalizeBaseName(candidate?.originalName) === normalizeBaseName(t?.originalName);
+    const nameClose = normalizeSourceName(candidate?.originalName) === normalizeSourceName(t?.originalName);
   const tsClose = isTimeClose(candidate?.fileTimestamp, t?.fileTimestamp, 0);
   const durClose = isDurationClose(candidate?.duration, t?.duration, 0);
     if (nameClose && (durClose || tsClose)) {
@@ -80,7 +82,7 @@ export function dedupeAudioTracks(tracks = []) {
 
 // Build a fuzzy signature for images using name + timestamp
 function imageSignature(img) {
-  const base = normalizeBaseName(img?.name || img?.url || "");
+  const base = normalizeSourceName(img?.originalName || img?.name || img?.url || "");
   const ts = timeMs(img?.originalTimestamp ?? img?.timestamp);
   return `${base}|${ts ?? "-"}`;
 }
@@ -102,7 +104,9 @@ export function dedupeImages(images = []) {
       continue;
     }
     const candidate = seen.get(key);
-    const nameClose = normalizeBaseName(candidate?.name) === normalizeBaseName(img?.name);
+    const nameClose =
+      normalizeSourceName(candidate?.originalName || candidate?.name) ===
+      normalizeSourceName(img?.originalName || img?.name);
   const tsClose = isTimeClose(candidate?.originalTimestamp ?? candidate?.timestamp, img?.originalTimestamp ?? img?.timestamp, 0);
     if (nameClose && tsClose) {
       removed.push(img);

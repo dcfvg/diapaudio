@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { unzipFile, expandZipFiles } from '../zip.js';
+import { ZipReader } from '@zip.js/zip.js';
 
 // Mock zip.js
 vi.mock('@zip.js/zip.js', () => ({
@@ -16,7 +17,8 @@ describe('zip', () => {
     mockProgress = {
       update: vi.fn(),
     };
-    mockT = vi.fn((key) => key);
+    mockT = vi.fn((key, params) => (params?.message ? `${key}: ${params.message}` : key));
+    ZipReader.mockReset();
   });
 
   describe('unzipFile', () => {
@@ -40,6 +42,43 @@ describe('zip', () => {
         // Just verify we attempted the operation
       }
       expect(mockZipFile.name).toBe('test.zip');
+    });
+
+    it('preserves distinct internal paths for entries with the same basename', async () => {
+      const entries = [
+        {
+          filename: 'camera-a/IMG_20250115_143025.jpg',
+          directory: false,
+          getData: vi.fn().mockResolvedValue(new Blob(['a'], { type: 'image/jpeg' })),
+        },
+        {
+          filename: 'camera-b/IMG_20250115_143025.jpg',
+          directory: false,
+          getData: vi.fn().mockResolvedValue(new Blob(['b'], { type: 'image/jpeg' })),
+        },
+      ];
+      const close = vi.fn().mockResolvedValue(undefined);
+      ZipReader.mockImplementation(function createMockZipReader() {
+        return {
+        getEntries: vi.fn().mockResolvedValue(entries),
+        close,
+        };
+      });
+
+      const files = await unzipFile(
+        new File(['zip'], 'photos.zip', { type: 'application/zip' }),
+        { progress: mockProgress, t: mockT }
+      );
+
+      expect(files).toHaveLength(2);
+      expect(files.map((file) => file.name)).toEqual([
+        'IMG_20250115_143025.jpg',
+        'IMG_20250115_143025.jpg',
+      ]);
+      expect(files.map((file) => file.path)).toEqual([
+        'camera-a/IMG_20250115_143025.jpg',
+        'camera-b/IMG_20250115_143025.jpg',
+      ]);
     });
   });
 

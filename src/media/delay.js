@@ -16,13 +16,17 @@ export function parseDelayField(raw) {
     if (!Number.isFinite(secondsOnly)) return null;
     return sign * secondsOnly;
   }
-  if (parts.length !== 2) return null;
-  const minutesPart = Number(parts[0]);
-  const secondsPart = Number(parts[1]);
-  if (!Number.isFinite(minutesPart) || !Number.isFinite(secondsPart)) {
+  if (parts.length !== 2 && parts.length !== 3) return null;
+  const numericParts = parts.map((part) => Number(part));
+  if (numericParts.some((part) => !Number.isFinite(part))) {
     return null;
   }
-  const totalSeconds = Math.abs(minutesPart) * 60 + Math.abs(secondsPart);
+  const totalSeconds =
+    parts.length === 3
+      ? Math.abs(numericParts[0]) * 3600 +
+        Math.abs(numericParts[1]) * 60 +
+        Math.abs(numericParts[2])
+      : Math.abs(numericParts[0]) * 60 + Math.abs(numericParts[1]);
   return sign * totalSeconds;
 }
 
@@ -30,8 +34,9 @@ export function formatDelay(value) {
   if (!Number.isFinite(value)) return "0:00";
   const sign = value < 0 ? "-" : "";
   const absValue = Math.abs(value);
-  const minutes = Math.floor(absValue / 60);
-  const seconds = absValue - minutes * 60;
+  const hours = Math.floor(absValue / 3600);
+  const minutes = Math.floor((absValue - hours * 3600) / 60);
+  const seconds = absValue - hours * 3600 - minutes * 60;
   const hasFraction = Math.abs(seconds - Math.round(seconds)) > 0.001;
   let secondsDisplay;
   if (hasFraction) {
@@ -42,10 +47,22 @@ export function formatDelay(value) {
   } else {
     secondsDisplay = String(Math.round(seconds)).padStart(2, "0");
   }
+  if (hours > 0) {
+    return `${sign}${hours}:${String(minutes).padStart(2, "0")}:${secondsDisplay}`;
+  }
   return `${sign}${minutes}:${secondsDisplay}`;
+}
+
+export function stepDelayField(raw, fallbackSeconds = 0, stepSeconds = 1) {
+  const parsed = parseDelayField(raw);
+  const baseValue =
+    parsed === null ? (Number.isFinite(fallbackSeconds) ? fallbackSeconds : 0) : parsed;
+  const safeStep = Number.isFinite(stepSeconds) ? stepSeconds : 0;
+  return formatDelay(baseValue + safeStep);
 }
 
 export default {
   parseDelayField,
   formatDelay,
+  stepDelayField,
 };

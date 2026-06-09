@@ -1,15 +1,10 @@
 import { BlobReader, BlobWriter, TextReader, ZipWriter } from "@zip.js/zip.js";
 import { exportPremiereXml, exportPremiereXmlPackage } from "./premiereExport.js";
+import { uniqueArchiveFileName } from "./archivePaths.js";
 import { formatDelay } from "./delay.js";
 import { ARCHIVE_SETTINGS_FILE_NAME, serializeArchiveSettings } from "./archiveSettings.js";
 import { toTimestamp, formatTimestampForFilename } from "../utils/dateUtils.js";
 import * as logger from "../utils/logger.js";
-
-function relativeName(name) {
-  if (!name) return "";
-  const segments = String(name).split(/[/\\]/);
-  return segments[segments.length - 1] || name;
-}
 
 function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -70,6 +65,7 @@ export async function exportZipArchive({
     bufferedWrite: true,
     level: 0,
   });
+  const usedArchivePaths = new Set(["_delay.txt", ARCHIVE_SETTINGS_FILE_NAME]);
 
   await zipWriter.add("_delay.txt", new TextReader(formatDelay(delaySeconds || 0)));
   processedItems++;
@@ -87,7 +83,11 @@ export async function exportZipArchive({
         throw new Error(`Failed to fetch ${track.originalName || "(audio)"}`);
       }
       const blob = await response.blob();
-      const filename = relativeName(track.originalName || "audio.wav");
+      const filename = uniqueArchiveFileName(
+        track.originalName || track.label,
+        `audio-${String(i + 1).padStart(3, "0")}.wav`,
+        usedArchivePaths
+      );
       await zipWriter.add(filename, new BlobReader(blob));
       processedItems++;
       reportProgress(`Added audio ${i + 1}/${audioTracks.length}: ${filename}`);
@@ -106,7 +106,11 @@ export async function exportZipArchive({
         throw new Error(`Failed to fetch ${image.name || "(image)"}`);
       }
       const blob = await response.blob();
-      const filename = relativeName(image.name || "image.jpg");
+      const filename = uniqueArchiveFileName(
+        image.originalName || image.name,
+        `image-${String(i + 1).padStart(4, "0")}.jpg`,
+        usedArchivePaths
+      );
       await zipWriter.add(filename, new BlobReader(blob));
       processedItems++;
       reportProgress(`Added image ${i + 1}/${sortedImages.length}`);

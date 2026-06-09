@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useCallback, useEffect, useId, useRef } from "react";
 import {
   DEFAULT_IMAGE_HOLD_MS,
   IMAGE_HOLD_MAX_MS,
@@ -12,6 +12,7 @@ import "./TimelineSettingsPanel.css";
 export default function TimelineSettingsPanel({
   open,
   delayDraft,
+  onDelayFocus,
   onDelayChange,
   onCommitDelay,
   onDelayKeyDown,
@@ -38,12 +39,37 @@ export default function TimelineSettingsPanel({
 }) {
   const titleId = useId();
   const closeButtonRef = useRef(null);
+  const onCloseRef = useRef(onClose);
   const delayHintId = "timeline-delay-hint";
   const imageDisplayHintId = "timeline-image-display-hint";
   const imageHoldHintId = "timeline-image-hold-hint";
   const snapGridHintId = "timeline-grid-step-hint";
   const snapGridLabelId = "timeline-grid-step-label";
   const autoSkipHintId = "timeline-auto-skip-hint";
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  const stopInteractiveEvent = useCallback((event) => {
+    event.stopPropagation();
+  }, []);
+
+  const handleDelayInputKeyDown = useCallback(
+    (event) => {
+      event.stopPropagation();
+      onDelayKeyDown?.(event);
+    },
+    [onDelayKeyDown]
+  );
+
+  const handleDelayInputFocus = useCallback(
+    (event) => {
+      event.stopPropagation();
+      onDelayFocus?.(event);
+    },
+    [onDelayFocus]
+  );
 
   useEffect(() => {
     if (!open) {
@@ -65,21 +91,21 @@ export default function TimelineSettingsPanel({
         return;
       }
       event.preventDefault();
-      onClose?.();
+      onCloseRef.current?.();
     };
 
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, true);
 
     return () => {
       cancelFrame(focusFrame);
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
       if (restoreFocusTarget && typeof restoreFocusTarget.focus === "function") {
         requestFrame(() => {
           restoreFocusTarget.focus({ preventScroll: true });
         });
       }
     };
-  }, [onClose, open, triggerRef]);
+  }, [open, triggerRef]);
 
   if (!open) {
     return null;
@@ -91,6 +117,9 @@ export default function TimelineSettingsPanel({
       className="timeline-settings-panel"
       aria-labelledby={titleId}
       role="complementary"
+      onClick={stopInteractiveEvent}
+      onKeyDown={stopInteractiveEvent}
+      onPointerDown={stopInteractiveEvent}
     >
       <header className="timeline-settings-panel__header">
         <div className="timeline-settings-panel__title-group">
@@ -122,9 +151,10 @@ export default function TimelineSettingsPanel({
             autoComplete="off"
             placeholder="0:00"
             aria-describedby={delayHintId}
+            onFocus={handleDelayInputFocus}
             onChange={onDelayChange}
             onBlur={onCommitDelay}
-            onKeyDown={onDelayKeyDown}
+            onKeyDown={handleDelayInputKeyDown}
           />
           <span className="timeline-settings__hint" id={delayHintId}>
             {t("timelineSettingsDelayHint")}

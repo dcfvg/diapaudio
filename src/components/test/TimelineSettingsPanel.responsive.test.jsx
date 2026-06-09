@@ -8,6 +8,7 @@ function makeProps(overrides = {}) {
   return {
     open: true,
     delayDraft: "0:00",
+    onDelayFocus: vi.fn(),
     onDelayChange: vi.fn(),
     onCommitDelay: vi.fn(),
     onDelayKeyDown: vi.fn(),
@@ -67,6 +68,46 @@ describe("TimelineSettingsPanel", () => {
     fireEvent.keyDown(document, { key: "Escape" });
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps focus in the delay input across rerenders while already open", async () => {
+    const { rerender } = renderWithProviders(<TimelineSettingsPanel {...makeProps()} />);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "closeButton" })).toHaveFocus());
+
+    const delayInput = screen.getByLabelText("delayControl");
+    delayInput.focus();
+    expect(delayInput).toHaveFocus();
+
+    rerender(<TimelineSettingsPanel {...makeProps({ onClose: vi.fn() })} />);
+
+    await waitFor(() => expect(delayInput).toHaveFocus());
+  });
+
+  it("reports delay input focus before editing", () => {
+    const onDelayFocus = vi.fn();
+
+    renderWithProviders(<TimelineSettingsPanel {...makeProps({ onDelayFocus })} />);
+
+    fireEvent.focus(screen.getByLabelText("delayControl"));
+
+    expect(onDelayFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps delay input keyboard events inside the settings panel", () => {
+    const onDelayKeyDown = vi.fn();
+    const onParentKeyDown = vi.fn();
+
+    renderWithProviders(
+      <div onKeyDown={onParentKeyDown}>
+        <TimelineSettingsPanel {...makeProps({ onDelayKeyDown })} />
+      </div>
+    );
+
+    fireEvent.keyDown(screen.getByLabelText("delayControl"), { key: " " });
+
+    expect(onDelayKeyDown).toHaveBeenCalledTimes(1);
+    expect(onParentKeyDown).not.toHaveBeenCalled();
   });
 
   it("restores focus to the trigger when unmounted", async () => {

@@ -15,6 +15,7 @@ function makeTrack(index, startMs, endMs) {
     track: {
       label: `Track ${index + 1}`,
       originalName: `Track ${index + 1}.wav`,
+      url: `blob:track-${index}`,
       adjustedStartTime: new Date(startMs),
       adjustedEndTime: new Date(endMs),
       duration: (endMs - startMs) / 1000,
@@ -31,6 +32,9 @@ function setupTimeline({
   ],
   images = [],
   settings = {},
+  activeTrackIndex = 0,
+  absoluteTime = 0,
+  playing = false,
 } = {}) {
   const trackRanges = audioRanges.map(([startMs, endMs], index) =>
     makeTrack(index, startMs, endMs)
@@ -52,10 +56,10 @@ function setupTimeline({
 
   useSettingsStore.setState({ autoSkipVoids, ...settings });
   usePlaybackStore.setState({
-    activeTrackIndex: 0,
-    absoluteTime: 0,
+    activeTrackIndex,
+    absoluteTime,
     displayedImages: [],
-    playing: false,
+    playing,
     seekToAbsolute,
   });
   useMediaStore.setState({
@@ -67,6 +71,47 @@ function setupTimeline({
 }
 
 describe("Timeline compressed blanks", () => {
+  it("highlights the track covering the absolute time when playback index is temporarily null", () => {
+    setupTimeline({
+      activeTrackIndex: null,
+      absoluteTime: 35_000,
+      playing: true,
+    });
+
+    const { container } = renderWithProviders(<Timeline />);
+    const tracks = container.querySelectorAll(".timeline-track");
+
+    expect(tracks[0]).not.toHaveClass("timeline-track--active");
+    expect(tracks[1]).toHaveClass("timeline-track--active");
+    expect(tracks[1]).not.toHaveClass("timeline-track--pending");
+  });
+
+  it("uses absolute time instead of a stale playback index for the active track", () => {
+    setupTimeline({
+      activeTrackIndex: 0,
+      absoluteTime: 35_000,
+      playing: true,
+    });
+
+    const { container } = renderWithProviders(<Timeline />);
+    const tracks = container.querySelectorAll(".timeline-track");
+
+    expect(tracks[0]).not.toHaveClass("timeline-track--active");
+    expect(tracks[1]).toHaveClass("timeline-track--active");
+  });
+
+  it("does not highlight any audio track while the current time is in a media blank", () => {
+    setupTimeline({
+      activeTrackIndex: null,
+      absoluteTime: 20_000,
+      playing: true,
+    });
+
+    const { container } = renderWithProviders(<Timeline />);
+
+    expect(container.querySelector(".timeline-track--active")).not.toBeInTheDocument();
+  });
+
   it("uses the normal linear axis when blank skipping is disabled", () => {
     setupTimeline({ autoSkipVoids: false });
 

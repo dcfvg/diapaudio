@@ -5,7 +5,7 @@ import { usePlaybackStore } from "./state/usePlaybackStore.js";
 import { useSettingsStore } from "./state/useSettingsStore.js";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Icon from "./components/Icon.jsx";
-import { formatDelay } from "./media/delay.js";
+import { formatDelay, stepDelayField } from "./media/delay.js";
 import {
   toTimestamp,
   formatLocaleDate,
@@ -55,6 +55,29 @@ const getExportersModule = () => {
   return exportersModulePromise;
 };
 
+function isEditableTarget(target) {
+  if (!target || typeof target.closest !== "function") {
+    return false;
+  }
+
+  const tagName = target.tagName;
+  if (
+    tagName === "INPUT" ||
+    tagName === "TEXTAREA" ||
+    tagName === "SELECT" ||
+    tagName === "BUTTON"
+  ) {
+    return true;
+  }
+
+  return Boolean(
+    target.isContentEditable ||
+      target.closest(
+        "[contenteditable], .timeline-settings-panel, .speed-control, button, select, input, textarea"
+      )
+  );
+}
+
 export default function App() {
   return (
     <ErrorBoundary componentName="Application" showDetails={true}>
@@ -70,6 +93,8 @@ function AppShell() {
   const loadFromFiles = useMediaStore((state) => state.loadFromFiles);
   const loadFromDataTransfer = useMediaStore((state) => state.loadFromDataTransfer);
   const mediaData = useMediaStore((state) => state.mediaData);
+  const mediaLoadId = useMediaStore((state) => state.mediaLoadId);
+  const mediaLoadMode = useMediaStore((state) => state.mediaLoadMode);
   const loading = useMediaStore((state) => state.loading);
   const progress = useMediaStore((state) => state.progress);
   const error = useMediaStore((state) => state.error);
@@ -139,7 +164,10 @@ function AppShell() {
   const hideHudState = useUiStore((state) => state.hideHud);
   const lastAnomalyKeyRef = useRef("");
   const hudHideTimerRef = useRef(null);
+  const hudControlActiveRef = useRef(false);
+  const delayInputEditingRef = useRef(false);
   const hasAudio = Boolean(mediaData?.audioTracks?.length);
+  const mediaDataRef = useRef(mediaData);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsButtonRef = useRef(null);
@@ -170,6 +198,38 @@ function AppShell() {
       snapGridSeconds,
     ]
   );
+
+  const closeSettingsPanel = useCallback(() => {
+    delayInputEditingRef.current = false;
+    setSettingsOpen(false);
+  }, []);
+
+  const toggleSettingsPanel = useCallback(() => {
+    setSettingsOpen((prev) => !prev);
+  }, []);
+
+  const handleTimelinePinnedToggle = useCallback(() => {
+    setTimelinePinned(!timelinePinned);
+  }, [setTimelinePinned, timelinePinned]);
+
+  const handleDelayDraftChange = useCallback(
+    (event) => {
+      delayInputEditingRef.current = true;
+      setDelayDraft(event.target.value);
+    },
+    [setDelayDraft]
+  );
+
+  const handleDelayDraftFocus = useCallback(() => {
+    delayInputEditingRef.current = true;
+  }, []);
+
+  const handleSpeedSelectChange = useCallback(
+    (event) => {
+      setSpeed(Number(event.target.value));
+    },
+    [setSpeed]
+  );
   const mediaScheduleIndex = useMemo(
     () => createScheduleIndex(mediaData?.images || EMPTY_ARRAY, mediaScheduleOptions),
     [mediaData?.images, mediaScheduleOptions]
@@ -193,6 +253,10 @@ function AppShell() {
   useEffect(() => {
     initAudio();
   }, [initAudio]);
+
+  useEffect(() => {
+    mediaDataRef.current = mediaData;
+  }, [mediaData]);
 
   useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") {
@@ -486,22 +550,33 @@ function AppShell() {
     };
   }, [mediaData, mediaTimelineIndex, mediaCoverageRanges, mediaVoidMinMs, playing]);
 
-  // Initialize playback state when media changes
+  // Initialize playback state only after a successful full media replacement.
   useEffect(() => {
-    if (mediaData) {
-      initializeFromMedia(mediaData);
-
-      // Auto-play when media is first loaded and ready
-      if (!hasAudio) {
-        // For image-only mode, start time progression automatically
-        setPlaying(true);
-        setLoadingTrack(false);
-      } else {
-        // For media with audio, start playback automatically
-        togglePlaybackRaw(mediaData);
-      }
+    if (mediaLoadId <= 0 || mediaLoadMode !== "replace") {
+      return;
     }
-  }, [mediaData, initializeFromMedia, hasAudio, setPlaying, setLoadingTrack, togglePlaybackRaw]);
+
+    const loadedMedia = mediaDataRef.current;
+    if (!loadedMedia) {
+      return;
+    }
+
+    initializeFromMedia(loadedMedia);
+
+    if (!loadedMedia.audioTracks?.length) {
+      setPlaying(true);
+      setLoadingTrack(false);
+    } else {
+      togglePlaybackRaw(loadedMedia);
+    }
+  }, [
+    mediaLoadId,
+    mediaLoadMode,
+    initializeFromMedia,
+    setPlaying,
+    setLoadingTrack,
+    togglePlaybackRaw,
+  ]);
 
   useEffect(() => {
     const audio = usePlaybackStore.getState().getAudioElement?.();
@@ -534,26 +609,47 @@ function AppShell() {
       clearTimeout(hudHideTimerRef.current);
     }
 
-    // Schedule hide after inactivity timeout (but not if settings panel is open)
+    // Schedule hide after inactivity timeout (but not if a control is being edited)
     hudHideTimerRef.current = setTimeout(() => {
-      // Don't hide if settings panel is open or timeline is pinned
-      if (!settingsOpen && !timelinePinned) {
+      if (!settingsOpen && !timelinePinned && !hudControlActiveRef.current) {
         hideHudState();
       }
     }, HUD_INACTIVITY_TIMEOUT_MS);
   }, [alwaysShowHud, hideHudState, showHudState, settingsOpen, timelinePinned]);
+
+  const keepHudForControlInteraction = useCallback(() => {
+    if (alwaysShowHud) return;
+    hudControlActiveRef.current = true;
+    showHudState();
+    if (hudHideTimerRef.current) {
+      clearTimeout(hudHideTimerRef.current);
+      hudHideTimerRef.current = null;
+    }
+  }, [alwaysShowHud, showHudState]);
+
+  const releaseHudAfterControlInteraction = useCallback(
+    (event) => {
+      const nextTarget = event?.relatedTarget;
+      if (
+        nextTarget?.nodeType &&
+        typeof event.currentTarget?.contains === "function" &&
+        event.currentTarget.contains(nextTarget)
+      ) {
+        return;
+      }
+      hudControlActiveRef.current = false;
+      showHud();
+    },
+    [showHud]
+  );
 
   // Handle global activity (mouse move, touch, keyboard)
   useEffect(() => {
     if (alwaysShowHud || !mediaData) return;
 
     const handleActivity = (event) => {
-      // Ignore keyboard events when typing in inputs
-      if (event.type === "keydown") {
-        const target = event.target;
-        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
-          return;
-        }
+      if (isEditableTarget(event.target)) {
+        return;
       }
       showHud();
     };
@@ -712,6 +808,11 @@ function AppShell() {
     setShowKeyboardHelp(true);
   }, [setSettingsOpen, setShowKeyboardHelp]);
 
+  const shouldIgnoreGlobalShortcut = useCallback((event) => {
+    const activeElement = typeof document === "undefined" ? null : document.activeElement;
+    return isEditableTarget(event?.target) || isEditableTarget(activeElement);
+  }, []);
+
   // Setup keyboard shortcuts
   useKeyboardShortcuts({
     onPlayPause: mediaData ? togglePlayback : undefined,
@@ -723,6 +824,7 @@ function AppShell() {
     onSpeedDecrease: handleSpeedDecrease,
     onToggleFullscreen: handleToggleFullscreen,
     onShowHelp: handleShowHelp,
+    shouldIgnoreEvent: shouldIgnoreGlobalShortcut,
     disabled: !mediaData || loading,
   });
 
@@ -827,6 +929,9 @@ function AppShell() {
   const playButtonLabel = t(playButtonConfig.labelKey);
 
   useEffect(() => {
+    if (delayInputEditingRef.current) {
+      return;
+    }
     const formatted = formatDelay(delaySeconds);
     if (delayDraft !== formatted) {
       setDelayDraft(formatted);
@@ -847,6 +952,7 @@ function AppShell() {
   }, [anomalyKey, setNoticesOpen]);
 
   const commitDelay = useCallback(() => {
+    delayInputEditingRef.current = false;
     if (!setDelayFromInput(delayDraft)) {
       setDelayDraft(formatDelay(delaySeconds));
     }
@@ -854,13 +960,22 @@ function AppShell() {
 
   const handleDelayKeyDown = useCallback(
     (event) => {
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        event.preventDefault();
+        delayInputEditingRef.current = true;
+        const direction = event.key === "ArrowUp" ? 1 : -1;
+        const nextDelayDraft = stepDelayField(delayDraft, delaySeconds, direction);
+        setDelayDraft(nextDelayDraft);
+        setDelayFromInput(nextDelayDraft);
+        return;
+      }
       if (event.key === "Enter") {
         event.preventDefault();
         commitDelay();
         event.currentTarget.blur();
       }
     },
-    [commitDelay]
+    [commitDelay, delayDraft, delaySeconds, setDelayDraft, setDelayFromInput]
   );
 
   const handleBrowseClick = useCallback((inputRef) => {
@@ -1077,12 +1192,14 @@ function AppShell() {
             <div
               className={`viewer__hud ${hudVisible || timelinePinned ? "viewer__hud--visible" : ""}`}
               id="viewer-hud"
+              onFocusCapture={keepHudForControlInteraction}
+              onBlurCapture={releaseHudAfterControlInteraction}
             >
               <div className={mediaData ? "timeline" : "timeline hidden"} id="timeline">
                 <button
                   type="button"
                   className={`timeline__pin-toggle ${timelinePinned ? "is-active" : ""}`}
-                  onClick={() => setTimelinePinned(!timelinePinned)}
+                  onClick={handleTimelinePinnedToggle}
                   aria-label={timelinePinned ? t("timelineUnpin") : t("timelinePin")}
                   aria-pressed={timelinePinned}
                   title={timelinePinned ? t("tooltipTimelineUnpin") : t("tooltipTimelinePin")}
@@ -1140,7 +1257,9 @@ function AppShell() {
                         value={String(speed)}
                         className="speed-control__select"
                         title={t("tooltipSpeedSelect")}
-                        onChange={(event) => setSpeed(Number(event.target.value))}
+                        onPointerDown={keepHudForControlInteraction}
+                        onKeyDown={(event) => event.stopPropagation()}
+                        onChange={handleSpeedSelectChange}
                       >
                         {SPEED_OPTIONS.map((option) => (
                           <option key={option} value={option}>
@@ -1153,7 +1272,7 @@ function AppShell() {
                       type="button"
                       className={`timeline__settings-button ${settingsOpen ? "is-open" : ""}`}
                       ref={settingsButtonRef}
-                      onClick={() => setSettingsOpen((prev) => !prev)}
+                      onClick={toggleSettingsPanel}
                       aria-label={t("timelineSettings")}
                       aria-expanded={settingsOpen}
                       aria-controls="timeline-settings-panel"
@@ -1169,7 +1288,8 @@ function AppShell() {
               <TimelineSettingsPanel
                 open={settingsOpen}
                 delayDraft={delayDraft}
-                onDelayChange={(event) => setDelayDraft(event.target.value)}
+                onDelayFocus={handleDelayDraftFocus}
+                onDelayChange={handleDelayDraftChange}
                 onCommitDelay={commitDelay}
                 onDelayKeyDown={handleDelayKeyDown}
                 imageDisplaySeconds={String(Math.round(imageDisplayValue))}
@@ -1188,7 +1308,7 @@ function AppShell() {
                 onExportPremiere={handleExportPremiere}
                 onExportZip={handleExportZip}
                 disabled={!mediaData}
-                onClose={() => setSettingsOpen(false)}
+                onClose={closeSettingsPanel}
                 onShowKeyboardHelp={handleOpenKeyboardHelp}
                 triggerRef={settingsButtonRef}
                 t={t}

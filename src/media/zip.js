@@ -42,6 +42,14 @@ export async function unzipFile(zipFile, { progress, t } = {}) {
         const blob = await entry.getData(new BlobWriter(mimeType));
         const baseName = fileName.split("/").pop() || fileName;
         const file = new File([blob], baseName, { type: mimeType });
+        try {
+          Object.defineProperty(file, "path", {
+            configurable: true,
+            value: fileName,
+          });
+        } catch {
+          file.sourcePath = fileName;
+        }
         files.push(file);
       } catch (error) {
         logger.warn(`Failed to extract ${fileName}:`, error);
@@ -75,7 +83,7 @@ export async function unzipFile(zipFile, { progress, t } = {}) {
   let duplicateCount = 0;
 
   for (const file of files) {
-    const fileName = file.name;
+    const fileName = file.path || file.sourcePath || file.name;
     const fileSize = file.size;
     const timestamp = parseTimestampFromName(fileName);
     const timestampKey = timestamp ? toTimestamp(timestamp) : "no_timestamp";

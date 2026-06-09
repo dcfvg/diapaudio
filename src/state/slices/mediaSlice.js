@@ -24,6 +24,8 @@ export const createMediaSlice = (set, get) => ({
   duplicates: { audio: 0, images: 0 },
   objectUrls: [],
   timelineView: null,
+  mediaLoadId: 0,
+  mediaLoadMode: null,
 
   reset: () => {
     const { objectUrls, delaySeconds, _progressManager } = get();
@@ -38,6 +40,8 @@ export const createMediaSlice = (set, get) => ({
       loading: false,
       progress: { percent: 0, statusKey: "", details: "" },
       delaySeconds, // Preserve delay on reset
+      mediaLoadId: 0,
+      mediaLoadMode: null,
       _progressManager,
     });
   },
@@ -72,15 +76,15 @@ export const createMediaSlice = (set, get) => ({
     const filesArray = Array.from(inputFiles || []).filter(Boolean);
     if (!filesArray.length) return;
 
-    const { objectUrls, delaySeconds, _progressManager } = get();
-    revokeObjectUrls(objectUrls);
+    const { objectUrls, delaySeconds, _progressManager, mediaLoadId } = get();
 
     get()._setLoading(true);
     get()._setProgress(0, "loadingFiles", "");
     _progressManager.reset();
 
+    let result = null;
     try {
-      const result = await prepareMediaFromFiles(filesArray, {
+      result = await prepareMediaFromFiles(filesArray, {
         progress: _progressManager,
         t: translate,
       });
@@ -92,8 +96,16 @@ export const createMediaSlice = (set, get) => ({
       if (!settings.delayUserOverride) {
         useSettingsStore.getState().setImportedDelaySeconds(payload.delaySeconds);
       }
-      set({ loading: false, error: null, ...payload });
+      revokeObjectUrls(objectUrls);
+      set({
+        loading: false,
+        error: null,
+        ...payload,
+        mediaLoadId: mediaLoadId + 1,
+        mediaLoadMode: "replace",
+      });
     } catch (error) {
+      revokeObjectUrls(result?.objectUrls);
       _progressManager.reset();
       set({ loading: false, error });
     }
@@ -103,15 +115,16 @@ export const createMediaSlice = (set, get) => ({
     const filesArray = Array.from(inputFiles || []).filter(Boolean);
     if (!filesArray.length) return;
 
-    const { mediaData, objectUrls, delaySeconds, _progressManager } = get();
+    const { mediaData, objectUrls, delaySeconds, _progressManager, mediaLoadId } = get();
     if (!mediaData) return get().loadFromFiles(inputFiles);
 
     get()._setLoading(true);
     get()._setProgress(0, "loadingFiles", "");
     _progressManager.reset();
 
+    let result = null;
     try {
-      const result = await prepareMediaFromFiles(filesArray, {
+      result = await prepareMediaFromFiles(filesArray, {
         progress: _progressManager,
         t: translate,
       });
@@ -161,8 +174,15 @@ export const createMediaSlice = (set, get) => ({
       if (!settings.delayUserOverride) {
         useSettingsStore.getState().setImportedDelaySeconds(payload.delaySeconds);
       }
-      set({ loading: false, error: null, ...payload });
+      set({
+        loading: false,
+        error: null,
+        ...payload,
+        mediaLoadId: mediaLoadId + 1,
+        mediaLoadMode: "append",
+      });
     } catch (error) {
+      revokeObjectUrls(result?.objectUrls);
       _progressManager.reset();
       set({ loading: false, error });
     }

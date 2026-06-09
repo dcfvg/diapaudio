@@ -39,7 +39,36 @@ import { buildMediaTimelineIndex, buildTimelineProjection } from "../media/timel
 
 const TIMELINE_VOID_TARGET_WIDTH_PX = 24;
 
-const isTrackRangeLoaded = (range, activeIndex) => range.index === activeIndex && range.track?.url;
+function trackRangeCoversTime(range, absoluteMs) {
+  return (
+    Number.isFinite(absoluteMs) &&
+    Number.isFinite(range?.startMs) &&
+    Number.isFinite(range?.endMs) &&
+    absoluteMs >= range.startMs &&
+    absoluteMs <= range.endMs
+  );
+}
+
+function resolveActiveTrackRangeIndex(trackRanges, activeIndex, absoluteMs) {
+  if (!Array.isArray(trackRanges)) {
+    return Number.isInteger(activeIndex) ? activeIndex : null;
+  }
+
+  if (!Number.isFinite(absoluteMs)) {
+    return Number.isInteger(activeIndex) ? activeIndex : null;
+  }
+
+  const activeRange = trackRanges.find((range) => range.index === activeIndex);
+  if (trackRangeCoversTime(activeRange, absoluteMs)) {
+    return activeIndex;
+  }
+
+  const timeRange = trackRanges.find((range) => trackRangeCoversTime(range, absoluteMs));
+  return Number.isInteger(timeRange?.index) ? timeRange.index : null;
+}
+
+const isTrackRangeLoaded = (range, activeIndex, resolvedActiveIndex) =>
+  (range.index === activeIndex || range.index === resolvedActiveIndex) && range.track?.url;
 
 function computeCompressedVoidMs(startMs, endMs, widthPx) {
   if (
@@ -326,6 +355,10 @@ function Timeline() {
   const visibleTrackRanges = useMemo(
     () => filterVisibleTracks(timeline?.trackRanges, viewStartMs, viewEndMs),
     [timeline?.trackRanges, viewStartMs, viewEndMs]
+  );
+  const activeTrackRangeIndex = useMemo(
+    () => resolveActiveTrackRangeIndex(visibleTrackRanges, activeTrackIndex, absoluteTime),
+    [visibleTrackRanges, activeTrackIndex, absoluteTime]
   );
 
   const cursorPercent = Number.isFinite(resolvedAbsoluteMs)
@@ -744,13 +777,13 @@ function Timeline() {
             const right = viewProjection.timeToPercent(range.endMs);
             const width = clamp(right - left, 0, 100 - left);
             const classes = ["timeline-track"];
-            if (range.index === activeTrackIndex) {
+            if (range.index === activeTrackRangeIndex) {
               classes.push("timeline-track--active");
             }
             if (range.overlapMs || range.overlapAheadMs) {
               classes.push("timeline-track--overlap");
             }
-            if (!isTrackRangeLoaded(range, activeTrackIndex)) {
+            if (!isTrackRangeLoaded(range, activeTrackIndex, activeTrackRangeIndex)) {
               classes.push("timeline-track--pending");
             }
             const track = range.track || {};

@@ -88,6 +88,18 @@ describe('dedupe', () => {
       expect(result.removedCount).toBe(0);
     });
 
+    it('keeps tracks with the same basename in different source directories', () => {
+      const timestamp = new Date('2024-01-01');
+      const tracks = [
+        { originalName: 'recorder-a/song.mp3', fileTimestamp: timestamp, duration: 180 },
+        { originalName: 'recorder-b/song.mp3', fileTimestamp: timestamp, duration: 180 },
+      ];
+
+      const result = dedupeAudioTracks(tracks);
+      expect(result.tracks).toHaveLength(2);
+      expect(result.removedCount).toBe(0);
+    });
+
     it('normalizes filenames for comparison', () => {
       const timestamp = new Date('2024-01-01');
       const tracks = [
@@ -228,6 +240,18 @@ describe('dedupe', () => {
 
       const result = dedupeImages(images);
       expect(result.images).toHaveLength(3);
+      expect(result.removedCount).toBe(0);
+    });
+
+    it('keeps images with the same basename in different source directories', () => {
+      const timestamp = new Date('2024-01-01');
+      const images = [
+        { name: 'photo.jpg', originalName: 'camera-a/photo.jpg', originalTimestamp: timestamp },
+        { name: 'photo.jpg', originalName: 'camera-b/photo.jpg', originalTimestamp: timestamp },
+      ];
+
+      const result = dedupeImages(images);
+      expect(result.images).toHaveLength(2);
       expect(result.removedCount).toBe(0);
     });
 

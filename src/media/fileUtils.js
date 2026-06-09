@@ -3,7 +3,7 @@ import { AUDIO_MIME_BY_EXTENSION, IMAGE_MIME_BY_EXTENSION } from "./constants.js
 const SYSTEM_FILE_PATTERN = /(^|\/)(?:\._[^/]*|__MACOSX\/|\.ds_store$|thumbs\.db$|desktop\.ini$)/i;
 
 export function getFilePath(file) {
-  return file?.webkitRelativePath || file?.path || file?.name || "";
+  return file?.webkitRelativePath || file?.path || file?.sourcePath || file?.name || "";
 }
 
 export function getBaseName(path) {
