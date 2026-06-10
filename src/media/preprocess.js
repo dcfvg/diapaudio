@@ -26,6 +26,7 @@ import { toTimestamp } from "../utils/dateUtils.js";
 import { translate } from "../utils/i18nHelpers.js";
 import { DEFAULT_TIMESTAMP_INTERVAL_MS } from "./constants.js";
 import * as logger from "../utils/logger.js";
+import { recoverFromStaleBuildImport } from "../utils/staleBuildRecovery.js";
 
 /**
  * Create a unique key for file deduplication based on name, size, and timestamp
@@ -521,6 +522,7 @@ export async function prepareMediaFromFiles(files, options = {}) {
   };
   } catch (error) {
     revokePreparedObjectUrls(objectUrls);
+    recoverFromStaleBuildImport(error);
     throw error;
   }
 }

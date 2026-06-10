@@ -2,6 +2,10 @@ import { Component } from "react";
 import Modal from "./Modal.jsx";
 import Icon from "./Icon.jsx";
 import * as logger from "../utils/logger.js";
+import {
+  isStaleBuildImportError,
+  recoverFromStaleBuildImport,
+} from "../utils/staleBuildRecovery.js";
 
 /**
  * Error Boundary component to catch and handle React component errors gracefully.
@@ -26,6 +30,7 @@ class ErrorBoundary extends Component {
   componentDidCatch(error, errorInfo) {
     // Log error details for debugging
     logger.error("ErrorBoundary caught an error:", error, errorInfo);
+    recoverFromStaleBuildImport(error);
 
     // Update state with error details
     this.setState((prevState) => ({
@@ -49,7 +54,9 @@ class ErrorBoundary extends Component {
   };
 
   handleReload = () => {
-    window.location.reload();
+    if (!recoverFromStaleBuildImport(this.state.error, { force: true })) {
+      window.location.reload();
+    }
   };
 
   render() {
@@ -57,7 +64,9 @@ class ErrorBoundary extends Component {
       const { error, errorInfo, errorCount } = this.state;
       const { componentName = "Component" } = this.props;
       const message =
-        error?.message ||
+        isStaleBuildImportError(error)
+          ? "The app has been updated. Reload the page to continue."
+          : error?.message ||
         `An unexpected error occurred while rendering the ${componentName.toLowerCase()}.`;
 
       return (

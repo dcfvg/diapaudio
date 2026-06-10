@@ -5,9 +5,11 @@ import "./styles/theme.css";
 import App from "./App.jsx";
 import "./style.css";
 import * as logger from "./utils/logger.js";
+import { installStaleBuildRecovery } from "./utils/staleBuildRecovery.js";
 
 // Set log level to INFO to see debug messages
 logger.setLogLevel('INFO');
+installStaleBuildRecovery();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

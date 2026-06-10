@@ -95,6 +95,9 @@ export const translations = {
     importActionsLabel: "Import media",
     errorModalDefaultMessage: "An unexpected error occurred. Please try again.",
     errorModalTechnicalDetails: "Technical details",
+    errorModalStaleBuildMessage:
+      "The app has been updated. Reload the page to continue with the latest version.",
+    reloadButton: "Reload",
 
     // Timeline
     timelineNotice: "No overlapping images found.",
@@ -285,6 +288,9 @@ export const translations = {
     importActionsLabel: "Importer des médias",
     errorModalDefaultMessage: "Une erreur inattendue est survenue. Veuillez réessayer.",
     errorModalTechnicalDetails: "Détails techniques",
+    errorModalStaleBuildMessage:
+      "L'application a été mise à jour. Rechargez la page pour continuer avec la dernière version.",
+    reloadButton: "Recharger",
 
     // Timeline
     timelineNotice: "Aucune image superposée trouvée.",
@@ -480,6 +486,9 @@ export const translations = {
     importActionsLabel: "Importar medios",
     errorModalDefaultMessage: "Ocurrió un error inesperado. Inténtalo de nuevo.",
     errorModalTechnicalDetails: "Detalles técnicos",
+    errorModalStaleBuildMessage:
+      "La aplicación se ha actualizado. Recarga la página para continuar con la última versión.",
+    reloadButton: "Recargar",
 
     // Timeline
     timelineNotice: "No se encontraron imágenes superpuestas.",

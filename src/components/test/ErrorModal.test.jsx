@@ -59,6 +59,28 @@ describe('ErrorModal', () => {
     expect(screen.getByText('Detailed error message')).toBeTruthy();
   });
 
+  it('shows a reload message for stale dynamic import errors', () => {
+    vi.useFakeTimers();
+    window.sessionStorage.clear();
+    try {
+      const error = new TypeError(
+        'Failed to fetch dynamically imported module: https://dcfvg.github.io/diapaudio/assets/zip-Cnz5aW5f.js'
+      );
+      error.stack = 'TypeError: Failed to fetch dynamically imported module';
+
+      renderWithProviders(<ErrorModal open={true} error={error} onClose={vi.fn()} />);
+
+      expect(
+        screen.getByText('The app has been updated. Reload the page to continue with the latest version.')
+      ).toBeTruthy();
+      expect(screen.getByText('Reload')).toBeTruthy();
+      expect(screen.queryByText('Technical details')).toBeFalsy();
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it('displays default message for error without message property', () => {
     const error = {};
     renderWithProviders(<ErrorModal open={true} error={error} onClose={vi.fn()} />);
