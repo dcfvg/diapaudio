@@ -15,6 +15,7 @@ import {
   findSurroundingImages,
   getCompositionAtTime,
 } from "../media/scheduleIndex.js";
+import { buildAutoSkipVisualEventRanges } from "../media/timelineEvents.js";
 import CompositionView from "./CompositionView.jsx";
 import SlideshowPlaceholder, {
   resolvePlaceholderSources,
@@ -26,6 +27,7 @@ import "./Slideshow.css";
 function Slideshow() {
   const mediaData = useMediaStore((state) => state.mediaData);
   const loadFromDataTransfer = useMediaStore((state) => state.loadFromDataTransfer);
+  const autoSkipVoids = useSettingsStore((state) => state.autoSkipVoids);
   const imageDisplaySeconds = useSettingsStore((state) => state.imageDisplaySeconds);
   const imageHoldSeconds = useSettingsStore((state) => state.imageHoldSeconds);
   const compositionIntervalSeconds = useSettingsStore((state) => state.compositionIntervalSeconds);
@@ -102,6 +104,23 @@ function Slideshow() {
     return hasAudioCoverage(mediaData, resolvedAbsolute);
   }, [hasAudio, mediaData, resolvedAbsolute]);
 
+  const autoSkipVisualRanges = useMemo(
+    () =>
+      autoSkipVoids
+        ? buildAutoSkipVisualEventRanges(scheduleIndex.entries || EMPTY_ARRAY, minVisibleMs)
+        : EMPTY_ARRAY,
+    [autoSkipVoids, scheduleIndex.entries, minVisibleMs]
+  );
+
+  const inAutoSkipVisualCoverage = useMemo(() => {
+    if (!Number.isFinite(resolvedAbsolute)) {
+      return false;
+    }
+    return autoSkipVisualRanges.some(
+      (range) => resolvedAbsolute >= range.startMs && resolvedAbsolute < range.endMs
+    );
+  }, [autoSkipVisualRanges, resolvedAbsolute]);
+
   const compositionState = useMemo(() => {
     if (!mediaData?.images?.length || !scheduleIndex.metadata.length) {
       return null;
@@ -111,6 +130,10 @@ function Slideshow() {
     }
 
     const composition = getCompositionAtTime(scheduleIndex, mediaData.images, resolvedAbsolute);
+
+    if (autoSkipVoids && !inAudioCoverage && !inAutoSkipVisualCoverage) {
+      return null;
+    }
 
     // When skipSilence is enabled, only skip if BOTH no audio AND no images
     // This creates true "silent periods" where nothing is happening
@@ -128,7 +151,15 @@ function Slideshow() {
       displayImages: composition.images,
       primaryImage: composition.primaryImage,
     };
-  }, [mediaData, scheduleIndex, resolvedAbsolute, skipSilence, inAudioCoverage]);
+  }, [
+    mediaData,
+    scheduleIndex,
+    resolvedAbsolute,
+    autoSkipVoids,
+    skipSilence,
+    inAudioCoverage,
+    inAutoSkipVisualCoverage,
+  ]);
 
   const layoutSize = compositionState?.layoutSize ?? 1;
   const slots = compositionState?.slots ?? DEFAULT_SLOTS;

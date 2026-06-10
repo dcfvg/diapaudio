@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAutoSkipVisualEventRanges,
   buildMediaTimelineIndex,
   buildTimelineProjection,
   findAutoSkipTarget,
@@ -105,6 +106,36 @@ describe("timeline event index", () => {
     expect(hasAudioCoverage(index.audioRanges, 5_500)).toBe(true);
     expect(hasAudioCoverage(index.audioRanges, 19_000)).toBe(true);
     expect(hasAudioCoverage(index.audioRanges, 20_001)).toBe(false);
+  });
+
+  it("builds short visual event ranges for compressed blank detection", () => {
+    const image = { name: "Held photo" };
+    const ranges = buildAutoSkipVisualEventRanges(
+      [
+        {
+          image,
+          index: 3,
+          slotIndex: 1,
+          maxConcurrency: 2,
+          startMs: 12_000,
+          endMs: 32_000,
+        },
+        { startMs: NaN, endMs: 40_000 },
+      ],
+      2_000
+    );
+
+    expect(ranges).toEqual([
+      {
+        image,
+        index: 3,
+        slotIndex: 1,
+        maxConcurrency: 2,
+        startMs: 12_000,
+        endMs: 14_000,
+        sourceEndMs: 32_000,
+      },
+    ]);
   });
 });
 
@@ -269,8 +300,11 @@ describe("compressed timeline projection", () => {
     expect(widths[1]).toBeCloseTo(10, 5);
   });
 
-  it("preserves displayed photo segments before starting a skipped blank", () => {
-    const mediaCoverageRanges = [{ startMs: 12_000, endMs: 30_000 }];
+  it("uses short photo event windows before starting a skipped blank", () => {
+    const mediaCoverageRanges = buildAutoSkipVisualEventRanges(
+      [{ startMs: 12_000, endMs: 30_000 }],
+      2_000
+    );
     const index = buildMediaTimelineIndex({
       images: [{ timeMs: 12_000 }],
       audioTracks: [
@@ -293,11 +327,11 @@ describe("compressed timeline projection", () => {
     });
 
     expect(projection.voids).toHaveLength(1);
-    expect(projection.voids[0]).toMatchObject({ startMs: 30_000, endMs: 42_000 });
-    expect(projection.timeToProjectedMs(42_000)).toBe(31_000);
-    expect(projection.projectedToTimeMs(30_500)).toBe(42_000);
-    expect(findAutoSkipTarget(index, 20_000, { mediaCoverageRanges })).toBeUndefined();
-    expect(findAutoSkipTarget(index, 31_000, { mediaCoverageRanges })).toBe(42_000);
+    expect(projection.voids[0]).toMatchObject({ startMs: 14_000, endMs: 42_000 });
+    expect(projection.timeToProjectedMs(42_000)).toBe(15_000);
+    expect(projection.projectedToTimeMs(14_500)).toBe(42_000);
+    expect(findAutoSkipTarget(index, 13_000, { mediaCoverageRanges })).toBeUndefined();
+    expect(findAutoSkipTarget(index, 20_000, { mediaCoverageRanges })).toBe(42_000);
   });
 
   it("keeps a zoomed view inside a long blank compressed to the next media event", () => {

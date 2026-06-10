@@ -32,6 +32,7 @@ import { fetchSampleFile, fetchSampleManifest, shouldAutoloadSample } from "./de
 import { EMPTY_ARRAY } from "./constants/common.js";
 import { resolveImageScheduleSettings } from "./state/helpers/settingsHelpers.js";
 import {
+  buildAutoSkipVisualEventRanges,
   buildMediaTimelineIndex,
   findAutoSkipTarget,
   findNextEventTime,
@@ -234,8 +235,11 @@ function AppShell() {
     () => createScheduleIndex(mediaData?.images || EMPTY_ARRAY, mediaScheduleOptions),
     [mediaData?.images, mediaScheduleOptions]
   );
-  const mediaCoverageRanges = mediaScheduleIndex.entries || EMPTY_ARRAY;
   const mediaVoidMinMs = mediaScheduleOptions.minVisibleMs;
+  const mediaCoverageRanges = useMemo(
+    () => buildAutoSkipVisualEventRanges(mediaScheduleIndex.entries || EMPTY_ARRAY, mediaVoidMinMs),
+    [mediaScheduleIndex.entries, mediaVoidMinMs]
+  );
 
   // Get audio element getter and state setters from playback store
   const getAudioElement = usePlaybackStore((state) => state.getAudioElement);

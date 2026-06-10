@@ -35,7 +35,11 @@ import { useBrushControl } from "../hooks/useBrushControl.js";
 import { TICK_STEPS_MS } from "../constants/timeline";
 import { EMPTY_ARRAY } from "../constants/common.js";
 import { clamp } from "../utils/numberUtils.js";
-import { buildMediaTimelineIndex, buildTimelineProjection } from "../media/timelineEvents.js";
+import {
+  buildAutoSkipVisualEventRanges,
+  buildMediaTimelineIndex,
+  buildTimelineProjection,
+} from "../media/timelineEvents.js";
 
 const TIMELINE_VOID_TARGET_WIDTH_PX = 24;
 
@@ -195,17 +199,23 @@ function Timeline() {
 
   const scheduleSegments = scheduleIndex.segments || EMPTY_ARRAY;
   const scheduledEntries = scheduleIndex.entries || EMPTY_ARRAY;
+  const autoSkipVisualEntries = useMemo(
+    () => buildAutoSkipVisualEventRanges(scheduledEntries, minVisibleMs),
+    [scheduledEntries, minVisibleMs]
+  );
+  const timelineImageSegments = autoSkipVoids ? autoSkipVisualEntries : scheduleSegments;
+  const timelineImageEntries = autoSkipVoids ? autoSkipVisualEntries : scheduledEntries;
 
   // Extend timeline with schedule segments and snap settings for snapping logic
   const timeline = useMemo(() => {
     if (!baseTimeline) return null;
     return {
       ...baseTimeline,
-      imageSegments: scheduleSegments,
+      imageSegments: timelineImageSegments,
       snapToGrid: Boolean(snapToGrid),
       snapGridMs,
     };
-  }, [baseTimeline, scheduleSegments, snapToGrid, snapGridMs]);
+  }, [baseTimeline, timelineImageSegments, snapToGrid, snapGridMs]);
 
   // On initial load (no timelineView), show the full content range
   // This makes tracks align to edges and brush window span full width
@@ -235,7 +245,7 @@ function Timeline() {
         startMs: summaryStartMs,
         endMs: summaryEndMs,
         mediaTimelineIndex,
-        mediaCoverageRanges: scheduledEntries,
+        mediaCoverageRanges: autoSkipVisualEntries,
         enabled: Boolean(autoSkipVoids),
         minVoidMs: minVisibleMs,
         compressedVoidMs: computeCompressedVoidMs(summaryStartMs, summaryEndMs, timelineWidthPx),
@@ -246,7 +256,7 @@ function Timeline() {
       summaryStartMs,
       summaryEndMs,
       mediaTimelineIndex,
-      scheduledEntries,
+      autoSkipVisualEntries,
       autoSkipVoids,
       minVisibleMs,
       timelineWidthPx,
@@ -259,7 +269,7 @@ function Timeline() {
         startMs: viewStartMs,
         endMs: viewEndMs,
         mediaTimelineIndex,
-        mediaCoverageRanges: scheduledEntries,
+        mediaCoverageRanges: autoSkipVisualEntries,
         enabled: Boolean(autoSkipVoids),
         minVoidMs: minVisibleMs,
         compressedVoidMs: computeCompressedVoidMs(viewStartMs, viewEndMs, timelineWidthPx),
@@ -270,7 +280,7 @@ function Timeline() {
       viewStartMs,
       viewEndMs,
       mediaTimelineIndex,
-      scheduledEntries,
+      autoSkipVisualEntries,
       autoSkipVoids,
       minVisibleMs,
       timelineWidthPx,
@@ -319,17 +329,17 @@ function Timeline() {
 
   // Virtual scrolling: filter visible items based on current viewport
   const visibleImageEntries = useMemo(() => {
-    if (!scheduledEntries.length || !Number.isFinite(viewStartMs) || !Number.isFinite(viewEndMs)) {
+    if (!timelineImageEntries.length || !Number.isFinite(viewStartMs) || !Number.isFinite(viewEndMs)) {
       return [];
     }
     return aggregateEntriesByPixel(
-      scheduledEntries,
+      timelineImageEntries,
       viewStartMs,
       viewEndMs,
       timelineWidthPx,
       viewProjection
     );
-  }, [scheduledEntries, viewStartMs, viewEndMs, timelineWidthPx, viewProjection]);
+  }, [timelineImageEntries, viewStartMs, viewEndMs, timelineWidthPx, viewProjection]);
 
   const imageRowHeightPx = 13;
   const imageRowMarginPx = 1;
@@ -438,6 +448,7 @@ function Timeline() {
       viewDurationMs,
       timeline,
       imageSegments: scheduleSegments,
+      previewImageEntries: autoSkipVoids ? autoSkipVisualEntries : null,
       images: mediaData?.images || [],
       seekToAbsolute: seekToTimelineAbsolute,
       playing,

@@ -42,7 +42,6 @@ const TransitionImage = memo(function TransitionImage({
   const scheduleRemoval = useCallback((id, delay) => {
     cancelRemovalTimer(id);
     if (delay <= 0) {
-      setLayers((prev) => prev.filter((layer) => layer.id !== id));
       return;
     }
     const timer = setTimeout(() => {
@@ -62,6 +61,10 @@ const TransitionImage = memo(function TransitionImage({
 
     setLayers((prevLayers) => {
       const markForExit = (layer) => {
+        if (fadeDuration <= 0) {
+          cancelRemovalTimer(layer.id);
+          return null;
+        }
         if (layer.phase === "exit") {
           return layer;
         }
@@ -86,11 +89,11 @@ const TransitionImage = memo(function TransitionImage({
               return updatedMatch;
             }
             return markForExit(layer);
-          });
+          }).filter(Boolean);
         }
       }
 
-      const exitingLayers = prevLayers.map((layer) => markForExit(layer));
+      const exitingLayers = prevLayers.map((layer) => markForExit(layer)).filter(Boolean);
 
       if (!image) {
         return exitingLayers;
