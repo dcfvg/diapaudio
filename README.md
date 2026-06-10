@@ -1,10 +1,12 @@
 # diapaudio
 
-Playback photos synced with recordings of that day.
+Playback photos synced to audio from the same moment.
 
 ## Live Demo
 
 **[Try it here](https://dcfvg.github.io/diapaudio/)**
+
+![diapaudio synchronized playback interface](public/screenshot.webp)
 
 ## What is it?
 
@@ -250,7 +252,7 @@ For browser automation with real media, put a ZIP file in `sample/` or set `DIAP
 npm run dev:sample
 ```
 
-Open `http://127.0.0.1:5959/?sample=local` to automatically load the sample. The sample endpoint is dev-only and is not included in production builds.
+Open `http://127.0.0.1:5959/?sample=local` to automatically load the sample. The sample endpoint is opt-in and only enabled by `npm run dev:sample`, `DIAPAUDIO_SAMPLE_ZIP`, or `DIAPAUDIO_SAMPLE_DIR`; plain `npm run dev` keeps the public dropzone without local sample controls. The sample endpoint is dev-only and is not included in production builds.
 
 ### Testing
 

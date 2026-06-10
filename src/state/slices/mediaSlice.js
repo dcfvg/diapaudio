@@ -89,13 +89,13 @@ export const createMediaSlice = (set, get) => ({
         t: translate,
       });
       applyImportedArchiveSettings(result);
-      const settings = useSettingsStore.getState();
-      const payload = buildMediaData(result, delaySeconds, {
-        preferExistingDelay: Boolean(settings.delayUserOverride),
+      const payload = buildMediaData({
+        ...result,
+        delaySeconds: result.delaySeconds ?? 0,
+      }, delaySeconds, {
+        preferExistingDelay: false,
       });
-      if (!settings.delayUserOverride) {
-        useSettingsStore.getState().setImportedDelaySeconds(payload.delaySeconds);
-      }
+      useSettingsStore.getState().setImportedDelaySeconds(payload.delaySeconds);
       revokeObjectUrls(objectUrls);
       set({
         loading: false,

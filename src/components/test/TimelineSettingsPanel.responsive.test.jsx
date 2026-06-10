@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../../test/test-utils.jsx";
 import TimelineSettingsPanel from "../TimelineSettingsPanel.jsx";
 
@@ -144,6 +145,22 @@ describe("TimelineSettingsPanel", () => {
       "aria-describedby",
       "timeline-auto-skip-hint"
     );
+  });
+
+  it("includes a language selector in the settings panel", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TimelineSettingsPanel {...makeProps()} />);
+
+    const select = screen.getByRole("combobox", { name: "Language" });
+
+    expect(select).toHaveAttribute("id", "timeline-settings-language-select");
+    expect(select).toHaveValue("en");
+
+    await user.selectOptions(select, "fr");
+
+    expect(select).toHaveValue("fr");
+
+    await user.selectOptions(select, "en");
   });
 
   it("does not render while closed", () => {

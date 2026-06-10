@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMediaStore } from "../useMediaStore.js";
+import { useSettingsStore } from "../useSettingsStore.js";
 
 const originalCreateObjectURL = URL.createObjectURL;
 const originalRevokeObjectURL = URL.revokeObjectURL;
@@ -41,6 +42,25 @@ function emptyDirectoryTransfer() {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
+  useSettingsStore.setState({
+    delaySeconds: 0,
+    delayUserOverride: false,
+  });
+  useMediaStore.setState({
+    mediaData: null,
+    delaySeconds: 0,
+    anomalies: [],
+    duplicates: { audio: 0, images: 0 },
+    loading: false,
+    error: null,
+    progress: { percent: 0, statusKey: "", details: "" },
+    objectUrls: [],
+    timelineView: null,
+    mediaLoadId: 0,
+    mediaLoadMode: null,
+  });
+
   let counter = 0;
   Object.defineProperty(URL, "createObjectURL", {
     configurable: true,
@@ -122,6 +142,35 @@ describe("useMediaStore", () => {
     expect(changed).toBe(true);
     expect(useMediaStore.getState().delaySeconds).toBe(30);
     expect(useMediaStore.getState().mediaLoadId).toBe(loadId);
+  });
+
+  it("resets delay to zero on a replacement load without a delay file", async () => {
+    await useMediaStore
+      .getState()
+      .loadFromFiles([imageFile("IMG_20250115_143025.jpg")]);
+    useMediaStore.getState().setDelayFromInput("0:30");
+
+    await useMediaStore
+      .getState()
+      .loadFromFiles([imageFile("IMG_20250115_143125.jpg")]);
+
+    expect(useMediaStore.getState().delaySeconds).toBe(0);
+    expect(useSettingsStore.getState().delaySeconds).toBe(0);
+    expect(useSettingsStore.getState().delayUserOverride).toBe(false);
+  });
+
+  it("keeps the current delay when appending files without a delay file", async () => {
+    await useMediaStore
+      .getState()
+      .loadFromFiles([imageFile("IMG_20250115_143025.jpg")]);
+    useMediaStore.getState().setDelayFromInput("0:30");
+
+    await useMediaStore
+      .getState()
+      .appendFromFiles([imageFile("IMG_20250115_143125.jpg")]);
+
+    expect(useMediaStore.getState().delaySeconds).toBe(30);
+    expect(useMediaStore.getState().mediaLoadMode).toBe("append");
   });
 
   it("keeps images with the same basename when their source paths differ", async () => {

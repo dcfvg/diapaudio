@@ -82,7 +82,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest}"],
+        globPatterns: ["**/*.{js,css,html,svg,png,webp,ico,webmanifest}"],
+        globIgnores: ["**/screenshot.webp"],
         // Use a relative fallback so it works with non-root base paths (e.g., GitHub Pages)
         navigateFallback: "index.html",
       },

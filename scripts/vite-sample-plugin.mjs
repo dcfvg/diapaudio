@@ -95,13 +95,18 @@ function toManifestSample(sampleFile, index) {
 
 export function diapaudioSamplePlugin({
   sampleZipPath = process.env.DIAPAUDIO_SAMPLE_ZIP,
-  sampleDirPath = process.env.DIAPAUDIO_SAMPLE_DIR || "sample",
+  sampleDirPath = process.env.DIAPAUDIO_SAMPLE_DIR,
 } = {}) {
   return {
     name: "diapaudio-sample-server",
     apply: "serve",
     configureServer(server) {
+      const sampleServerEnabled = Boolean(sampleZipPath || sampleDirPath);
       const getSampleFiles = () => {
+        if (!sampleServerEnabled) {
+          return [];
+        }
+
         try {
           return resolveSampleFiles(server.config.root, {
             sampleZipPath,
@@ -114,9 +119,13 @@ export function diapaudioSamplePlugin({
       };
 
       const initialSampleFiles = getSampleFiles();
-      server.config.logger.info(
-        `[diapaudio-sample] Serving ${initialSampleFiles.length} sample ZIP(s)`
-      );
+      if (sampleServerEnabled) {
+        server.config.logger.info(
+          `[diapaudio-sample] Serving ${initialSampleFiles.length} sample ZIP(s)`
+        );
+      } else {
+        server.config.logger.info("[diapaudio-sample] Disabled");
+      }
 
       server.middlewares.use((request, response, next) => {
         const requestUrl = request.originalUrl || request.url || "";
@@ -124,6 +133,11 @@ export function diapaudioSamplePlugin({
 
         if (!pathname.startsWith(SAMPLE_BASE_PATH)) {
           next();
+          return;
+        }
+
+        if (!sampleServerEnabled) {
+          sendJson(response, 404, { error: "Local sample endpoint disabled." });
           return;
         }
 

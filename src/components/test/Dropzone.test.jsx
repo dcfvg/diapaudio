@@ -40,7 +40,7 @@ describe("Dropzone", () => {
   it("renders three browse buttons", () => {
     renderWithProviders(<Dropzone {...defaultProps} />);
     expect(screen.getByText("Choose a folder")).toBeTruthy();
-    expect(screen.getByText("Choose a ZIP archive")).toBeTruthy();
+    expect(screen.getByText("Choose a ZIP")).toBeTruthy();
     expect(screen.getByText("Choose files")).toBeTruthy();
   });
 
@@ -80,7 +80,7 @@ describe("Dropzone", () => {
 
     await user.click(screen.getByRole("button", { name: /Load sample\.zip/i }));
 
-    expect(screen.getByText("Local samples")).toBeTruthy();
+    expect(screen.getByText("Local examples")).toBeTruthy();
     expect(screen.getByText(/first-sample\.zip/)).toBeTruthy();
     expect(screen.getByText("sample.zip")).toBeTruthy();
     expect(screen.getByText(/2.0 MB/)).toBeTruthy();
@@ -109,7 +109,7 @@ describe("Dropzone", () => {
       <Dropzone {...defaultProps} zipInputRef={zipRef} onBrowseClick={onBrowseClick} />
     );
 
-    const zipButton = screen.getByText("Choose a ZIP archive");
+    const zipButton = screen.getByText("Choose a ZIP");
     await user.click(zipButton);
 
     expect(onBrowseClick).toHaveBeenCalledWith(zipRef);
@@ -278,22 +278,51 @@ describe("Dropzone", () => {
   it("renders app title and tagline", () => {
     renderWithProviders(<Dropzone {...defaultProps} />);
     expect(screen.getByText("diapaudio")).toBeTruthy();
-    expect(screen.getByText(/Playback photos synced with recordings/i)).toBeTruthy();
+    expect(screen.getByText(/Play your photos with audio from the same moment/i)).toBeTruthy();
+  });
+
+  it("renders the product preview screenshot", () => {
+    renderWithProviders(<Dropzone {...defaultProps} />);
+    const preview = screen.getByAltText(/Screenshot of diapaudio/i);
+
+    expect(preview).toBeTruthy();
+    expect(preview.getAttribute("src")).toContain("screenshot.webp");
+    expect(preview.getAttribute("width")).toBe("3002");
+    expect(preview.getAttribute("height")).toBe("2104");
+  });
+
+  it("opens and closes the product preview lightbox", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Dropzone {...defaultProps} />);
+
+    await user.click(screen.getByRole("button", { name: "View larger image" }));
+
+    expect(screen.getByRole("dialog", { name: "Preview of diapaudio." })).toBeTruthy();
+    expect(screen.getAllByAltText(/Screenshot of diapaudio/i)).toHaveLength(2);
+
+    await user.click(screen.getAllByAltText(/Screenshot of diapaudio/i)[1]);
+
+    expect(screen.queryByRole("dialog")).toBeFalsy();
+
+    await user.click(screen.getByRole("button", { name: "View larger image" }));
+    await user.click(screen.getByRole("button", { name: "Close image" }));
+
+    expect(screen.queryByRole("dialog")).toBeFalsy();
   });
 
   it("renders step instructions", () => {
     renderWithProviders(<Dropzone {...defaultProps} />);
     // Check for actual translated text instead of translation keys
-    expect(screen.getByText(/Compile audio recordings/i)).toBeTruthy();
-    expect(screen.getByText(/Use timestamps or metadata/i)).toBeTruthy();
+    expect(screen.getByText(/Gather your photos and audio/i)).toBeTruthy();
+    expect(screen.getByText(/Keep the time in the files/i)).toBeTruthy();
     // getAllByText since this text appears multiple times (step title and button)
-    const dropFolderElements = screen.getAllByText(/Drop folders/i);
+    const dropFolderElements = screen.getAllByText(/Drop a folder/i);
     expect(dropFolderElements.length).toBeGreaterThan(0);
   });
 
   it("renders notes section", () => {
     renderWithProviders(<Dropzone {...defaultProps} />);
     // Check for actual translated text instead of translation keys
-    expect(screen.getByText(/Nothing leaves your computer/i)).toBeTruthy();
+    expect(screen.getByText(/Your files stay on this computer/i)).toBeTruthy();
   });
 });

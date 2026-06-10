@@ -7,6 +7,7 @@ import {
   MIN_IMAGE_DISPLAY_MIN_MS,
 } from "../media/constants.js";
 import Icon from "./Icon.jsx";
+import LanguageSelector from "./LanguageSelector.jsx";
 import "./TimelineSettingsPanel.css";
 
 export default function TimelineSettingsPanel({
@@ -273,6 +274,16 @@ export default function TimelineSettingsPanel({
           <span className="timeline-settings__hint timeline-settings__toggle-hint" id={autoSkipHintId}>
             {t("timelineSettingsAutoSkipHint")}
           </span>
+        </div>
+
+        <div className="timeline-settings__group">
+          <LanguageSelector
+            id="timeline-settings-language-select"
+            className="timeline-settings__language-selector"
+            labelClassName="timeline-settings__label"
+            selectClassName="timeline-settings__language-select"
+            showLabel
+          />
         </div>
 
         <div className="timeline-settings__group timeline-settings__exports">

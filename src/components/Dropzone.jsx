@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import LanguageSelector from "./LanguageSelector.jsx";
 import Icon from "./Icon.jsx";
@@ -42,6 +42,32 @@ function Dropzone({
   onDrop,
 }) {
   const { t } = useTranslation();
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const openPreview = useCallback(() => {
+    setPreviewOpen(true);
+  }, []);
+
+  const closePreview = useCallback(() => {
+    setPreviewOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!previewOpen) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closePreview();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closePreview, previewOpen]);
 
   // const sanitizedDropMessage = dropMessageIsHtml ? sanitizeHtml(dropMessage) : null;
 
@@ -227,19 +253,40 @@ function Dropzone({
         <div className="dropzone__language-selector">
           <LanguageSelector />
         </div>
-        <div className="dropzone__hero">
-          <div className="dropzone__logo-wrap" aria-hidden="true">
-            <img
-              src={`${import.meta.env.BASE_URL}logo.svg`}
-              alt=""
-              className="dropzone__logo dropzone__logo--large"
-            />
-          </div>
-          <h1 className="dropzone__title">{t("appTitle")}</h1>
-          <p className="dropzone__lead">{t("tagline")}</p>
-        </div>
+        <div className="dropzone__intro">
+          <div className="dropzone__intro-copy">
+            <div className="dropzone__hero">
+              <div className="dropzone__logo-wrap" aria-hidden="true">
+                <img
+                  src={`${import.meta.env.BASE_URL}logo.svg`}
+                  alt=""
+                  className="dropzone__logo dropzone__logo--large"
+                />
+              </div>
+              <h1 className="dropzone__title">{t("appTitle")}</h1>
+              <p className="dropzone__lead">{t("tagline")}</p>
+            </div>
 
-        {importActions}
+            {importActions}
+          </div>
+          <figure className="dropzone__preview">
+            <button
+              type="button"
+              className="dropzone__preview-button"
+              onClick={openPreview}
+              aria-label={t("openProductPreview")}
+            >
+              <img
+                src={`${import.meta.env.BASE_URL}screenshot.webp`}
+                alt={t("productPreviewAlt")}
+                className="dropzone__preview-image"
+                width="3002"
+                height="2104"
+              />
+            </button>
+            <figcaption className="visually-hidden">{t("productPreviewCaption")}</figcaption>
+          </figure>
+        </div>
 
         <div className="dropzone__assist" aria-label={t("stepsTitle")}>
           <ol className="dropzone__steps">
@@ -289,6 +336,32 @@ function Dropzone({
           ></p>
         </div>
       </div>
+      {previewOpen ? (
+        <div
+          className="dropzone__lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("productPreviewCaption")}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closePreview();
+            }
+          }}
+        >
+          <button type="button" className="dropzone__lightbox-close" onClick={closePreview}>
+            <span className="visually-hidden">{t("closeProductPreview")}</span>
+            <Icon name="close" size={22} />
+          </button>
+          <img
+            src={`${import.meta.env.BASE_URL}screenshot.webp`}
+            alt={t("productPreviewAlt")}
+            className="dropzone__lightbox-image"
+            width="3002"
+            height="2104"
+            onClick={closePreview}
+          />
+        </div>
+      ) : null}
       {/* Hidden input used by react-dropzone (noClick true prevents triggering on click) */}
       <input {...getInputProps()} hidden />
       <input

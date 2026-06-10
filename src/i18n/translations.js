@@ -42,30 +42,34 @@ export const translations = {
 
     // Page title and main heading
     appTitle: "diapaudio",
-    tagline: "Playback photos synced with recordings of that day.",
+    tagline: "Play your photos with audio from the same moment.",
+    productPreviewAlt: "Screenshot of diapaudio with photos and an audio timeline.",
+    productPreviewCaption: "Preview of diapaudio.",
+    openProductPreview: "View larger image",
+    closeProductPreview: "Close image",
 
     // Instructions
-    stepsTitle: "How to prepare:",
-    step1Title: "Compile audio recordings and matching photos",
-    step1Text: "Recordings and photos do not need to be continuous or taken at the same time.",
-    step2Title: "Use timestamps or metadata",
+    stepsTitle: "What to add:",
+    step1Title: "Gather your photos and audio",
+    step1Text: "They can come from different devices and do not need to cover the same moment.",
+    step2Title: "Keep the time in the files",
     step2Text:
-      "Name each file with its capture time (e.g. <code>2025-01-01_08-00-00.jpg</code>) or make sure files contain metadata.",
-    step3Title: "Drop folders, files, or ZIP archives in this area",
+      "A date in the file name works, like <code>2025-01-01_08-00-00.jpg</code>. The app can also read the time saved by your camera or recorder.",
+    step3Title: "Drop a folder, files, or a ZIP here",
 
     // CTA and buttons
-    dropMessage: "Drop folders, files, or ZIP archives in this area.",
+    dropMessage: "Drop a folder, files, or a ZIP here.",
     buttonFolder: "Choose a folder",
-    buttonZip: "Choose a ZIP archive",
+    buttonZip: "Choose a ZIP",
     buttonFiles: "Choose files",
     loadLocalSample: "Load local sample",
     loadingLocalSample: "Loading local sample...",
-    localSamplesTitle: "Local samples",
+    localSamplesTitle: "Local examples",
     loadNamedLocalSample: "Load {{name}}",
 
     // Notes
     notePrivacy:
-      'Nothing leaves your computer — no uploads, no servers, just your session.<br/>For detailed instructions and source code, see the <a href="https://github.com/dcfvg/diapaudio" target="_blank" rel="noopener noreferrer">README</a>.',
+      'Your files stay on this computer. Nothing is uploaded.<br/>Need help? See the <a href="https://github.com/dcfvg/diapaudio" target="_blank" rel="noopener noreferrer">README</a>.',
 
     // Loader
     loadingFiles: "Loading files...",
@@ -227,31 +231,35 @@ export const translations = {
 
     // Page title and main heading
     appTitle: "diapaudio",
-    tagline: "Synchroniser des photos avec des enregistrements audio.",
+    tagline: "Faire défiler vos photos sur l'audio du même moment.",
+    productPreviewAlt: "Capture de diapaudio avec des photos et une barre audio.",
+    productPreviewCaption: "Aperçu de diapaudio.",
+    openProductPreview: "Agrandir l'image",
+    closeProductPreview: "Fermer l'image",
 
     // Instructions
-    stepsTitle: "Préparation :",
-    step1Title: "Compiler les enregistrements audio et les photos correspondantes",
+    stepsTitle: "À ajouter :",
+    step1Title: "Réunir les photos et l'audio",
     step1Text:
-      "Les enregistrements et les photos n'ont pas besoin d'être continus ni pris au même moment.",
-    step2Title: "Utiliser des horodatages ou des métadonnées",
+      "Ils peuvent venir de plusieurs appareils et ne pas couvrir exactement le même moment.",
+    step2Title: "Garder l'heure dans les fichiers",
     step2Text:
-      "Nommer chaque fichier avec l'heure de capture (ex : <code>2025-01-01_08-00-00.jpg</code>) ou s'assurer que les fichiers contiennent des métadonnées.",
-    step3Title: "Déposer des dossiers, des fichiers ou des archives ZIP dans cette zone",
+      "Une date dans le nom suffit, par exemple <code>2025-01-01_08-00-00.jpg</code>. L'app peut aussi lire l'heure enregistrée par l'appareil.",
+    step3Title: "Déposer un dossier, des fichiers ou un ZIP ici",
 
     // CTA and buttons
-    dropMessage: "Déposer des dossiers, des fichiers ou des archives ZIP dans cette zone.",
+    dropMessage: "Déposer un dossier, des fichiers ou un ZIP ici.",
     buttonFolder: "Choisir un dossier",
-    buttonZip: "Choisir une archive ZIP",
+    buttonZip: "Choisir un ZIP",
     buttonFiles: "Choisir des fichiers",
     loadLocalSample: "Charger le sample local",
     loadingLocalSample: "Chargement du sample local...",
-    localSamplesTitle: "Samples locaux",
+    localSamplesTitle: "Exemples locaux",
     loadNamedLocalSample: "Charger {{name}}",
 
     // Notes
     notePrivacy:
-      'Rien ne quitte votre ordinateur — pas de téléversement, pas de serveur, juste votre session. <br/>Pour des instructions détaillées et le code source, consultez le <a href="https://github.com/dcfvg/diapaudio" target="_blank" rel="noopener noreferrer">README</a>.',
+      "Vos fichiers restent sur cet ordinateur. Rien n'est envoyé.<br/>Besoin d'aide ? Consultez le <a href=\"https://github.com/dcfvg/diapaudio\" target=\"_blank\" rel=\"noopener noreferrer\">README</a>.",
 
     // Loader
     loadingFiles: "Chargement des fichiers...",
@@ -418,31 +426,35 @@ export const translations = {
 
     // Page title and main heading
     appTitle: "diapaudio",
-    tagline: "Reproduce fotos sincronizadas con grabaciones de ese día.",
+    tagline: "Reproduce tus fotos con el audio del mismo momento.",
+    productPreviewAlt: "Captura de diapaudio con fotos y una barra de audio.",
+    productPreviewCaption: "Vista previa de diapaudio.",
+    openProductPreview: "Ampliar imagen",
+    closeProductPreview: "Cerrar imagen",
 
     // Instructions
-    stepsTitle: "Cómo preparar:",
-    step1Title: "Compilar grabaciones de audio y fotos correspondientes",
+    stepsTitle: "Qué agregar:",
+    step1Title: "Reúne las fotos y el audio",
     step1Text:
-      "Las grabaciones y las fotos no tienen que ser continuas ni tomadas al mismo tiempo.",
-    step2Title: "Usar marcas de tiempo o metadatos",
+      "Pueden venir de distintos dispositivos y no cubrir exactamente el mismo momento.",
+    step2Title: "Conserva la hora en los archivos",
     step2Text:
-      "Nombrar cada archivo con la hora de captura (ej: <code>2025-01-01_08-00-00.jpg</code>) o asegurarse de que los archivos contengan metadatos.",
-    step3Title: "Soltar carpetas, archivos o archivos ZIP en esta zona",
+      "Una fecha en el nombre sirve, por ejemplo <code>2025-01-01_08-00-00.jpg</code>. La app también puede leer la hora guardada por la cámara o la grabadora.",
+    step3Title: "Suelta aquí una carpeta, archivos o un ZIP",
 
     // CTA and buttons
-    dropMessage: "Soltar carpetas, archivos o archivos ZIP en esta zona.",
+    dropMessage: "Suelta aquí una carpeta, archivos o un ZIP.",
     buttonFolder: "Elegir una carpeta",
-    buttonZip: "Elegir un archivo ZIP",
+    buttonZip: "Elegir un ZIP",
     buttonFiles: "Elegir archivos",
     loadLocalSample: "Cargar muestra local",
     loadingLocalSample: "Cargando muestra local...",
-    localSamplesTitle: "Muestras locales",
+    localSamplesTitle: "Ejemplos locales",
     loadNamedLocalSample: "Cargar {{name}}",
 
     // Notes
     notePrivacy:
-      'Nada sale de tu computadora — sin cargas, sin servidores, solo tu sesión. <br/> Para instrucciones detalladas y código fuente, consulta el <a href="https://github.com/dcfvg/diapaudio" target="_blank" rel="noopener noreferrer">README</a>.',
+      'Tus archivos se quedan en esta computadora. No se sube nada.<br/>¿Necesitas ayuda? Consulta el <a href="https://github.com/dcfvg/diapaudio" target="_blank" rel="noopener noreferrer">README</a>.',
 
     // Loader
     loadingFiles: "Cargando archivos...",
