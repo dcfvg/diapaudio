@@ -15,7 +15,7 @@ import {
   findSurroundingImages,
   getCompositionAtTime,
 } from "../media/scheduleIndex.js";
-import { buildAutoSkipVisualEventRanges } from "../media/timelineEvents.js";
+import { buildMediaTimelineIndex } from "../media/timelineEvents.js";
 import CompositionView from "./CompositionView.jsx";
 import SlideshowPlaceholder, {
   resolvePlaceholderSources,
@@ -27,7 +27,6 @@ import "./Slideshow.css";
 function Slideshow() {
   const mediaData = useMediaStore((state) => state.mediaData);
   const loadFromDataTransfer = useMediaStore((state) => state.loadFromDataTransfer);
-  const autoSkipVoids = useSettingsStore((state) => state.autoSkipVoids);
   const imageDisplaySeconds = useSettingsStore((state) => state.imageDisplaySeconds);
   const imageHoldSeconds = useSettingsStore((state) => state.imageHoldSeconds);
   const compositionIntervalSeconds = useSettingsStore((state) => state.compositionIntervalSeconds);
@@ -79,6 +78,7 @@ function Slideshow() {
   );
 
   const snapGridMs = useMemo(() => computeSnapGridMs(snapGridSeconds), [snapGridSeconds]);
+  const mediaTimelineIndex = useMemo(() => buildMediaTimelineIndex(mediaData), [mediaData]);
 
   const scheduleIndex = useMemo(
     () =>
@@ -89,8 +89,17 @@ function Slideshow() {
         compositionIntervalMs,
         snapToGrid: Boolean(snapToGrid),
         snapGridMs,
+        audioCoverageRanges: mediaTimelineIndex.audioRanges || EMPTY_ARRAY,
       }),
-    [mediaData?.images, minVisibleMs, imageHoldMs, compositionIntervalMs, snapToGrid, snapGridMs]
+    [
+      mediaData?.images,
+      minVisibleMs,
+      imageHoldMs,
+      compositionIntervalMs,
+      snapToGrid,
+      snapGridMs,
+      mediaTimelineIndex.audioRanges,
+    ]
   );
 
   const inAudioCoverage = useMemo(() => {
@@ -104,23 +113,6 @@ function Slideshow() {
     return hasAudioCoverage(mediaData, resolvedAbsolute);
   }, [hasAudio, mediaData, resolvedAbsolute]);
 
-  const autoSkipVisualRanges = useMemo(
-    () =>
-      autoSkipVoids
-        ? buildAutoSkipVisualEventRanges(scheduleIndex.entries || EMPTY_ARRAY, minVisibleMs)
-        : EMPTY_ARRAY,
-    [autoSkipVoids, scheduleIndex.entries, minVisibleMs]
-  );
-
-  const inAutoSkipVisualCoverage = useMemo(() => {
-    if (!Number.isFinite(resolvedAbsolute)) {
-      return false;
-    }
-    return autoSkipVisualRanges.some(
-      (range) => resolvedAbsolute >= range.startMs && resolvedAbsolute < range.endMs
-    );
-  }, [autoSkipVisualRanges, resolvedAbsolute]);
-
   const compositionState = useMemo(() => {
     if (!mediaData?.images?.length || !scheduleIndex.metadata.length) {
       return null;
@@ -130,10 +122,6 @@ function Slideshow() {
     }
 
     const composition = getCompositionAtTime(scheduleIndex, mediaData.images, resolvedAbsolute);
-
-    if (autoSkipVoids && !inAudioCoverage && !inAutoSkipVisualCoverage) {
-      return null;
-    }
 
     // When skipSilence is enabled, only skip if BOTH no audio AND no images
     // This creates true "silent periods" where nothing is happening
@@ -155,10 +143,8 @@ function Slideshow() {
     mediaData,
     scheduleIndex,
     resolvedAbsolute,
-    autoSkipVoids,
     skipSilence,
     inAudioCoverage,
-    inAutoSkipVisualCoverage,
   ]);
 
   const layoutSize = compositionState?.layoutSize ?? 1;

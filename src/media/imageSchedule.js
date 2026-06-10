@@ -6,6 +6,7 @@ import {
   MAX_COMPOSITION_CHANGE_INTERVAL_MS,
   MIN_COMPOSITION_CHANGE_INTERVAL_MS,
 } from "./constants.js";
+import { mergeAudioRanges } from "./timelineEvents.js";
 import { toTimestamp } from "../utils/dateUtils.js";
 import { clamp } from "../utils/numberUtils.js";
 
@@ -85,6 +86,16 @@ function enforceCompositionInterval(segments, compositionIntervalMs) {
     }
 
     const desiredStart = request.startMs;
+    if (desiredStart > current.endMs) {
+      if (current.endMs > current.startMs) {
+        constrained.push(current);
+      }
+      current = request;
+      currentSignature = requestSignature;
+      lastChange = current.startMs;
+      continue;
+    }
+
     const allowedStart = lastChange + compositionIntervalMs;
 
     if (desiredStart >= allowedStart) {
@@ -130,6 +141,27 @@ function enforceCompositionInterval(segments, compositionIntervalMs) {
   return constrained;
 }
 
+function findAudioRangeCovering(ranges, absoluteMs) {
+  if (!Array.isArray(ranges) || !ranges.length || !Number.isFinite(absoluteMs)) {
+    return null;
+  }
+
+  return ranges.find((range) => absoluteMs >= range.startMs && absoluteMs <= range.endMs) || null;
+}
+
+function capHoldEndByAudio(baseEnd, displayEnd, audioCoverageRanges, audioBoundHold) {
+  if (!audioBoundHold) {
+    return baseEnd;
+  }
+
+  const audioRange = findAudioRangeCovering(audioCoverageRanges, displayEnd);
+  if (!audioRange) {
+    return displayEnd;
+  }
+
+  return Math.min(baseEnd, Math.max(displayEnd, audioRange.endMs));
+}
+
 export function computeImageSchedule(images = [], options = {}) {
   const {
     minVisibleMs = MIN_IMAGE_DISPLAY_DEFAULT_MS,
@@ -138,6 +170,7 @@ export function computeImageSchedule(images = [], options = {}) {
     compositionIntervalMs = MAX_COMPOSITION_CHANGE_INTERVAL_MS,
     snapToGrid = false,
     snapGridMs: snapGridMsRaw,
+    audioCoverageRanges: rawAudioCoverageRanges,
   } = options;
 
   if (!Array.isArray(images) || !images.length) {
@@ -153,6 +186,8 @@ export function computeImageSchedule(images = [], options = {}) {
   const intervalClamped = Number.isFinite(compositionIntervalMs)
     ? Math.max(MIN_COMPOSITION_CHANGE_INTERVAL_MS, compositionIntervalMs)
     : compositionIntervalMs;
+  const audioBoundHold = Array.isArray(rawAudioCoverageRanges);
+  const audioCoverageRanges = audioBoundHold ? mergeAudioRanges(rawAudioCoverageRanges) : [];
 
   const gridStepMs = (() => {
     const v = Number(snapGridMsRaw);
@@ -220,13 +255,23 @@ export function computeImageSchedule(images = [], options = {}) {
         // Next image arrives after displayEnd: extend with hold, but cap at next image start
         const holdExtension = Number.isFinite(holdMs) && holdMs >= 0 ? holdMs : 0;
         const maxEndWithHold = displayEnd + holdExtension;
-        end = Math.min(maxEndWithHold, nextImageStart);
+        end = capHoldEndByAudio(
+          Math.min(maxEndWithHold, nextImageStart),
+          displayEnd,
+          audioCoverageRanges,
+          audioBoundHold
+        );
       }
     } else {
       // No next image: extend by full Image Hold duration beyond Image Display
       const holdExtension = Number.isFinite(holdMs) && holdMs >= 0 ? holdMs : 0;
       const extendedEnd = displayEnd + holdExtension;
-      end = clamp(extendedEnd, displayEnd, extendedEnd);
+      end = capHoldEndByAudio(
+        clamp(extendedEnd, displayEnd, extendedEnd),
+        displayEnd,
+        audioCoverageRanges,
+        audioBoundHold
+      );
     }
 
     metadata[current.index] = {

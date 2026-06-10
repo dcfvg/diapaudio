@@ -2,65 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { clamp } from "../utils/numberUtils.js";
 import { buildCompositionFromSegment, findScheduleSegmentAt } from "../media/scheduleIndex.js";
 
-function buildCompositionFromEntries(entries, absoluteMs) {
-  if (!Array.isArray(entries) || !entries.length || !Number.isFinite(absoluteMs)) {
-    return null;
-  }
-
-  const activeEntries = entries
-    .filter((entry) => {
-      if (!entry?.image) {
-        return false;
-      }
-      if (!Number.isFinite(entry.startMs) || !Number.isFinite(entry.endMs)) {
-        return false;
-      }
-      return absoluteMs >= entry.startMs && absoluteMs < entry.endMs;
-    })
-    .sort((a, b) => (a.slotIndex ?? 0) - (b.slotIndex ?? 0) || (a.index ?? 0) - (b.index ?? 0));
-
-  if (!activeEntries.length) {
-    return null;
-  }
-
-  const layoutSize = Math.max(
-    1,
-    ...activeEntries.map((entry) =>
-      Math.max((entry.slotIndex ?? 0) + 1, entry.maxConcurrency || 1)
-    )
-  );
-  const slots = Array.from({ length: layoutSize }, () => null);
-
-  activeEntries.forEach((entry) => {
-    let slotIndex = Math.max(entry.slotIndex ?? 0, 0);
-    if (slots[slotIndex]) {
-      const emptyIndex = slots.findIndex((slot) => !slot);
-      slotIndex = emptyIndex === -1 ? slotIndex : emptyIndex;
-    }
-    if (slotIndex < slots.length) {
-      slots[slotIndex] = {
-        image: entry.image,
-        imageIndex: entry.index,
-        metadata: entry,
-      };
-    }
-  });
-
-  const activeImages = slots.filter(Boolean).map((slot) => slot.image);
-  return {
-    segment: {
-      startMs: Math.min(...activeEntries.map((entry) => entry.startMs)),
-      endMs: Math.max(...activeEntries.map((entry) => entry.endMs)),
-      layoutSize,
-      slots: slots.map((slot) => (Number.isInteger(slot?.imageIndex) ? slot.imageIndex : null)),
-    },
-    layoutSize,
-    slots,
-    images: activeImages,
-    primaryImage: activeImages[0] || null,
-  };
-}
-
 /**
  * Hook for managing timeline pointer interactions (hover, scrubbing, seeking)
  */
@@ -71,7 +12,6 @@ export function useTimelineInteraction({
   viewDurationMs,
   timeline,
   imageSegments,
-  previewImageEntries = null,
   images,
   seekToAbsolute,
   playing,
@@ -104,13 +44,9 @@ export function useTimelineInteraction({
         return null;
       }
 
-      if (Array.isArray(previewImageEntries)) {
-        return buildCompositionFromEntries(previewImageEntries, absoluteMs);
-      }
-
       return buildCompositionFromSegment(findScheduleSegmentAt(imageSegments, absoluteMs), images);
     },
-    [imageSegments, images, previewImageEntries]
+    [imageSegments, images]
   );
 
   /**

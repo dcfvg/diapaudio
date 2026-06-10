@@ -1,10 +1,9 @@
 import { useSettingsStore } from "../state/useSettingsStore.js";
-import { DEFAULT_IMAGE_HOLD_MS, IMAGE_HOLD_MIN_MS, IMAGE_HOLD_MAX_MS } from "./constants.js";
-import { clamp } from "../utils/numberUtils.js";
+import { DEFAULT_IMAGE_HOLD_MS, IMAGE_HOLD_MIN_MS } from "./constants.js";
 
 /**
  * Get image hold duration in milliseconds from settings.
- * Applies clamping to keep value within valid range.
+ * Applies only the minimum bound; users can keep the last photo visible as long as needed.
  * @param {Object} options - Optional overrides
  * @param {number} options.imageHoldSeconds - Override for imageHoldSeconds setting
  * @returns {number} Hold duration in milliseconds
@@ -20,7 +19,7 @@ export function getImageHoldMs(options = {}) {
   
   if (Number.isFinite(seconds) && seconds > 0) {
     const ms = seconds * 1000;
-    return clamp(ms, IMAGE_HOLD_MIN_MS, IMAGE_HOLD_MAX_MS);
+    return Math.max(ms, IMAGE_HOLD_MIN_MS);
   }
   
   return DEFAULT_IMAGE_HOLD_MS;

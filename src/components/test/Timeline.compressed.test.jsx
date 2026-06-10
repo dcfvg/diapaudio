@@ -221,7 +221,7 @@ describe("Timeline compressed blanks", () => {
     }
   });
 
-  it("starts the cut marker after a short photo event window ends", () => {
+  it("starts the cut marker after the minimum display time when the photo has no associated audio", () => {
     setupTimeline({
       autoSkipVoids: true,
       audioRanges: [
@@ -245,11 +245,36 @@ describe("Timeline compressed blanks", () => {
     expect(cuts[0]).toHaveAttribute("data-end-ms", "42000");
   });
 
-  it("keeps cut markers based on short photo event windows, not held compositions", () => {
+  it("starts the cut marker after a held photo segment ends when audio is associated", () => {
     setupTimeline({
       autoSkipVoids: true,
       audioRanges: [
-        [0, 10_000],
+        [0, 32_000],
+        [42_000, 52_000],
+      ],
+      images: [{ timeMs: 12_000, name: "Held photo" }],
+      settings: {
+        imageDisplaySeconds: 2,
+        imageHoldSeconds: 18,
+        compositionIntervalSeconds: 60,
+        snapToGrid: false,
+      },
+    });
+
+    const { container } = renderWithProviders(<Timeline />);
+    const cuts = container.querySelectorAll(".timeline__void-cut");
+
+    expect(cuts).toHaveLength(1);
+    expect(cuts[0]).toHaveAttribute("data-start-ms", "32000");
+    expect(cuts[0]).toHaveAttribute("data-end-ms", "42000");
+  });
+
+  it("keeps cut markers based on actual photo hold windows, not composition alignment", () => {
+    setupTimeline({
+      autoSkipVoids: true,
+      audioRanges: [
+        [0, 32_000],
+        [80_000, 100_000],
         [140_000, 150_000],
       ],
       images: [
@@ -268,9 +293,9 @@ describe("Timeline compressed blanks", () => {
     const cuts = container.querySelectorAll(".timeline__void-cut");
 
     expect(cuts).toHaveLength(2);
-    expect(cuts[0]).toHaveAttribute("data-start-ms", "14000");
+    expect(cuts[0]).toHaveAttribute("data-start-ms", "32000");
     expect(cuts[0]).toHaveAttribute("data-end-ms", "80000");
-    expect(cuts[1]).toHaveAttribute("data-start-ms", "82000");
+    expect(cuts[1]).toHaveAttribute("data-start-ms", "100000");
     expect(cuts[1]).toHaveAttribute("data-end-ms", "140000");
   });
 });

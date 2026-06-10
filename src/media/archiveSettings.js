@@ -1,7 +1,6 @@
 import { DEFAULT_SPEED } from "../constants/playback.js";
 import {
   DEFAULT_IMAGE_HOLD_MS,
-  IMAGE_HOLD_MAX_MS,
   IMAGE_HOLD_MIN_MS,
   MAX_COMPOSITION_CHANGE_INTERVAL_MS,
   MIN_COMPOSITION_CHANGE_INTERVAL_MS,
@@ -123,8 +122,7 @@ export function normalizeArchiveSettings(input) {
 
   const imageHoldSeconds = clampRoundedSeconds(
     source.imageHoldSeconds,
-    IMAGE_HOLD_MIN_MS,
-    IMAGE_HOLD_MAX_MS
+    IMAGE_HOLD_MIN_MS
   );
   if (imageHoldSeconds != null) {
     settings.imageHoldSeconds = imageHoldSeconds;

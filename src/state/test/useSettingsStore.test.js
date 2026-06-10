@@ -111,10 +111,9 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().imageHoldSeconds).toBe(1);
   });
 
-  it('clamps imageHoldSeconds to maximum', () => {
-    useSettingsStore.getState().setImageHoldSeconds(300); // Above maximum (180s)
-    // Should clamp to IMAGE_HOLD_MAX_MS / 1000 = 180
-    expect(useSettingsStore.getState().imageHoldSeconds).toBe(180);
+  it('does not clamp imageHoldSeconds to a maximum', () => {
+    useSettingsStore.getState().setImageHoldSeconds(300);
+    expect(useSettingsStore.getState().imageHoldSeconds).toBe(300);
   });
 
   it('ignores invalid imageHoldSeconds', () => {

@@ -41,7 +41,7 @@ export function useTimelineSnapping() {
         candidates.push({ ms: seg.startMs, type: "segment-start", priority: 2 });
       }
       if (Number.isFinite(seg.endMs)) {
-        candidates.push({ ms: seg.endMs, type: "segment-end", priority: 3 });
+        candidates.push({ ms: seg.endMs, type: "segment-end", priority: 2 });
       }
     });
 

@@ -3,7 +3,6 @@ import {
   MIN_IMAGE_DISPLAY_MIN_MS,
   DEFAULT_IMAGE_HOLD_MS,
   IMAGE_HOLD_MIN_MS,
-  IMAGE_HOLD_MAX_MS,
   MAX_VISIBLE_IMAGES,
   MAX_COMPOSITION_CHANGE_INTERVAL_MS,
   MIN_COMPOSITION_CHANGE_INTERVAL_MS,
@@ -43,15 +42,21 @@ export function hasAudioCoverage(tracks, absoluteMs) {
 
 const scheduleCache = new WeakMap();
 
+function audioCoverageCacheKey(ranges) {
+  if (!Array.isArray(ranges)) {
+    return "unbounded";
+  }
+  return ranges
+    .map((range) => `${Number.isFinite(range?.startMs) ? range.startMs : ""}-${Number.isFinite(range?.endMs) ? range.endMs : ""}`)
+    .join(",");
+}
+
 function clampHoldMs(value) {
   if (!Number.isFinite(value)) {
     return DEFAULT_IMAGE_HOLD_MS;
   }
   if (value < IMAGE_HOLD_MIN_MS) {
     return IMAGE_HOLD_MIN_MS;
-  }
-  if (value > IMAGE_HOLD_MAX_MS) {
-    return IMAGE_HOLD_MAX_MS;
   }
   return value;
 }
@@ -67,7 +72,13 @@ function getScheduleForMedia(mediaData, options) {
     scheduleCache.set(mediaData, cacheEntry);
   }
 
-  const key = `${options.holdMs}|${options.minVisibleMs}|${options.maxSlots}|${options.compositionIntervalMs}`;
+  const key = [
+    options.holdMs,
+    options.minVisibleMs,
+    options.maxSlots,
+    options.compositionIntervalMs,
+    audioCoverageCacheKey(options.audioCoverageRanges),
+  ].join("|");
   const cached = cacheEntry.get(key);
   if (cached && cached.imagesRef === mediaData.images) {
     return cached.schedule;
@@ -88,6 +99,7 @@ export function getVisibleImagesAtTime(
     minVisibleMs = MIN_IMAGE_DISPLAY_DEFAULT_MS,
     maxSlots = MAX_VISIBLE_IMAGES,
     compositionIntervalMs = MAX_COMPOSITION_CHANGE_INTERVAL_MS,
+    audioCoverageRanges,
     returnDetails = false,
   } = {}
 ) {
@@ -121,6 +133,7 @@ export function getVisibleImagesAtTime(
     minVisibleMs: minVisibleClamped,
     maxSlots,
     compositionIntervalMs: intervalClamped,
+    audioCoverageRanges,
   });
 
   if (!schedule) {

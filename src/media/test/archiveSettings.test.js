@@ -78,7 +78,7 @@ aligner_photos: non
     expect(isArchiveSettingsFileName("_settings.json")).toBe(false);
   });
 
-  it("normalizes unsafe numeric values", () => {
+  it("normalizes unsafe numeric values without capping the last-photo duration", () => {
     expect(
       normalizeArchiveSettings({
         speed: -1,
@@ -89,7 +89,7 @@ aligner_photos: non
     ).toEqual({
       snapGridSeconds: 1,
       imageDisplaySeconds: 1,
-      imageHoldSeconds: 180,
+      imageHoldSeconds: 999,
     });
   });
 });

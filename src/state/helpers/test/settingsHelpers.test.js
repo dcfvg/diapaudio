@@ -88,11 +88,9 @@ describe('settingsHelpers', () => {
       expect(computeScaledHoldMs(45, 1.3)).toBe(58500);
     });
 
-    it('respects clamping from getImageHoldMs', () => {
-      // Very large hold times should be clamped by getImageHoldMs (180s max)
+    it('preserves large hold times from getImageHoldMs', () => {
       const result = computeScaledHoldMs(200, 1);
-      // getImageHoldMs clamps to 180s, then we scale by 1x
-      expect(result).toBe(180000); // Max is 180s = 180000ms
+      expect(result).toBe(200000);
     });
   });
 

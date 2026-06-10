@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useRef } from "react";
 import {
   DEFAULT_IMAGE_HOLD_MS,
-  IMAGE_HOLD_MAX_MS,
   IMAGE_HOLD_MIN_MS,
   MIN_IMAGE_DISPLAY_DEFAULT_MS,
   MIN_IMAGE_DISPLAY_MIN_MS,
@@ -196,7 +195,6 @@ export default function TimelineSettingsPanel({
                 id="timeline-image-hold-input"
                 type="number"
                 min="0"
-                max="180"
                 step="1"
                 value={imageHoldSeconds}
                 aria-describedby={imageHoldHintId}
@@ -207,7 +205,6 @@ export default function TimelineSettingsPanel({
             <span className="timeline-settings__hint" id={imageHoldHintId}>
               {t("timelineSettingsImageHoldHint", {
                 min: Math.round(IMAGE_HOLD_MIN_MS / 1000),
-                max: Math.round(IMAGE_HOLD_MAX_MS / 1000),
                 default: Math.round(DEFAULT_IMAGE_HOLD_MS / 1000),
               })}
             </span>

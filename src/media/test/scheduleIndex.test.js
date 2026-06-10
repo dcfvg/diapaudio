@@ -68,6 +68,21 @@ describe("scheduleIndex", () => {
     expect(surrounding.next?.name).toBe("b.jpg");
   });
 
+  it("does not let composition interval bridge image-less gaps after keep ends", () => {
+    const images = [imageAt(12, "a.jpg"), imageAt(80, "b.jpg")];
+    const index = createScheduleIndex(images, {
+      minVisibleMs: 2_000,
+      holdMs: 18_000,
+      maxSlots: 1,
+      compositionIntervalMs: 120_000,
+    });
+    const baseMs = Date.parse("2025-10-08T12:00:00Z");
+
+    expect(findScheduleSegmentAt(index.segments, baseMs + 20_000)?.slots).toEqual([0]);
+    expect(findScheduleSegmentAt(index.segments, baseMs + 50_000)).toBeNull();
+    expect(findScheduleSegmentAt(index.segments, baseMs + 90_000)?.slots).toEqual([1]);
+  });
+
   it("aggregates contiguous micro image entries while preserving active images", () => {
     const entries = [
       {

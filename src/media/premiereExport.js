@@ -565,7 +565,10 @@ async function buildPremiereExport({ mediaData, mediaBasePathUrl = null, onProgr
     throw new Error("No media to export.");
   }
 
-  const scheduleIndex = createScheduleIndex(images, resolveExportScheduleOptions(settings));
+  const scheduleIndex = createScheduleIndex(images, {
+    ...resolveExportScheduleOptions(settings),
+    audioCoverageRanges: audioTracks.map(getAudioRangeMs).filter(Boolean),
+  });
   if (!scheduleIndex.entries.length && !audioTracks.length) {
     throw new Error("Images do not contain timestamps.");
   }

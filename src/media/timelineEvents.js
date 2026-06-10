@@ -139,40 +139,6 @@ export function buildMediaCoverageRanges(mediaTimelineIndex, mediaCoverageRanges
   return mergeAudioRanges([...audioCoverage, ...visualCoverage]);
 }
 
-export function buildAutoSkipVisualEventRanges(entries = [], minVisibleMs = 0) {
-  if (!Array.isArray(entries) || !entries.length) {
-    return [];
-  }
-
-  const safeMinVisibleMs =
-    Number.isFinite(minVisibleMs) && minVisibleMs > 0 ? minVisibleMs : null;
-
-  return entries
-    .map((entry) => {
-      const startMs = Number.isFinite(entry?.startMs) ? entry.startMs : null;
-      const sourceEndMs = Number.isFinite(entry?.endMs) ? entry.endMs : null;
-      if (!Number.isFinite(startMs) || !Number.isFinite(sourceEndMs) || sourceEndMs <= startMs) {
-        return null;
-      }
-
-      const eventEndMs = Number.isFinite(safeMinVisibleMs)
-        ? Math.min(sourceEndMs, startMs + safeMinVisibleMs)
-        : sourceEndMs;
-      if (!Number.isFinite(eventEndMs) || eventEndMs <= startMs) {
-        return null;
-      }
-
-      return {
-        ...entry,
-        startMs,
-        endMs: eventEndMs,
-        sourceEndMs,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
-}
-
 export function findFirstAtOrAfter(sortedValues, target) {
   if (!Array.isArray(sortedValues) || !Number.isFinite(target)) {
     return -1;

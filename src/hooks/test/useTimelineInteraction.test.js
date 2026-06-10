@@ -41,41 +41,7 @@ function clientXForMs(ms) {
 }
 
 describe('useTimelineInteraction', () => {
-  it('uses short preview image entries when provided', () => {
-    const image = { name: 'Held photo', url: 'blob:held-photo' };
-    const props = makeProps({
-      images: [image],
-      previewImageEntries: [
-        {
-          image,
-          index: 0,
-          startMs: 12_000,
-          endMs: 14_000,
-          slotIndex: 0,
-          maxConcurrency: 1,
-        },
-      ],
-    });
-    const { result } = renderHook(() => useTimelineInteraction(props));
-
-    let hoverAt13s;
-    act(() => {
-      hoverAt13s = result.current.updateHover(clientXForMs(13_000), { applySnap: false });
-    });
-
-    expect(hoverAt13s.images).toEqual([image]);
-    expect(hoverAt13s.previewLayout.slots[0]?.image).toBe(image);
-
-    let hoverAt20s;
-    act(() => {
-      hoverAt20s = result.current.updateHover(clientXForMs(20_000), { applySnap: false });
-    });
-
-    expect(hoverAt20s.images).toEqual([]);
-    expect(hoverAt20s.previewLayout.slots).toEqual([]);
-  });
-
-  it('keeps held segment previews when short entries are not provided', () => {
+  it('keeps held segment previews throughout the scheduled image range', () => {
     const props = makeProps();
     const { result } = renderHook(() => useTimelineInteraction(props));
 

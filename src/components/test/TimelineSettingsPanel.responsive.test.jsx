@@ -147,6 +147,14 @@ describe("TimelineSettingsPanel", () => {
     );
   });
 
+  it("does not cap the last-photo input", () => {
+    renderWithProviders(<TimelineSettingsPanel {...makeProps()} />);
+
+    const input = screen.getByLabelText("timelineSettingsImageHold");
+    expect(input).toHaveAttribute("min", "0");
+    expect(input).not.toHaveAttribute("max");
+  });
+
   it("includes a language selector in the settings panel", async () => {
     const user = userEvent.setup();
     renderWithProviders(<TimelineSettingsPanel {...makeProps()} />);

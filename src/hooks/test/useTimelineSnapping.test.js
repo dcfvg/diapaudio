@@ -99,6 +99,24 @@ describe('useTimelineSnapping', () => {
       expect(snapped2).toBe(10500);
     });
 
+    it('snaps to a held image segment end when the cursor is closest to the keep boundary', () => {
+      const { result } = renderHook(() => useTimelineSnapping());
+
+      const timeline = {
+        imageSegments: [
+          {
+            startMs: 12_000,
+            endMs: 32_000,
+          },
+        ],
+        trackRanges: [],
+      };
+
+      const snapped = result.current.snapToMedia(31_800, 100_000, 800, timeline);
+
+      expect(snapped).toBe(32_000);
+    });
+
     it('handles edge case with no media', () => {
       const { result } = renderHook(() => useTimelineSnapping());
       

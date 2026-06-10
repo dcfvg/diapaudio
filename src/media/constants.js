@@ -36,8 +36,6 @@ export const DEFAULT_IMAGE_HOLD_MS = 45_000;
 export const IMAGE_HOLD_MIN_MS = 0;
 // Upper bound for how long an image can be carried over into gaps between images (milliseconds)
 export const MAX_IMAGE_CARRYOVER_MS = DEFAULT_IMAGE_HOLD_MS;
-// Upper bound for user-configurable image hold extension (milliseconds)
-export const IMAGE_HOLD_MAX_MS = 180_000;
 // Minimum interval allowed between composition changes (milliseconds)
 export const MIN_COMPOSITION_CHANGE_INTERVAL_MS = 500;
 // Debounce-like guard for how often composition (visible set/layout) can change (milliseconds)

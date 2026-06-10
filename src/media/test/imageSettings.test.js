@@ -26,10 +26,10 @@ describe('imageSettings', () => {
       expect(getImageHoldMs({ imageHoldSeconds: 0.5 })).toBe(500);
     });
 
-    it('clamps to maximum value', () => {
-      expect(getImageHoldMs({ imageHoldSeconds: 200 })).toBe(180000); // Max is 180s
-      expect(getImageHoldMs({ imageHoldSeconds: 1000 })).toBe(180000);
-      expect(getImageHoldMs({ imageHoldSeconds: 181 })).toBe(180000);
+    it('does not clamp large values to a maximum', () => {
+      expect(getImageHoldMs({ imageHoldSeconds: 200 })).toBe(200000);
+      expect(getImageHoldMs({ imageHoldSeconds: 1000 })).toBe(1000000);
+      expect(getImageHoldMs({ imageHoldSeconds: 181 })).toBe(181000);
     });
 
     it('uses default when value is negative', () => {
@@ -70,7 +70,7 @@ describe('imageSettings', () => {
     });
 
     it('handles edge case at boundaries', () => {
-      expect(getImageHoldMs({ imageHoldSeconds: 180 })).toBe(180000); // Exactly at max
+      expect(getImageHoldMs({ imageHoldSeconds: 180 })).toBe(180000);
       expect(getImageHoldMs({ imageHoldSeconds: 0 })).toBe(0); // Exactly at min
     });
 
@@ -129,14 +129,14 @@ describe('imageSettings', () => {
       expect(seconds * 1000).toBe(ms);
     });
 
-    it('handles clamping consistently', () => {
+    it('handles large values consistently', () => {
       useSettingsStore.setState({ imageHoldSeconds: 200 });
       
       const ms = getImageHoldMs();
       const seconds = getImageHoldSeconds();
       
-      expect(ms).toBe(180000); // Clamped to max
-      expect(seconds).toBe(180); // Also clamped
+      expect(ms).toBe(200000);
+      expect(seconds).toBe(200);
     });
   });
 });

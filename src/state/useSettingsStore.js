@@ -6,7 +6,6 @@ import {
   MIN_IMAGE_DISPLAY_MIN_MS,
   DEFAULT_IMAGE_HOLD_MS,
   IMAGE_HOLD_MIN_MS,
-  IMAGE_HOLD_MAX_MS,
   MAX_COMPOSITION_CHANGE_INTERVAL_MS,
   MIN_COMPOSITION_CHANGE_INTERVAL_MS,
 } from "../media/constants.js";
@@ -107,7 +106,7 @@ export const useSettingsStore = create(
           return;
         }
         const ms = numeric * 1000;
-        const clampedMs = Math.min(Math.max(ms, IMAGE_HOLD_MIN_MS), IMAGE_HOLD_MAX_MS);
+        const clampedMs = Math.max(ms, IMAGE_HOLD_MIN_MS);
         const clamped = Math.round(clampedMs / 1000);
         set({ imageHoldSeconds: clamped });
       },

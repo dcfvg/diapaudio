@@ -1,5 +1,4 @@
 import {
-  IMAGE_HOLD_MAX_MS,
   MAX_COMPOSITION_CHANGE_INTERVAL_MS,
   MAX_VISIBLE_IMAGES,
   MIN_COMPOSITION_CHANGE_INTERVAL_MS,
@@ -24,7 +23,7 @@ function toHoldMs(seconds) {
   if (numeric === 0) {
     return 0;
   }
-  return Number.isFinite(numeric) && numeric >= 0 ? Math.min(numeric * 1000, IMAGE_HOLD_MAX_MS) : 0;
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric * 1000 : 0;
 }
 
 export function resolveExportScheduleOptions(settings = {}) {

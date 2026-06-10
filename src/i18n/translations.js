@@ -112,7 +112,7 @@ export const translations = {
     timelineSettingsImageDisplay: "Time per photo",
     timelineSettingsImageDisplayHint: "Minimum: {{min}}s. Default: {{default}}s.",
     timelineSettingsImageHold: "Last photo",
-    timelineSettingsImageHoldHint: "Keep it visible {{min}}-{{max}}s after capture. Default: {{default}}s.",
+    timelineSettingsImageHoldHint: "Keep it visible at least {{min}}s after capture. Default: {{default}}s.",
     timelineSettingsCompositionInterval: "Composition change (s)",
     timelineSettingsCompositionIntervalHint: "Minimum seconds between layout updates",
     timelineSettingsDefault: "Default",
@@ -303,7 +303,7 @@ export const translations = {
     timelineSettingsImageDisplayHint: "Minimum : {{min}} s. Défaut : {{default}} s.",
     timelineSettingsImageHold: "Dernière photo",
     timelineSettingsImageHoldHint:
-      "Visible {{min}}-{{max}} s après sa prise. Défaut : {{default}} s.",
+      "Visible au moins {{min}} s après sa prise. Défaut : {{default}} s.",
     timelineSettingsCompositionInterval: "Changement de composition (s)",
     timelineSettingsCompositionIntervalHint:
       "Secondes minimales entre deux changements de disposition",
@@ -498,7 +498,7 @@ export const translations = {
     timelineSettingsImageDisplayHint: "Mínimo: {{min}}s. Predeterminado: {{default}}s.",
     timelineSettingsImageHold: "Última foto",
     timelineSettingsImageHoldHint:
-      "Visible {{min}}-{{max}}s tras la captura. Predeterminado: {{default}}s.",
+      "Visible al menos {{min}}s tras la captura. Predeterminado: {{default}}s.",
     timelineSettingsCompositionInterval: "Cambio de composición (s)",
     timelineSettingsCompositionIntervalHint: "Segundos mínimos entre cambios de diseño",
     timelineSettingsDefault: "Defecto",

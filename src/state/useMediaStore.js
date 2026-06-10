@@ -4,6 +4,7 @@ import ProgressManager from "../media/progress.js";
 import { getVisibleImagesAtTime } from "../media/images.js";
 import { useSettingsStore } from "./useSettingsStore.js";
 import { MAX_VISIBLE_IMAGES } from "../media/constants.js";
+import { buildMediaTimelineIndex } from "../media/timelineEvents.js";
 import createProgressSlice from "./slices/progressSlice.js";
 import createMediaSlice from "./slices/mediaSlice.js";
 import createDragDropSlice from "./slices/dragDropSlice.js";
@@ -89,6 +90,7 @@ const mediaStoreImpl = (set, get) => ({
       compositionIntervalMs,
       snapToGrid,
       snapGridMs,
+      audioCoverageRanges: buildMediaTimelineIndex(mediaData).audioRanges,
       returnDetails: options.returnDetails,
     });
 

@@ -150,6 +150,64 @@ describe('imageSchedule', () => {
       // Hold time affects when images transition
     });
 
+    it('caps hold extension at the end of associated audio coverage', () => {
+      const baseTime = Date.parse('2025-01-15T10:00:00Z');
+      const images = [
+        {
+          originalTimestamp: new Date(baseTime + 10_000),
+          file: { name: 'img1.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime + 100_000),
+          file: { name: 'img2.jpg' }
+        }
+      ];
+
+      const result = computeImageSchedule(images, {
+        minVisibleMs: 2_000,
+        holdMs: 60_000,
+        audioCoverageRanges: [{ startMs: baseTime, endMs: baseTime + 20_000 }],
+      });
+
+      expect(result.metadata[0].endMs).toBe(baseTime + 20_000);
+    });
+
+    it('does not apply hold when no audio covers the end of the minimum display window', () => {
+      const baseTime = Date.parse('2025-01-15T10:00:00Z');
+      const images = [
+        {
+          originalTimestamp: new Date(baseTime),
+          file: { name: 'img1.jpg' }
+        }
+      ];
+
+      const result = computeImageSchedule(images, {
+        minVisibleMs: 6_000,
+        holdMs: 60_000,
+        audioCoverageRanges: [],
+      });
+
+      expect(result.metadata[0].endMs).toBe(baseTime + 6_000);
+    });
+
+    it('preserves minimum display duration when audio ends before the display window', () => {
+      const baseTime = Date.parse('2025-01-15T10:00:00Z');
+      const images = [
+        {
+          originalTimestamp: new Date(baseTime),
+          file: { name: 'img1.jpg' }
+        }
+      ];
+
+      const result = computeImageSchedule(images, {
+        minVisibleMs: 6_000,
+        holdMs: 60_000,
+        audioCoverageRanges: [{ startMs: baseTime, endMs: baseTime + 4_000 }],
+      });
+
+      expect(result.metadata[0].endMs).toBe(baseTime + 6_000);
+    });
+
     it('respects maxSlots option for composition size', () => {
       const images = Array.from({ length: 6 }, (_, i) => ({
         originalTimestamp: new Date(`2025-01-15T10:00:${String(i * 10).padStart(2, '0')}Z`),
