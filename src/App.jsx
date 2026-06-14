@@ -21,6 +21,7 @@ import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts.js";
 import { SPEED_OPTIONS } from "./constants/playback.js";
 import {
   DEFAULT_IMAGE_HOLD_MS,
+  MAX_COMPOSITION_CHANGE_INTERVAL_MS,
   MAX_VISIBLE_IMAGES,
   MIN_IMAGE_DISPLAY_DEFAULT_MS,
 } from "./media/constants.js";
@@ -122,6 +123,9 @@ function AppShell() {
   const imageHoldSeconds = useSettingsStore((state) => state.imageHoldSeconds);
   const setImageHoldSeconds = useSettingsStore((state) => state.setImageHoldSeconds);
   const compositionIntervalSeconds = useSettingsStore((state) => state.compositionIntervalSeconds);
+  const setCompositionIntervalSeconds = useSettingsStore(
+    (state) => state.setCompositionIntervalSeconds
+  );
   const snapToGrid = useSettingsStore((state) => state.snapToGrid);
   const setSnapToGrid = useSettingsStore((state) => state.setSnapToGrid);
   const snapGridSeconds = useSettingsStore((state) => state.snapGridSeconds);
@@ -144,6 +148,10 @@ function AppShell() {
       : Number.isFinite(imageHoldSeconds) && imageHoldSeconds >= 0
         ? imageHoldSeconds
         : Math.round(DEFAULT_IMAGE_HOLD_MS / 1000);
+  const compositionIntervalValue =
+    Number.isFinite(compositionIntervalSeconds) && compositionIntervalSeconds > 0
+      ? compositionIntervalSeconds
+      : Math.round(MAX_COMPOSITION_CHANGE_INTERVAL_MS / 1000);
 
   // Wrap togglePlayback to pass mediaData
   const togglePlayback = useCallback(() => {
@@ -775,6 +783,16 @@ function AppShell() {
     [setImageHoldSeconds]
   );
 
+  const handleCompositionIntervalChange = useCallback(
+    (value) => {
+      if (value === "") {
+        return;
+      }
+      setCompositionIntervalSeconds(Number(value));
+    },
+    [setCompositionIntervalSeconds]
+  );
+
   const handleToggleSnapToGrid = useCallback(
     (enabled) => {
       setSnapToGrid(Boolean(enabled));
@@ -1298,6 +1316,8 @@ function AppShell() {
                 onImageDisplayChange={handleImageDisplayChange}
                 imageHoldSeconds={String(Math.round(imageHoldValue))}
                 onImageHoldChange={handleImageHoldChange}
+                compositionIntervalSeconds={String(Math.round(compositionIntervalValue))}
+                onCompositionIntervalChange={handleCompositionIntervalChange}
                 snapToGrid={snapToGrid}
                 onToggleSnapToGrid={handleToggleSnapToGrid}
                 snapGridSeconds={String(snapGridSeconds)}

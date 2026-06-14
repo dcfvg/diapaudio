@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef } from "react";
 import {
   DEFAULT_IMAGE_HOLD_MS,
   IMAGE_HOLD_MIN_MS,
+  MIN_COMPOSITION_CHANGE_INTERVAL_MS,
   MIN_IMAGE_DISPLAY_DEFAULT_MS,
   MIN_IMAGE_DISPLAY_MIN_MS,
 } from "../media/constants.js";
@@ -20,6 +21,8 @@ export default function TimelineSettingsPanel({
   onImageDisplayChange,
   imageHoldSeconds,
   onImageHoldChange,
+  compositionIntervalSeconds,
+  onCompositionIntervalChange,
   snapToGrid,
   onToggleSnapToGrid,
   snapGridSeconds,
@@ -43,6 +46,7 @@ export default function TimelineSettingsPanel({
   const delayHintId = "timeline-delay-hint";
   const imageDisplayHintId = "timeline-image-display-hint";
   const imageHoldHintId = "timeline-image-hold-hint";
+  const compositionIntervalHintId = "timeline-composition-interval-hint";
   const snapGridHintId = "timeline-grid-step-hint";
   const snapGridLabelId = "timeline-grid-step-label";
   const autoSkipHintId = "timeline-auto-skip-hint";
@@ -207,6 +211,30 @@ export default function TimelineSettingsPanel({
                 min: Math.round(IMAGE_HOLD_MIN_MS / 1000),
                 default: Math.round(DEFAULT_IMAGE_HOLD_MS / 1000),
               })}
+            </span>
+          </div>
+
+          <div className="timeline-settings__group">
+            <label
+              className="timeline-settings__label"
+              htmlFor="timeline-composition-interval-input"
+            >
+              {t("timelineSettingsCompositionInterval")}
+            </label>
+            <div className="timeline-settings__input-with-unit">
+              <input
+                id="timeline-composition-interval-input"
+                type="number"
+                min={String(Math.round(MIN_COMPOSITION_CHANGE_INTERVAL_MS / 1000))}
+                step="1"
+                value={compositionIntervalSeconds}
+                aria-describedby={compositionIntervalHintId}
+                onChange={(event) => onCompositionIntervalChange?.(event.target.value)}
+              />
+              <span className="timeline-settings__unit">s</span>
+            </div>
+            <span className="timeline-settings__hint" id={compositionIntervalHintId}>
+              {t("timelineSettingsCompositionIntervalHint")}
             </span>
           </div>
         </div>

@@ -27,7 +27,80 @@ function getImageStartMs(image) {
   return null;
 }
 
+function resolveImageEndMs({
+  start,
+  nextStart,
+  minVisibleMs,
+  holdMs,
+  audioCoverageRanges,
+  audioBoundHold,
+}) {
+  const displayEnd = start + minVisibleMs;
+  const holdExtension = Number.isFinite(holdMs) && holdMs >= 0 ? holdMs : 0;
 
+  if (Number.isFinite(nextStart)) {
+    if (nextStart < displayEnd) {
+      return displayEnd;
+    }
+
+    const maxEndWithHold = displayEnd + holdExtension;
+    return capHoldEndByAudio(
+      Math.min(maxEndWithHold, nextStart),
+      displayEnd,
+      audioCoverageRanges,
+      audioBoundHold
+    );
+  }
+
+  const extendedEnd = displayEnd + holdExtension;
+  return capHoldEndByAudio(
+    clamp(extendedEnd, displayEnd, extendedEnd),
+    displayEnd,
+    audioCoverageRanges,
+    audioBoundHold
+  );
+}
+
+function applyProgressiveStarts(sortedEntries, intervalMs) {
+  if (!Array.isArray(sortedEntries) || !sortedEntries.length) {
+    return [];
+  }
+
+  const canStagger = Number.isFinite(intervalMs) && intervalMs > 0 && intervalMs !== Infinity;
+  let clusterEndMs = null;
+  let lastScheduledStartMs = null;
+
+  return sortedEntries.map((entry) => {
+    const rawStartMs = entry.startMs;
+    const rawEndMs = entry.endMs;
+    const rawDurationMs =
+      Number.isFinite(rawStartMs) && Number.isFinite(rawEndMs)
+        ? Math.max(rawEndMs - rawStartMs, 0)
+        : 0;
+    const inCurrentCluster =
+      Number.isFinite(clusterEndMs) &&
+      Number.isFinite(rawStartMs) &&
+      rawStartMs <= clusterEndMs;
+
+    const scheduledStartMs =
+      canStagger && inCurrentCluster && Number.isFinite(lastScheduledStartMs)
+        ? Math.max(rawStartMs, lastScheduledStartMs + intervalMs)
+        : rawStartMs;
+    const scheduledEndHint = Number.isFinite(scheduledStartMs)
+      ? scheduledStartMs + rawDurationMs
+      : rawEndMs;
+
+    clusterEndMs = inCurrentCluster
+      ? Math.max(clusterEndMs, rawEndMs, scheduledEndHint)
+      : Math.max(rawEndMs, scheduledEndHint);
+    lastScheduledStartMs = scheduledStartMs;
+
+    return {
+      ...entry,
+      startMs: scheduledStartMs,
+    };
+  });
+}
 
 function cloneSegment(segment) {
   return {
@@ -232,47 +305,46 @@ export function computeImageSchedule(images = [], options = {}) {
   let minStartMs = Number.POSITIVE_INFINITY;
   let maxEndMs = Number.NEGATIVE_INFINITY;
 
-  for (let i = 0; i < sorted.length; i += 1) {
-    const current = sorted[i];
-    const start = current.startMs;
+  const rawScheduled = sorted.map((entry, i) => {
     const next = sorted[i + 1];
-    const hasNextImage = next && Number.isFinite(next.startMs);
+    const nextStart = next && Number.isFinite(next.startMs) ? next.startMs : null;
+    const end = resolveImageEndMs({
+      start: entry.startMs,
+      nextStart,
+      minVisibleMs: minVisibleClamped,
+      holdMs,
+      audioCoverageRanges,
+      audioBoundHold,
+    });
 
-    // minVisibleClamped: user's "Image Display" setting - minimum duration for ALL images
-    // holdMs: user's "Image Hold" setting - additional extension when there's space
-    const displayEnd = start + minVisibleClamped;
-    
-    let end;
-    if (hasNextImage) {
-      const nextImageStart = next.startMs;
-      
-      // If next image arrives BEFORE displayEnd, extend to displayEnd (create overlap/composition)
-      // If next image arrives AFTER displayEnd, extend by hold up to next image start (no overlap)
-      if (nextImageStart < displayEnd) {
-        // Next image arrives early: respect minVisibleMs and create composition overlap
-        end = displayEnd;
-      } else {
-        // Next image arrives after displayEnd: extend with hold, but cap at next image start
-        const holdExtension = Number.isFinite(holdMs) && holdMs >= 0 ? holdMs : 0;
-        const maxEndWithHold = displayEnd + holdExtension;
-        end = capHoldEndByAudio(
-          Math.min(maxEndWithHold, nextImageStart),
-          displayEnd,
+    return {
+      ...entry,
+      endMs: end,
+    };
+  });
+
+  const scheduled = applyProgressiveStarts(rawScheduled, intervalClamped)
+    .map((entry, i, entries) => {
+      const next = entries[i + 1];
+      const nextStart = next && Number.isFinite(next.startMs) ? next.startMs : null;
+      return {
+        ...entry,
+        endMs: resolveImageEndMs({
+          start: entry.startMs,
+          nextStart,
+          minVisibleMs: minVisibleClamped,
+          holdMs,
           audioCoverageRanges,
-          audioBoundHold
-        );
-      }
-    } else {
-      // No next image: extend by full Image Hold duration beyond Image Display
-      const holdExtension = Number.isFinite(holdMs) && holdMs >= 0 ? holdMs : 0;
-      const extendedEnd = displayEnd + holdExtension;
-      end = capHoldEndByAudio(
-        clamp(extendedEnd, displayEnd, extendedEnd),
-        displayEnd,
-        audioCoverageRanges,
-        audioBoundHold
-      );
-    }
+          audioBoundHold,
+        }),
+      };
+    })
+    .filter((entry) => Number.isFinite(entry.startMs) && Number.isFinite(entry.endMs));
+
+  for (let i = 0; i < scheduled.length; i += 1) {
+    const current = scheduled[i];
+    const start = current.startMs;
+    const end = current.endMs;
 
     metadata[current.index] = {
       visible: true,
@@ -342,10 +414,23 @@ export function computeImageSchedule(images = [], options = {}) {
 
     const currentActive = Array.from(activeIndices);
     const concurrency = Math.max(currentActive.length, 0);
+    const highestAssignedSlot = slotAssignments.reduce(
+      (highest, value, slotIndex) => (value == null ? highest : Math.max(highest, slotIndex)),
+      -1
+    );
+    const inheritedLayoutMagnitude = currentActive.reduce(
+      (max, idx) => Math.max(max, metadata[idx]?.maxConcurrency || 1),
+      1
+    );
+    const layoutMagnitude = Math.max(
+      concurrency || 1,
+      highestAssignedSlot + 1,
+      inheritedLayoutMagnitude
+    );
     currentActive.forEach((idx) => {
       const itemMeta = metadata[idx];
       if (itemMeta) {
-        itemMeta.maxConcurrency = Math.max(itemMeta.maxConcurrency || 1, concurrency || 1);
+        itemMeta.maxConcurrency = Math.max(itemMeta.maxConcurrency || 1, layoutMagnitude);
       }
     });
   });
@@ -365,12 +450,23 @@ export function computeImageSchedule(images = [], options = {}) {
     if (!activeIndicesArray.length) {
       return;
     }
+    const highestOccupiedSlot = slotState.reduce((highest, metaIndex, slotIndex) => {
+      if (Number.isInteger(metaIndex) && metadata[metaIndex]?.visible) {
+        return Math.max(highest, slotIndex);
+      }
+      return highest;
+    }, -1);
     const layoutSize = Math.max(
       1,
       Math.min(
         maxSlots,
         activeIndicesArray.reduce(
-          (max, idx) => Math.max(max, metadata[idx]?.maxConcurrency || 1),
+          (max, idx) =>
+            Math.max(
+              max,
+              metadata[idx]?.maxConcurrency || 1,
+              highestOccupiedSlot + 1
+            ),
           1
         )
       )

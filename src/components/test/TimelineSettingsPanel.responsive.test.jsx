@@ -17,6 +17,8 @@ function makeProps(overrides = {}) {
     onImageDisplayChange: vi.fn(),
     imageHoldSeconds: "45",
     onImageHoldChange: vi.fn(),
+    compositionIntervalSeconds: "2",
+    onCompositionIntervalChange: vi.fn(),
     snapToGrid: true,
     onToggleSnapToGrid: vi.fn(),
     snapGridSeconds: 1,
@@ -141,10 +143,27 @@ describe("TimelineSettingsPanel", () => {
       "aria-describedby",
       "timeline-image-hold-hint"
     );
+    expect(screen.getByLabelText("timelineSettingsCompositionInterval")).toHaveAttribute(
+      "aria-describedby",
+      "timeline-composition-interval-hint"
+    );
     expect(screen.getByLabelText("tooltipAutoSkipCheckbox")).toHaveAttribute(
       "aria-describedby",
       "timeline-auto-skip-hint"
     );
+  });
+
+  it("reports composition interval changes", () => {
+    const onCompositionIntervalChange = vi.fn();
+    renderWithProviders(
+      <TimelineSettingsPanel {...makeProps({ onCompositionIntervalChange })} />
+    );
+
+    fireEvent.change(screen.getByLabelText("timelineSettingsCompositionInterval"), {
+      target: { value: "5" },
+    });
+
+    expect(onCompositionIntervalChange).toHaveBeenCalledWith("5");
   });
 
   it("does not cap the last-photo input", () => {

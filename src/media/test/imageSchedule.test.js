@@ -404,5 +404,228 @@ describe('imageSchedule', () => {
       ));
       expect(maxConcurrency).toBeGreaterThan(1);
     });
+
+    it('reveals simultaneous images progressively and keeps their slots stable', () => {
+      const baseTime = new Date('2025-10-08T10:00:00Z').getTime();
+      const images = [
+        {
+          originalTimestamp: new Date(baseTime),
+          file: { name: 'img1.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime),
+          file: { name: 'img2.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime),
+          file: { name: 'img3.jpg' }
+        }
+      ];
+
+      const result = computeImageSchedule(images, {
+        minVisibleMs: 6000,
+        holdMs: 0,
+        compositionIntervalMs: 2000,
+      });
+
+      expect(result.metadata.map((meta) => meta.startMs - baseTime)).toEqual([0, 2000, 4000]);
+      expect(result.metadata.map((meta) => meta.slotIndex)).toEqual([0, 1, 2]);
+      expect(result.segments.map((segment) => segment.slots)).toEqual([
+        [0, null, null],
+        [0, 1, null],
+        [0, 1, 2],
+        [null, 1, 2],
+        [null, null, 2],
+      ]);
+    });
+
+    it('decomposes images collapsed by snap-to-grid instead of showing them all at once', () => {
+      const baseTime = new Date('2025-10-08T10:00:00Z').getTime();
+      const images = [
+        {
+          originalTimestamp: new Date(baseTime + 100),
+          file: { name: 'img1.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime + 600),
+          file: { name: 'img2.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime + 900),
+          file: { name: 'img3.jpg' }
+        }
+      ];
+
+      const result = computeImageSchedule(images, {
+        minVisibleMs: 4000,
+        holdMs: 0,
+        compositionIntervalMs: 1000,
+        snapToGrid: true,
+        snapGridMs: 1000,
+      });
+
+      expect(result.metadata.map((meta) => meta.startMs - baseTime)).toEqual([0, 1000, 2000]);
+      expect(result.segments[0].slots).toEqual([0, null, null]);
+      expect(result.segments[1].slots).toEqual([0, 1, null]);
+      expect(result.segments[2].slots).toEqual([0, 1, 2]);
+    });
+
+    it('keeps delaying a dense cluster after an earlier image was delayed', () => {
+      const baseTime = new Date('2025-10-08T10:00:00Z').getTime();
+      const images = [
+        {
+          originalTimestamp: new Date(baseTime),
+          file: { name: 'img1.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime + 5000),
+          file: { name: 'img2.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime + 12000),
+          file: { name: 'img3.jpg' }
+        }
+      ];
+
+      const result = computeImageSchedule(images, {
+        minVisibleMs: 6000,
+        holdMs: 0,
+        compositionIntervalMs: 10000,
+      });
+
+      expect(result.metadata.map((meta) => meta.startMs - baseTime)).toEqual([
+        0,
+        10000,
+        20000,
+      ]);
+    });
+
+    it('does not compact holes while a higher-slot image remains visible', () => {
+      const baseTime = new Date('2025-10-08T10:00:00Z').getTime();
+      const images = [
+        {
+          originalTimestamp: new Date(baseTime),
+          file: { name: 'img1.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime),
+          file: { name: 'img2.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime),
+          file: { name: 'img3.jpg' }
+        }
+      ];
+
+      const result = computeImageSchedule(images, {
+        minVisibleMs: 4000,
+        holdMs: 0,
+        compositionIntervalMs: 1000,
+      });
+
+      expect(result.segments).toContainEqual(
+        expect.objectContaining({
+          layoutSize: 3,
+          slots: [null, 1, 2],
+        })
+      );
+      expect(result.segments).toContainEqual(
+        expect.objectContaining({
+          layoutSize: 3,
+          slots: [null, null, 2],
+        })
+      );
+      expect(result.segments).not.toContainEqual(
+        expect.objectContaining({
+          slots: [1, 2],
+        })
+      );
+    });
+
+    it('keeps a newly placed image in the inherited wide layout until it disappears', () => {
+      const baseTime = new Date('2025-10-08T10:00:00Z').getTime();
+      const images = [
+        {
+          originalTimestamp: new Date(baseTime),
+          file: { name: 'img1.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime),
+          file: { name: 'img2.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime),
+          file: { name: 'img3.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime + 5000),
+          file: { name: 'img4.jpg' }
+        }
+      ];
+
+      const result = computeImageSchedule(images, {
+        minVisibleMs: 4000,
+        holdMs: 0,
+        compositionIntervalMs: 1000,
+      });
+
+      const fourthImageSegments = result.segments.filter((segment) => segment.slots.includes(3));
+      expect(result.metadata[3].slotIndex).toBe(0);
+      expect(fourthImageSegments.length).toBeGreaterThan(1);
+      expect(fourthImageSegments.every((segment) => segment.layoutSize === 3)).toBe(true);
+      expect(fourthImageSegments.every((segment) => segment.slots[0] === 3)).toBe(true);
+    });
+
+    it('propagates an inherited wide layout to later overlapping images', () => {
+      const baseTime = new Date('2025-10-08T10:00:00Z').getTime();
+      const images = [
+        { originalTimestamp: new Date(baseTime), file: { name: 'img1.jpg' } },
+        { originalTimestamp: new Date(baseTime), file: { name: 'img2.jpg' } },
+        { originalTimestamp: new Date(baseTime), file: { name: 'img3.jpg' } },
+        { originalTimestamp: new Date(baseTime), file: { name: 'img4.jpg' } },
+        { originalTimestamp: new Date(baseTime + 6000), file: { name: 'bridge.jpg' } },
+        { originalTimestamp: new Date(baseTime + 10000), file: { name: 'later-a.jpg' } },
+        { originalTimestamp: new Date(baseTime + 11000), file: { name: 'later-b.jpg' } },
+      ];
+
+      const result = computeImageSchedule(images, {
+        minVisibleMs: 6000,
+        holdMs: 0,
+        compositionIntervalMs: 1000,
+      });
+
+      const laterImageSegments = result.segments.filter(
+        (segment) => segment.slots.includes(5) || segment.slots.includes(6)
+      );
+
+      expect(result.metadata[5].maxConcurrency).toBe(4);
+      expect(result.metadata[6].maxConcurrency).toBe(4);
+      expect(laterImageSegments.length).toBeGreaterThan(1);
+      expect(laterImageSegments.every((segment) => segment.layoutSize === 4)).toBe(true);
+    });
+
+    it('does not let composition interval bridge image-less gaps after hold ends', () => {
+      const baseTime = new Date('2025-10-08T10:00:00Z').getTime();
+      const images = [
+        {
+          originalTimestamp: new Date(baseTime + 12000),
+          file: { name: 'img1.jpg' }
+        },
+        {
+          originalTimestamp: new Date(baseTime + 80000),
+          file: { name: 'img2.jpg' }
+        }
+      ];
+
+      const result = computeImageSchedule(images, {
+        minVisibleMs: 2000,
+        holdMs: 18000,
+        compositionIntervalMs: 120000,
+        maxSlots: 1,
+      });
+
+      expect(result.metadata.map((meta) => meta.startMs - baseTime)).toEqual([12000, 80000]);
+      expect(result.segments.map((segment) => segment.slots)).toEqual([[0], [1]]);
+    });
   });
 });

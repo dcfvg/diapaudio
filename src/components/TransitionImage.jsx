@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, useCallback } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { IMAGE_TRANSITION_FADE_MS } from "../constants/ui.js";
 
 const DEFAULT_FADE_MS = IMAGE_TRANSITION_FADE_MS;
@@ -14,22 +14,14 @@ const TransitionImage = memo(function TransitionImage({
   loading = "lazy",
   hideDelayMs = DEFAULT_FADE_MS,
   fadingClassName = "slideshow__image--fading",
+  layoutKey = null,
 }) {
   const removalTimersRef = useRef(new Map());
   const sequenceRef = useRef(0);
+  const layoutKeyRef = useRef(layoutKey);
   const fadeDuration = Math.max(0, Number.isFinite(hideDelayMs) ? hideDelayMs : DEFAULT_FADE_MS);
 
   const [layers, setLayers] = useState(() => []);
-
-  // Add initial layer on mount if image is present
-  useEffect(() => {
-    if (image) {
-      const id = `layer-${slotIndex}-0`;
-      setLayers([{ id, key: imageKey ?? null, image, phase: "visible" }]);
-      sequenceRef.current = 1;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const cancelRemovalTimer = useCallback((id) => {
     const timer = removalTimersRef.current.get(id);
@@ -56,10 +48,21 @@ const TransitionImage = memo(function TransitionImage({
     removalTimersRef.current.clear();
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const nextKey = image ? imageKey ?? null : null;
+    const layoutChanged = layoutKeyRef.current !== layoutKey;
+    layoutKeyRef.current = layoutKey;
 
     setLayers((prevLayers) => {
+      if (layoutChanged) {
+        prevLayers.forEach((layer) => cancelRemovalTimer(layer.id));
+        if (!image) {
+          return [];
+        }
+        const id = `layer-${slotIndex}-${sequenceRef.current++}`;
+        return [{ id, key: nextKey, image, phase: "enter" }];
+      }
+
       const markForExit = (layer) => {
         if (fadeDuration <= 0) {
           cancelRemovalTimer(layer.id);
@@ -103,7 +106,7 @@ const TransitionImage = memo(function TransitionImage({
       const newLayer = { id, key: nextKey, image, phase: "enter" };
       return [...exitingLayers, newLayer];
     });
-  }, [image, imageKey, fadeDuration, slotIndex, scheduleRemoval, cancelRemovalTimer]);
+  }, [image, imageKey, fadeDuration, slotIndex, layoutKey, scheduleRemoval, cancelRemovalTimer]);
 
   useEffect(() => {
     if (!layers.some((layer) => layer.phase === "enter")) {
@@ -169,6 +172,7 @@ const TransitionImage = memo(function TransitionImage({
       prevProps.loading === nextProps.loading &&
       prevProps.hideDelayMs === nextProps.hideDelayMs &&
       prevProps.fadingClassName === nextProps.fadingClassName &&
+      prevProps.layoutKey === nextProps.layoutKey &&
       prevProps.slotIndex === nextProps.slotIndex
     ) {
       return true;

@@ -24,4 +24,26 @@ describe('TransitionImage', () => {
       expect(images[0]).toHaveAttribute('alt', secondImage.name);
     });
   });
+
+  it('does not carry stale image layers across layout changes', async () => {
+    const firstImage = { name: '2026-06-03 10.22.15.jpg', url: 'blob:first' };
+    const secondImage = { name: '2026-06-03 10.22.31.jpg', url: 'blob:second' };
+
+    const { container, rerender } = render(
+      <TransitionImage image={firstImage} imageKey="first" layoutKey="split-1" />
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('img')).toHaveAttribute('src', firstImage.url);
+    });
+
+    rerender(<TransitionImage image={secondImage} imageKey="second" layoutKey="split-2" />);
+
+    await waitFor(() => {
+      const images = Array.from(container.querySelectorAll('img'));
+      expect(images).toHaveLength(1);
+      expect(images[0]).toHaveAttribute('src', secondImage.url);
+      expect(images[0]).toHaveAttribute('alt', secondImage.name);
+    });
+  });
 });

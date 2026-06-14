@@ -12,6 +12,7 @@ import {
   PREMIERE_VIDEO_WIDTH,
   resolveSlotFrame,
 } from "../premiereExport.js";
+import { createScheduleIndex } from "../scheduleIndex.js";
 
 const originalCreateObjectURL = URL.createObjectURL;
 const originalRevokeObjectURL = URL.revokeObjectURL;
@@ -278,6 +279,44 @@ describe("premiereExport", () => {
         previousFrame = frame;
       }
     }
+  });
+
+  it("exports the same stable slot and layout while an image remains visible", () => {
+    const baseMs = Date.parse("2025-10-08T12:00:00Z");
+    const images = [
+      { name: "a.jpg", originalTimestamp: new Date(baseMs) },
+      { name: "b.jpg", originalTimestamp: new Date(baseMs) },
+      { name: "c.jpg", originalTimestamp: new Date(baseMs) },
+      { name: "d.jpg", originalTimestamp: new Date(baseMs + 5_000) },
+    ];
+    const scheduleIndex = createScheduleIndex(images, {
+      minVisibleMs: 4_000,
+      holdMs: 0,
+      compositionIntervalMs: 1_000,
+      maxSlots: 6,
+    });
+    const imageAssets = images.map((image, index) => ({
+      id: `file-image-${index}`,
+      name: image.name,
+      packagePath: `media/images/${image.name}`,
+      width: 1600,
+      height: 900,
+      durationFrames: 24 * 60 * PREMIERE_FRAME_RATE,
+    }));
+
+    const result = buildPremiereXml({
+      scheduleIndex,
+      imageAssets,
+      audioTracks: [],
+      audioAssets: [],
+    });
+
+    const fourthImageClips = result.imageClips.filter((clip) => clip.asset.name === "d.jpg");
+    expect(fourthImageClips.length).toBeGreaterThan(1);
+    expect(fourthImageClips.every((clip) => clip.trackIndex === 0)).toBe(true);
+    expect(fourthImageClips.every((clip) => clip.layoutSize === 3)).toBe(true);
+    expect(new Set(fourthImageClips.map((clip) => clip.motion.scale)).size).toBe(1);
+    expect(new Set(fourthImageClips.map((clip) => clip.motion.centerH)).size).toBe(1);
   });
 
   it("downloads a Premiere package containing XML, README and packaged media", async () => {

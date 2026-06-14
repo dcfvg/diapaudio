@@ -1,4 +1,4 @@
-import { forwardRef, memo, useMemo, useRef } from "react";
+import { forwardRef, memo, useMemo } from "react";
 import { MAX_VISIBLE_IMAGES } from "../media/constants.js";
 import { IMAGE_TRANSITION_FADE_MS } from "../constants/ui.js";
 import TransitionImage from "./TransitionImage.jsx";
@@ -28,7 +28,6 @@ const CompositionView = forwardRef(function CompositionView(
   const effectiveLayout = Math.max(1, layoutSize || 1);
   const splitClass = `split-${Math.min(effectiveLayout, MAX_VISIBLE_IMAGES)}`;
   const containerClasses = [className, splitClass].filter(Boolean).join(" ").trim();
-  const lastSlotIdentitiesRef = useRef([]);
 
   const slotEntries = useMemo(() => {
     const length = fillPlaceholders ? effectiveLayout : Math.max(slots.length || 0, 0);
@@ -39,13 +38,8 @@ const CompositionView = forwardRef(function CompositionView(
     return Array.from({ length }, (_, index) => {
       const slot = slots[index] || null;
       const image = slot?.image || null;
-      const identity =
-        image?.url ||
-        (typeof image?.id === "string" ? image.id : null) ||
-        (image?.name ? `name:${image.name}` : null);
       return {
         image,
-        identity,
         slotIndex: index,
       };
     });
@@ -53,61 +47,7 @@ const CompositionView = forwardRef(function CompositionView(
 
   const hasImages = useMemo(() => slotEntries.some((entry) => entry.image), [slotEntries]);
 
-  if (!hasImages) {
-    lastSlotIdentitiesRef.current = [];
-  }
-
-  const orderedEntries = useMemo(() => {
-    if (!slotEntries.length) {
-      lastSlotIdentitiesRef.current = [];
-      return [];
-    }
-
-    const previousIdentities = lastSlotIdentitiesRef.current || [];
-    const ordered = new Array(slotEntries.length).fill(null);
-    const usedIndices = new Set();
-
-    for (let index = 0; index < Math.min(previousIdentities.length, ordered.length); index += 1) {
-      const prevIdentity = previousIdentities[index];
-      if (!prevIdentity) {
-        continue;
-      }
-      const matchIndex = slotEntries.findIndex((entry, entryIndex) => {
-        if (usedIndices.has(entryIndex)) {
-          return false;
-        }
-        return entry.identity && entry.identity === prevIdentity;
-      });
-      if (matchIndex !== -1) {
-        ordered[index] = slotEntries[matchIndex];
-        usedIndices.add(matchIndex);
-      }
-    }
-
-    for (let entryIndex = 0; entryIndex < slotEntries.length; entryIndex += 1) {
-      if (usedIndices.has(entryIndex)) {
-        continue;
-      }
-      const targetIndex = ordered.findIndex((entry) => entry == null);
-      if (targetIndex === -1) {
-        break;
-      }
-      ordered[targetIndex] = slotEntries[entryIndex];
-      usedIndices.add(entryIndex);
-    }
-
-    for (let index = 0; index < ordered.length; index += 1) {
-      if (!ordered[index]) {
-        ordered[index] = { image: null, identity: null, slotIndex: slotEntries[index]?.slotIndex ?? index };
-      }
-    }
-
-    lastSlotIdentitiesRef.current = ordered.map((entry) => entry.identity || null);
-    return ordered;
-  }, [slotEntries]);
-
   if (!hasImages && emptyFallback) {
-    lastSlotIdentitiesRef.current = [];
     return (
       <div className={containerClasses} ref={ref} data-empty-key={emptyFallbackKey} {...rest}>
         {emptyFallback}
@@ -117,7 +57,7 @@ const CompositionView = forwardRef(function CompositionView(
 
   return (
     <div className={containerClasses} ref={ref} {...rest}>
-      {orderedEntries.map((entry, index) => {
+      {slotEntries.map((entry, index) => {
         const image = entry.image || null;
         const resolvedSlotIndex = entry.slotIndex ?? index;
         const imageKey = image ? getImageKey(image, resolvedSlotIndex) : null;
@@ -134,6 +74,7 @@ const CompositionView = forwardRef(function CompositionView(
               image={image}
               imageKey={imageKey}
               slotIndex={resolvedSlotIndex}
+              layoutKey={effectiveLayout}
               imageClassName={imageClassName}
               visibleClassName={visibleClassName}
               placeholderClassName={placeholderClassName}
